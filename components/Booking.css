@@ -1,0 +1,141 @@
+/* Вікно бронювання суми. Відкривається з калькулятора поверх сторінки. */
+
+.veil {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(15, 15, 16, 0.55);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  display: grid; place-items: end center; padding: clamp(0.5rem, 3vw, 2.5rem);
+  animation: veil-in 0.18s ease-out;
+}
+@media (min-width: 760px) { .veil { place-items: center; } }
+@keyframes veil-in { from { opacity: 0 } to { opacity: 1 } }
+
+.modal {
+  background: var(--surface); color: var(--ink);
+  width: min(880px, 100%); max-height: 92vh; overflow: auto;
+  border-radius: 22px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+.modal__head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1rem; padding: 1.3rem 1.5rem 0;
+}
+.modal__head h2 { font-size: var(--s2); }
+.modal__head p { margin: 0.35rem 0 0; font-size: 0.8rem; color: var(--dim); }
+.x {
+  border: 0; background: transparent; font-size: 1.3rem; line-height: 1;
+  color: var(--dim); cursor: pointer; padding: 0.2rem 0.4rem;
+}
+.x:hover { color: var(--ink); }
+.modal__body { padding: 1.2rem 1.5rem 1.5rem; }
+
+.amount {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  background: var(--gold-soft); border: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+  border-radius: 14px; padding: 0.9rem 1.1rem; margin-bottom: 1.2rem;
+}
+.amount b {
+  display: block; font-family: var(--mono); font-size: 1.6rem;
+  font-weight: 600; color: var(--gold); line-height: 1.1;
+}
+.amount span { font-size: 0.72rem; color: var(--dim); display: block; }
+.amount__note { font-size: 0.72rem; color: var(--dim); }
+
+.g2 { display: grid; gap: 0.9rem; }
+@media (min-width: 640px) { .g2 { grid-template-columns: 1fr 1fr; } }
+.modal p { margin: 0 0 0.9rem; }
+.modal label {
+  display: block; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dim); font-weight: 600; margin: 0 0 0.35rem;
+}
+.modal input[type='text'], .modal input[type='tel'] {
+  width: 100%; font: inherit; font-size: 0.92rem; padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink);
+}
+.modal input:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+.pickhead {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; flex-wrap: wrap; margin: 1.2rem 0 0.6rem;
+}
+.pickhead .lbl { margin: 0; }
+.pickhead__act { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+.tabs { display: flex; gap: 0.2rem; background: var(--gray-bg); padding: 0.2rem; border-radius: 999px; }
+.tabs button {
+  font: inherit; font-size: 0.74rem; font-weight: 600; border: 0; background: transparent;
+  color: var(--dim); padding: 0.34rem 0.8rem; border-radius: 999px; cursor: pointer;
+}
+.tabs button[aria-pressed='true'] {
+  background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.near {
+  font: inherit; font-size: 0.74rem; font-weight: 600; color: var(--brand);
+  background: transparent; border: 1px solid var(--brand); border-radius: 999px;
+  padding: 0.34rem 0.8rem; cursor: pointer;
+}
+.near:hover { background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.near:disabled { opacity: 0.6; cursor: default; }
+
+.search {
+  width: 100%; font: inherit; font-size: 0.86rem; padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line); border-radius: 12px; margin-bottom: 0.5rem;
+  background: var(--surface); color: var(--ink);
+}
+.blist { max-height: 232px; overflow: auto; display: grid; gap: 0.35rem; padding-right: 0.2rem; }
+.bitem {
+  display: flex; justify-content: space-between; gap: 0.8rem; align-items: center; text-align: left;
+  border: 1px solid var(--line); border-radius: 12px; padding: 0.6rem 0.8rem;
+  background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; transition: 0.14s;
+}
+.bitem:hover { border-color: var(--gold); }
+.bitem[aria-pressed='true'] { border-color: var(--gold); background: var(--gold-soft); }
+.bitem b { display: block; font-size: 0.84rem; font-weight: 600; }
+.bitem span span { font-size: 0.7rem; color: var(--dim); }
+.bitem i { font-style: normal; font-family: var(--mono); font-size: 0.7rem; color: var(--dim); white-space: nowrap; }
+.empty { font-size: 0.76rem; color: var(--dim); padding: 0.6rem 0.2rem; }
+
+.bmap {
+  aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden;
+  border: 1px solid var(--line); background: #e8e4dd; z-index: 0;
+}
+
+.chosen {
+  margin-top: 0.8rem; font-size: 0.8rem; border: 1px solid var(--line);
+  border-radius: 12px; padding: 0.7rem 0.9rem; background: var(--gray-bg);
+}
+.chosen b { font-weight: 600; }
+.chosen span { color: var(--dim); font-size: 0.74rem; display: block; margin-top: 0.15rem; }
+
+.modal .agree {
+  display: flex; gap: 0.6rem; align-items: flex-start; margin: 1.2rem 0 0;
+  font-size: 0.76rem; color: var(--dim);
+  text-transform: none; letter-spacing: normal; font-weight: 400;
+}
+.modal .agree input { margin-top: 0.25rem; accent-color: var(--gold); }
+.modal .send { margin-top: 1.2rem; width: 100%; font-size: 0.95rem; }
+.modal .fine { font-size: 0.68rem; color: var(--dim); margin: 0.6rem 0 0; line-height: 1.5; }
+
+/* готово */
+.done { text-align: center; padding: 2rem 1.5rem 2.4rem; }
+.done .tick {
+  width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  margin: 0 auto 1rem; background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--ok); font-size: 1.5rem;
+}
+.done h2 { font-size: var(--s2); }
+.done > p { color: var(--dim); font-size: 0.86rem; max-width: 46ch; margin: 0.7rem auto 0; }
+.done b { color: var(--ink); }
+.done .pill { margin-top: 1.4rem; }
+.where {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  text-align: left; max-width: 420px; margin: 1.4rem auto 0;
+  border: 1px solid var(--line); border-radius: 14px; padding: 0.9rem 1.1rem; background: var(--gray-bg);
+}
+.where__lbl {
+  display: block; font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--dim); font-weight: 600;
+}
+.where b { display: block; font-size: 0.95rem; font-weight: 600; margin-top: 0.15rem; }
+.where > div > span:last-child { font-size: 0.74rem; color: var(--dim); }
+.route { font-size: 0.78rem; font-weight: 600; color: var(--brand); text-decoration: none; white-space: nowrap; }
+.route:hover { text-decoration: underline; }
+.done .fine { max-width: 46ch; margin: 0.6rem auto 0; }

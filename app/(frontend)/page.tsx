@@ -6,6 +6,7 @@ import Branches from '@/components/Branches'
 import Social from '@/components/Social'
 import '@/components/Calculator.css'
 import '@/components/Branches.css'
+import '@/components/Booking.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -126,6 +127,7 @@ export default async function Home() {
             minDays={minDays}
             maxDays={maxDays}
             guaranteeText={s.guaranteeOn ? String(s.guaranteeText || '') : null}
+            branches={branches}
             bonusWeightLimit={Number(s.bonusWeightLimit ?? 0)}
             bonusWeightPurity={Number(s.bonusWeightPurity ?? 585)}
           />

@@ -30,6 +30,7 @@ export type LoyaltyTier = {
 }
 
 export type Branch = {
+  id: string
   address: string
   displayAddress?: string | null
   formerName?: string | null
@@ -94,6 +95,7 @@ export async function getSiteData(): Promise<SiteData> {
         const s = (d.schedule || {}) as Record<string, unknown>
         const c = (d.coords || {}) as Record<string, unknown>
         return {
+          id: String(d.id),
           address: String(d.address),
           displayAddress: (d.displayAddress as string) ?? null,
           formerName: (d.formerName as string) ?? null,

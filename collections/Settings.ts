@@ -55,6 +55,9 @@ export const Settings: GlobalConfig = {
             { name: 'viber', type: 'text', label: 'Viber', validate: link },
             { name: 'instagram', type: 'text', label: 'Instagram', validate: link },
             { name: 'facebook', type: 'text', label: 'Facebook', validate: link },
+            { name: 'telegramChatDefault', type: 'text', label: 'Загальний Telegram-чат',
+              admin: { description: 'Сюди йдуть заявки, якщо у відділення чат не заданий. '
+                + 'Токен бота зберігається в налаштуваннях хостингу, не тут' } },
             { name: 'license', type: 'text', label: 'Ліцензія НБУ', localized: true },
             { name: 'legalEntity', type: 'text', label: 'Юридична особа, ЄДРПОУ', localized: true },
           ],

@@ -14,6 +14,7 @@ import { LoyaltyTiers } from './collections/LoyaltyTiers.ts'
 import { Cities } from './collections/Cities.ts'
 import { Branches } from './collections/Branches.ts'
 import { WatchRequests } from './collections/WatchRequests.ts'
+import { Bookings } from './collections/Bookings.ts'
 import { Media } from './collections/Media.ts'
 import { Users } from './collections/Users.ts'
 import { Settings } from './collections/Settings.ts'
@@ -53,7 +54,7 @@ export default buildConfig({
     user: Users.slug,
     meta: { titleSuffix: ' · Імперіал' },
   },
-  collections: [Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, WatchRequests, Media, Users],
+  collections: [Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, WatchRequests, Media, Users],
   globals: [Settings],
   // Українська — основна мова (розділ 18 ТЗ)
   localization: {

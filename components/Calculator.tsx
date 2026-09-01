@@ -1,6 +1,7 @@
 'use client'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import type { LoyaltyTier, RateTier, Tariff } from '@/lib/data'
+import type { Branch, LoyaltyTier, RateTier, Tariff } from '@/lib/data'
+import Booking from './Booking'
 
 type Props = {
   tariffs: Tariff[]
@@ -9,6 +10,7 @@ type Props = {
   minDays: number
   maxDays: number
   guaranteeText?: string | null
+  branches?: Branch[]
   /** Надбавка статусу діє до цієї ваги; 0 або відсутнє — без обмеження. */
   bonusWeightLimit?: number
   /** Проба, для якої задано межу: для інших вона перераховується. */
@@ -78,7 +80,7 @@ function useCountUp(target: number) {
 }
 
 export default function Calculator({
-  tariffs, rateTiers, loyaltyTiers, minDays, maxDays, guaranteeText,
+  tariffs, rateTiers, loyaltyTiers, minDays, maxDays, guaranteeText, branches = [],
   bonusWeightLimit = 0, bonusWeightPurity = 585,
 }: Props) {
   const gold = useMemo(() => tariffs.filter((t) => t.metal === 'gold'), [tariffs])
@@ -288,7 +290,16 @@ export default function Calculator({
 
             {guaranteeText && <p className="res__guar">◆&nbsp;<span>{guaranteeText}</span></p>}
 
-            <button className="pill res__cta" type="button">Забронювати суму на 24 години</button>
+            <Booking
+              branches={branches}
+              calc={{
+                amount: total,
+                purity: `${tariff.purityLabel}°`,
+                weight,
+                days,
+                tier: tier?.name ?? '',
+              }}
+            />
             <p className="fine">Телефон знадобиться лише для броні. Розрахунок — без реєстрації.</p>
           </div>
 
