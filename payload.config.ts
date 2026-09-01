@@ -7,7 +7,6 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { uk } from '@payloadcms/translations/languages/uk'
 import { ru } from '@payloadcms/translations/languages/ru'
 
-import { resolveDatabaseUrl } from './lib/db'
 import { Tariffs } from './collections/Tariffs'
 import { RateTiers } from './collections/RateTiers'
 import { LoyaltyTiers } from './collections/LoyaltyTiers'
@@ -19,7 +18,32 @@ import { Settings } from './collections/Settings'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// На Netlify база підключається сама, локально — файл SQLite (див. lib/db.ts)
+/**
+ * Вибір бази за середовищем:
+ *   заданий DATABASE_URL → він (свій сервер, Supabase тощо)
+ *   платформа віддає підключення → воно
+ *   інакше → локальний файл SQLite, без жодних установок
+ *
+ * Логіка навмисно тут, а не в окремому модулі: конфіг вантажиться і збірником,
+ * і чистим Node у скриптах, а вони по-різному шукають файли без розширення.
+ */
+async function resolveDatabaseUrl(): Promise<string | null> {
+  const manual =
+    process.env.DATABASE_URL ||
+    process.env.NETLIFY_DATABASE_URL ||
+    process.env.NETLIFY_DATABASE_URL_UNPOOLED
+  if (manual) return manual
+
+  try {
+    const { getConnectionString } = await import('@netlify/database')
+    const url = getConnectionString()
+    if (url) return url
+  } catch {
+    // платформи немає — працюємо на SQLite
+  }
+  return null
+}
+
 const databaseURL = await resolveDatabaseUrl()
 
 export default buildConfig({
