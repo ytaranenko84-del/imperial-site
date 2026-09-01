@@ -95,7 +95,7 @@ export default async function WatchesPage() {
             </p>
           </div>
           <div className="wshot">
-            <Image src="/watches/master.jpg" alt="Майстер оглядає механізм" fill sizes="(min-width: 900px) 46vw, 100vw" />
+            <Image src="/watches/master.jpg" alt="Годинникар за роботою з лупою" fill sizes="(min-width: 900px) 46vw, 100vw" />
           </div>
         </div>
 

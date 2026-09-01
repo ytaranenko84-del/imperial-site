@@ -7,7 +7,7 @@
 | Файл | Джерело |
 |---|---|
 | hero.jpg | unsplash.com/photos/LLOeIZFujCU |
-| master.jpg | unsplash.com/photos/EIDsCqbWYlQ |
+| master.jpg | unsplash.com/photos/Ra9L0F0fdxg |
 | movement.jpg | unsplash.com/photos/-DAFBovlQuc |
 | vault.jpg | unsplash.com/photos/1AucbckEJWk |
 | box.jpg | unsplash.com/photos/k9x-kPP22jk |
