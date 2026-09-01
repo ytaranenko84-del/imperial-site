@@ -53,6 +53,9 @@ export default buildConfig({
   db: databaseURL
     ? postgresAdapter({
         pool: { connectionString: databaseURL },
+        // Окрема схема: у базі вже живуть таблиці інших сервісів
+        // з такими самими іменами (branches, users, settings).
+        schemaName: process.env.DATABASE_SCHEMA || 'payload',
         push: process.env.NODE_ENV !== 'production',
       })
     : sqliteAdapter({
