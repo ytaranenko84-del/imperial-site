@@ -5,11 +5,11 @@
 
 .br {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
-  background: var(--white); border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
   padding: 1rem 1.15rem; cursor: pointer; transition: all 0.16s;
 }
 .br:hover { border-color: var(--brand); }
-.br--on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, var(--white)); }
+.br--on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
 .br b { display: block; font-weight: 600; font-size: var(--s0); }
 .br span { color: var(--dim); font-size: var(--s-1); font-family: var(--mono); }
 
@@ -19,7 +19,7 @@
 .br__route:hover { text-decoration: underline; }
 
 .mapbox {
-  position: sticky; top: 5rem; background: var(--white);
+  position: sticky; top: 5rem; background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
 }
 .mapbox__head {
@@ -42,7 +42,7 @@
 .pinwrap { background: none; border: 0; }
 .pin {
   display: block; width: 11px; height: 11px; margin: 2px;
-  border: 2px solid var(--white); border-radius: 50%; background: var(--dim);
+  border: 2px solid #fff; border-radius: 50%; background: var(--dim);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   transition: background 0.16s, scale 0.16s;
 }
@@ -72,7 +72,7 @@ a.pop__row:hover { color: var(--ink); }
 .mapbtn {
   font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer;
   border: 1px solid var(--brand); border-radius: var(--pill);
-  background: var(--brand); color: var(--white);
+  background: var(--brand); color: #fff;
   padding: 0.42rem 0.9rem; transition: background 0.16s, color 0.16s;
 }
 .mapbtn:hover { background: var(--brand-hover); border-color: var(--brand-hover); }

@@ -87,6 +87,7 @@ export default async function Home() {
         <section className="wrap hero center" id="calc" data-reveal-group>
           <p className="eyebrow">Мережа ломбардів з 2008 року</p>
           <h1>Найвища оцінка<br />вашого золота</h1>
+          <div className="goldline" />
           <p className="lede">
             До {share}% ринкової вартості. Річ залишається вашою — ви забираєте її,
             коли повернете позику.
@@ -191,13 +192,16 @@ export default async function Home() {
 
         <Branches branches={branches} />
 
-        <section className="sec sec--gray">
+        <section className="sec sec--dark">
           <div className="wrap">
-            <div className="shead center" data-reveal><h2>Що відбувається з вашим майном</h2></div>
+            <div className="shead center" data-reveal>
+              <h2>Що відбувається з вашим майном</h2>
+              <div className="goldline" />
+            </div>
             <div className="grid grid--4" data-reveal-group>
               {TRUST.map(([name, text]) => (
-                <div className="card card--lift" key={name}>
-                  <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
+                <div className="dcard" key={name}>
+                  <h3>{name}</h3>
                   <p>{text}</p>
                 </div>
               ))}
