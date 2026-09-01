@@ -167,7 +167,7 @@ export default async function Home() {
               </div>
               <div className="grid grid--4" data-reveal-group>
                 {loyaltyTiers.map((t) => (
-                  <div className="card" key={t.name}>
+                  <div className="card card--lift" key={t.name}>
                     <h3 style={{ fontSize: 'var(--s1)', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                       <i style={{
                         width: 10, height: 10, transform: 'rotate(45deg)',
