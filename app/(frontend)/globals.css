@@ -141,3 +141,37 @@ a { color: inherit; }
 .foot a { color: var(--dim); text-decoration: none; }
 .foot a:hover { color: var(--ink); text-decoration: underline; }
 .foot__legal { margin-top: 2.4rem; padding-top: 1.4rem; border-top: 1px solid var(--line); font-size: 0.7rem; color: var(--dim); line-height: 1.6; max-width: 80ch; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Рух при прокручуванні. Клас .motion ставить вбудований скрипт у layout —
+   тільки якщо є JavaScript і система не просить зменшити рух.
+   Без нього все видно одразу: сторінка не залежить від анімації.
+   ───────────────────────────────────────────────────────────────────────── */
+.motion [data-reveal],
+.motion [data-reveal-group] > * {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: opacity, transform;
+}
+.motion [data-reveal].is-in,
+.motion [data-reveal-group] > .is-in { opacity: 1; transform: none; }
+
+/* число дораховується — ширина не стрибає */
+[data-count] { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .motion [data-reveal],
+  .motion [data-reveal-group] > * { opacity: 1; transform: none; transition: none; }
+}
+
+/* логотип у шапці й підвалі */
+.brand { align-items: center; }
+.brand__mark { width: 36px; height: 36px; display: block; flex: none; }
+.brand__txt { display: flex; flex-direction: column; line-height: 1.1; }
+.brand__txt span { font-size: 0.58rem; letter-spacing: 0.12em; text-transform: uppercase; }
+.foot .brand__mark { width: 56px; height: 56px; }
+
+/* лічильник усередині цифри героя не має успадковувати дрібний підпис */
+.fact b span { font: inherit; color: inherit; letter-spacing: inherit; }

@@ -30,28 +30,64 @@
 .mapbox__route { font-size: 0.72rem; font-weight: 600; color: var(--brand); text-decoration: none; white-space: nowrap; }
 .mapbox__route:hover { text-decoration: underline; }
 
-.mapbox__area {
-  position: relative; aspect-ratio: 1 / 1;
-  background: #e8e4dd url('/map-dnipro.jpg') center / cover no-repeat;
+.mapbox__area { position: relative; aspect-ratio: 1 / 1; background: #e8e4dd; z-index: 0; }
+/* на телефоні карта йде першою: інакше по неї треба гортати всі адреси */
+@media (max-width: 999px) {
+  .mapbox__area { aspect-ratio: 4 / 3; }
+  .mapbox { order: -1; position: static; }
+  .brlist { max-height: 420px; }
 }
-.mapbox__attr {
-  position: absolute; right: 0.3rem; bottom: 0.2rem; font-size: 0.52rem; color: #4a4a4a;
-  background: rgba(255, 255, 255, 0.72); padding: 0.05rem 0.3rem; border-radius: 2px; text-decoration: none;
-}
+
+/* мітка: та сама крапка, що була на статичній підкладці */
+.pinwrap { background: none; border: 0; }
 .pin {
-  position: absolute; width: 11px; height: 11px; padding: 0; translate: -50% -50%; cursor: pointer;
+  display: block; width: 11px; height: 11px; margin: 2px;
   border: 2px solid var(--white); border-radius: 50%; background: var(--dim);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   transition: background 0.16s, scale 0.16s;
 }
-.pin:hover { background: var(--brand); scale: 1.3; }
-.pin--on {
+.pinwrap:hover .pin { background: var(--brand); scale: 1.3; }
+.pinwrap--on .pin {
   background: var(--brand); scale: 1.7;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 26%, transparent);
 }
-.mapbox__note {
-  font-size: 0.66rem; color: var(--dim); margin: 0; padding: 0.7rem 1rem;
-  line-height: 1.45; border-top: 1px solid var(--line);
+
+/* віконце на мітці */
+.pop .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16); }
+.pop .leaflet-popup-content { margin: 0.75rem 0.9rem; font-family: var(--sans); line-height: 1.5; }
+.pop__addr { display: block; font-size: var(--s-1); font-weight: 600; margin-bottom: 0.25rem; }
+.pop__row { display: block; font-size: 0.72rem; color: var(--dim); text-decoration: none; }
+a.pop__row:hover { color: var(--ink); }
+.pop__route {
+  display: inline-block; margin-top: 0.5rem; font-size: 0.72rem;
+  font-weight: 600; color: var(--brand); text-decoration: none;
 }
+.pop__route:hover { text-decoration: underline; }
+
+/* кнопки під картою */
+.mapbox__bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  padding: 0.7rem 0.8rem; border-top: 1px solid var(--line);
+}
+.mapbtn {
+  font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--brand); border-radius: var(--pill);
+  background: var(--brand); color: var(--white);
+  padding: 0.42rem 0.9rem; transition: background 0.16s, color 0.16s;
+}
+.mapbtn:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+.mapbtn:disabled { opacity: 0.6; cursor: default; }
+.mapbtn--ghost { background: transparent; color: var(--brand); }
+.mapbtn--ghost:hover { background: color-mix(in srgb, var(--brand) 8%, transparent); color: var(--brand); }
+.mapbox__geo { font-size: 0.68rem; color: var(--dim); flex: 1 1 100%; }
+
+/* власні елементи Leaflet під стиль сайту */
+.leaflet-container { font-family: var(--sans); background: #e8e4dd; }
+.leaflet-control-zoom a {
+  color: var(--ink); border-radius: 8px !important;
+  border-color: var(--line) !important; font-weight: 400;
+}
+.leaflet-control-attribution { font-size: 0.55rem; }
 
 .brm { margin-top: 1.3rem; font-size: var(--s-1); color: var(--dim); text-align: center; }
 .brm b { color: var(--ink); font-family: var(--mono); }

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { getSiteData } from '@/lib/data'
 import Calculator from '@/components/Calculator'
 import Branches from '@/components/Branches'
@@ -50,6 +51,7 @@ export default async function Home() {
   const maxDays = Number(s.maxTermDays ?? 30)
   const share = Number(s.valuationShare ?? 80)
   const minutes = Number(s.processingMinutes ?? 6)
+  const years = new Date().getFullYear() - 2008
 
   // мінімальна ставка на сайті: найменша за сумою мінус найбільша знижка статусу
   const lowestRate = rateTiers.filter((r) => r.unit === 'percent').reduce(
@@ -65,7 +67,10 @@ export default async function Home() {
   return (
     <>
       <header className="wrap top">
-        <a className="brand" href="/"><b>ІМПЕРІАЛ</b><span>Ломбард</span></a>
+        <a className="brand" href="/">
+          <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
+          <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
+        </a>
         <nav className="nav">
           <a href="#cats">Що приймаємо</a>
           <a href="#calc">Оцінка</a>
@@ -78,7 +83,7 @@ export default async function Home() {
       </header>
 
       <main>
-        <section className="wrap hero center" id="calc">
+        <section className="wrap hero center" id="calc" data-reveal-group>
           <p className="eyebrow">Мережа ломбардів з 2008 року</p>
           <h1>Найвища оцінка<br />вашого золота</h1>
           <p className="lede">
@@ -98,13 +103,16 @@ export default async function Home() {
           </p>
 
           <div className="facts">
-            <div className="fact"><b>{minutes} хв</b><span>оформлення</span></div>
-            <div className="fact"><b>{branches.length || '50'}+</b><span>відділень</span></div>
-            <div className="fact"><b>17 років</b><span>на ринку</span></div>
+            <div className="fact"><b><span data-count={minutes}>{minutes}</span> хв</b><span>оформлення</span></div>
+            <div className="fact">
+              <b><span data-count={branches.length || 50}>{branches.length || 50}</span>+</b>
+              <span>відділень</span>
+            </div>
+            <div className="fact"><b><span data-count={years}>{years}</span> років</b><span>на ринку</span></div>
           </div>
         </section>
 
-        <section className="wrap" style={{ paddingBottom: 'clamp(3.6rem,7vw,6.4rem)' }}>
+        <section className="wrap" style={{ paddingBottom: 'clamp(3.6rem,7vw,6.4rem)' }} data-reveal>
           <Calculator
             tariffs={tariffs}
             rateTiers={rateTiers}
@@ -117,11 +125,11 @@ export default async function Home() {
 
         <section className="sec sec--gray" id="cats">
           <div className="wrap">
-            <div className="shead center">
+            <div className="shead center" data-reveal>
               <h2>Що ми приймаємо</h2>
               <p>Ювелірні вироби оцінюємо онлайн — сума одразу. Техніку оцінює фахівець за фото.</p>
             </div>
-            <div className="grid grid--3">
+            <div className="grid grid--3" data-reveal-group>
               {CATEGORIES.map(([name, sub, how]) => (
                 <a className="card card--link" key={name} href="#calc">
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
@@ -135,11 +143,11 @@ export default async function Home() {
 
         <section className="sec" id="sits">
           <div className="wrap">
-            <div className="shead center">
+            <div className="shead center" data-reveal>
               <h2>Коли по гроші приходять до нас</h2>
               <p>Гроші не закінчилися — вони просто лежать у незручній формі.</p>
             </div>
-            <div className="grid grid--4">
+            <div className="grid grid--4" data-reveal-group>
               {SITUATIONS.map(([name, sub]) => (
                 <a className="card card--link" key={name} href="#calc">
                   <h3 style={{ fontSize: 'var(--s0)' }}>{name}</h3>
@@ -153,11 +161,11 @@ export default async function Home() {
         {loyaltyTiers.length > 0 && (
           <section className="sec sec--gray">
             <div className="wrap">
-              <div className="shead center">
+              <div className="shead center" data-reveal>
                 <h2>Що частіше користуєтесь — то дешевше</h2>
                 <p>Статус зростає від суми сплачених відсотків і одразу впливає на оцінку.</p>
               </div>
-              <div className="grid grid--4">
+              <div className="grid grid--4" data-reveal-group>
                 {loyaltyTiers.map((t) => (
                   <div className="card" key={t.name}>
                     <h3 style={{ fontSize: 'var(--s1)', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
@@ -184,8 +192,8 @@ export default async function Home() {
 
         <section className="sec sec--gray">
           <div className="wrap">
-            <div className="shead center"><h2>Що відбувається з вашим майном</h2></div>
-            <div className="grid grid--4">
+            <div className="shead center" data-reveal><h2>Що відбувається з вашим майном</h2></div>
+            <div className="grid grid--4" data-reveal-group>
               {TRUST.map(([name, text]) => (
                 <div className="card" key={name}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
@@ -201,7 +209,10 @@ export default async function Home() {
         <div className="wrap">
           <div className="foot__grid">
             <div>
-              <a className="brand" href="/"><b>ІМПЕРІАЛ</b><span>Ломбард</span></a>
+              <a className="brand" href="/">
+                <Image className="brand__mark" src="/logo.png" alt="" width={56} height={56} />
+                <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
+              </a>
               <p style={{ color: 'var(--dim)', fontSize: 'var(--s-1)', marginTop: '.6rem' }}>
                 Гаряча лінія <a href={`tel:${hotline.replace(/\s/g, '')}`} style={{ color: 'var(--brand)' }}>{hotline}</a>
                 <br />{String(s.email || 'support@imperial24.com.ua')}
