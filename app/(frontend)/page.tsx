@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { getSiteData } from '@/lib/data'
 import Calculator from '@/components/Calculator'
 import Branches from '@/components/Branches'
+import Social from '@/components/Social'
 import '@/components/Calculator.css'
 import '@/components/Branches.css'
 
@@ -217,6 +218,7 @@ export default async function Home() {
                 Гаряча лінія <a href={`tel:${hotline.replace(/\s/g, '')}`} style={{ color: 'var(--brand)' }}>{hotline}</a>
                 <br />{String(s.email || 'support@imperial24.com.ua')}
               </p>
+              <Social settings={s} />
             </div>
             <div>
               <h4>Послуги</h4>

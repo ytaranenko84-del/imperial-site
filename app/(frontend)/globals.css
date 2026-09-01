@@ -179,3 +179,14 @@ a { color: inherit; }
 
 /* лічильник усередині цифри героя не має успадковувати дрібний підпис */
 .fact b span { font: inherit; color: inherit; letter-spacing: inherit; }
+
+/* мережі в підвалі */
+.soc { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.soc__i {
+  display: grid; place-items: center; width: 36px; height: 36px;
+  border: 1px solid var(--line); border-radius: 50%; color: var(--dim);
+  background: var(--white); transition: color 0.16s, border-color 0.16s, transform 0.16s;
+}
+.soc__i svg { width: 19px; height: 19px; }
+a.soc__i:hover { color: var(--brand); border-color: var(--brand); transform: translateY(-2px); }
+.soc__i--off { opacity: 0.45; cursor: default; }
