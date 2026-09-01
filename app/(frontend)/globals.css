@@ -193,8 +193,10 @@ a { color: inherit; }
               transform 0.16s, box-shadow 0.16s;
   will-change: opacity, translate;
 }
+/* will-change знімаємо після появи: він тримає пам'ять і, головне, робить
+   блок точкою відліку для вікон із position: fixed усередині нього. */
 .motion [data-reveal].is-in,
-.motion [data-reveal-group] > .is-in { opacity: 1; translate: none; }
+.motion [data-reveal-group] > .is-in { opacity: 1; translate: none; will-change: auto; }
 
 /* число дораховується — ширина не стрибає */
 [data-count] { font-variant-numeric: tabular-nums; }

@@ -1,6 +1,6 @@
 {
- "at": "2026-09-01T20:08:10.866Z",
- "step": "готово",
- "ok": true,
- "users": 1
+ "at": "2026-09-01T20:18:56.938Z",
+ "step": "ініціалізація Payload",
+ "ok": false,
+ "error": "Failed query: CREATE INDEX `payload_locked_documents_rels_order_idx` ON `payload_locked_documents_rels` (`order`);\nparams: "
 }

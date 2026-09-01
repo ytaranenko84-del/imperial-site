@@ -1,5 +1,6 @@
 'use client'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import 'leaflet/dist/leaflet.css'
 import type { Map as LMap, Marker as LMarker } from 'leaflet'
 import type { Branch } from '@/lib/data'
@@ -39,6 +40,8 @@ function distance(aLat: number, aLng: number, bLat: number, bLng: number) {
 
 export default function Booking({ branches, calc }: { branches: Branch[]; calc: Calc }) {
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
   const [sel, setSel] = useState(0)
   const [tab, setTab] = useState<'list' | 'map'>('list')
   const [query, setQuery] = useState('')
@@ -176,7 +179,10 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
         Забронювати суму на 24 години
       </button>
 
-      {open && (
+      {/* Вікно виносимо в кінець сторінки: секція калькулятора анімується при
+          появі, а такий блок стає точкою відліку для position: fixed — вікно
+          їхало б разом зі сторінкою замість того, щоб стояти по центру екрана. */}
+      {open && mounted && createPortal(
         <div className="veil" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false) }}>
           <div className="modal" role="dialog" aria-modal="true" aria-label="Бронювання суми">
 
@@ -298,7 +304,8 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
             )}
 
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
