@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Сайт «Імперіал» — робоче середовище
 
-## Getting Started
-
-First, run the development server:
+## Запуск адмінпанелі
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd /Users/admin/Downloads/lombard-site/site
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Відкрити: **http://localhost:3001/admin**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Логін: `admin@imperial24.com.ua`
+- Пароль: `Imperial2026!`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Якщо порт зайнятий:
 
-## Learn More
+```bash
+lsof -ti :3001 | xargs kill -9
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Два режими
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Команда | Для чого | Швидкість адмінки |
+|---|---|---|
+| `npm start` | **Робота з адмінкою** | сторінки за 0,02 с |
+| `npm run dev` | Розробка з автооновленням коду | сторінки за 15 с – 4 хв |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`npm run dev` повільний тому, що збирає інтерфейс наново при кожному заході.
+Для наповнення даними завжди `npm start`.
 
-## Deploy on Vercel
+Після зміни коду потрібно перезібрати:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run build && npm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Що вже налаштовано
+
+| Розділ | Зміст |
+|---|---|
+| Тарифи за грам | 7 проб золота + 3 позиції срібла, прайс від 24.08.2026 |
+| Програма лояльності | 4 статуси з реальними надбавками |
+| Відділення | 26 адрес Дніпра, у 12 оновлено назви вулиць |
+| Міста | Дніпро |
+| Загальні налаштування | ставка 0,4%/день, строк 5–30 днів, контакти, графік чату |
+
+## Оновлення прайсу
+
+Розділ **«Оцінка → Тарифи за грам»**, кнопка **«Завантажити прайс»**.
+Береться лише скупка та базова ціна — ціни за статусами рахуються з надбавок лояльності.
+
+## База даних
+
+SQLite, файл `imperial.db` у цій папці. Для бойового сервера замінюється на PostgreSQL
+зміною адаптера в `payload.config.ts`.
+
+**Увага при зміні структури полів.** SQLite оновлює схему лише в режимі `npm run dev`,
+і робить це через питання в терміналі. Якщо після правки моделі з'явилася помилка
+`no such column`, потрібно або перезапустити `npm run dev` і відповісти на питання,
+або додати колонку вручну.

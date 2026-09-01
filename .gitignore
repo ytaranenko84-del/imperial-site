@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# локальна база й завантажені файли — не в репозиторій
+imperial.db
+imperial.db-shm
+imperial.db-wal
+/public/media/
+payload-types.ts
