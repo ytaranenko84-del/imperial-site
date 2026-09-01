@@ -6,15 +6,16 @@ import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { uk } from '@payloadcms/translations/languages/uk'
 import { ru } from '@payloadcms/translations/languages/ru'
+import sharp from 'sharp'
 
-import { Tariffs } from './collections/Tariffs'
-import { RateTiers } from './collections/RateTiers'
-import { LoyaltyTiers } from './collections/LoyaltyTiers'
-import { Cities } from './collections/Cities'
-import { Branches } from './collections/Branches'
-import { Media } from './collections/Media'
-import { Users } from './collections/Users'
-import { Settings } from './collections/Settings'
+import { Tariffs } from './collections/Tariffs.ts'
+import { RateTiers } from './collections/RateTiers.ts'
+import { LoyaltyTiers } from './collections/LoyaltyTiers.ts'
+import { Cities } from './collections/Cities.ts'
+import { Branches } from './collections/Branches.ts'
+import { Media } from './collections/Media.ts'
+import { Users } from './collections/Users.ts'
+import { Settings } from './collections/Settings.ts'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -82,5 +83,5 @@ export default buildConfig({
     : sqliteAdapter({
         client: { url: process.env.DATABASE_URI || 'file:./imperial.db' },
       }),
-  sharp: (await import('sharp')).default,
+  sharp,
 })

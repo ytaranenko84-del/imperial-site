@@ -1,7 +1,6 @@
 {
- "at": "2026-09-01T12:40:42.879Z",
- "step": "бази немає — синхронізацію пропущено",
- "ok": true,
- "envUrl": false,
- "platformError": "The environment has not been configured to use Netlify Database. You must supply the `connectionString` option when calling `getDatabase()`. See https://ntl.fyi/database-environment for details."
+ "at": "2026-09-01T12:45:19.430Z",
+ "step": "ініціалізація Payload",
+ "ok": false,
+ "error": "Failed query: CREATE INDEX `payload_locked_documents_rels_order_idx` ON `payload_locked_documents_rels` (`order`);\nparams: "
 }
