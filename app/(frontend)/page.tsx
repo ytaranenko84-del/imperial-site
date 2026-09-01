@@ -195,7 +195,7 @@ export default async function Home() {
             <div className="shead center" data-reveal><h2>Що відбувається з вашим майном</h2></div>
             <div className="grid grid--4" data-reveal-group>
               {TRUST.map(([name, text]) => (
-                <div className="card" key={name}>
+                <div className="card card--lift" key={name}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
                   <p>{text}</p>
                 </div>

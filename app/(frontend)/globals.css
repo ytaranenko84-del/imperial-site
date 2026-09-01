@@ -121,7 +121,8 @@ a { color: inherit; }
   transition: transform 0.16s, box-shadow 0.16s;
 }
 .card--link { text-decoration: none; color: inherit; display: block; }
-.card--link:hover { transform: translateY(-4px); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.12); }
+.card--link:hover,
+.card--lift:hover { transform: translateY(-4px); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.12); }
 .card h3 { font-size: var(--s2); margin-bottom: 0.5rem; }
 .card p { color: var(--dim); font-size: var(--s-1); margin: 0; }
 .card__n { color: var(--brand); font-weight: 600; font-size: 0.72rem; }
@@ -147,23 +148,26 @@ a { color: inherit; }
    тільки якщо є JavaScript і система не просить зменшити рух.
    Без нього все видно одразу: сторінка не залежить від анімації.
    ───────────────────────────────────────────────────────────────────────── */
+/* Поява рухає блок через `translate`, а не `transform`: наведення на картку
+   теж рухає її, і на спільній властивості поява перебивала б підняття. */
 .motion [data-reveal],
 .motion [data-reveal-group] > * {
   opacity: 0;
-  transform: translateY(16px);
+  translate: 0 16px;
   transition: opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
-              transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
-  will-change: opacity, transform;
+              translate 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+              transform 0.16s, box-shadow 0.16s;
+  will-change: opacity, translate;
 }
 .motion [data-reveal].is-in,
-.motion [data-reveal-group] > .is-in { opacity: 1; transform: none; }
+.motion [data-reveal-group] > .is-in { opacity: 1; translate: none; }
 
 /* число дораховується — ширина не стрибає */
 [data-count] { font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
   .motion [data-reveal],
-  .motion [data-reveal-group] > * { opacity: 1; transform: none; transition: none; }
+  .motion [data-reveal-group] > * { opacity: 1; translate: none; transition: none; }
 }
 
 /* логотип у шапці й підвалі */
