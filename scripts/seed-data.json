@@ -1,0 +1,700 @@
+{
+ "tariffs": [
+  {
+   "metal": "gold",
+   "purity": 999.99,
+   "purityLabel": "999.99",
+   "purchasePrice": 5556,
+   "basePrice": 5470,
+   "active": true,
+   "order": 0,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "gold",
+   "purity": 750,
+   "purityLabel": "750",
+   "purchasePrice": 4167,
+   "basePrice": 4103,
+   "active": true,
+   "order": 1,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "gold",
+   "purity": 585,
+   "purityLabel": "585",
+   "purchasePrice": 3250,
+   "basePrice": 3200,
+   "active": true,
+   "order": 2,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "gold",
+   "purity": 583,
+   "purityLabel": "583",
+   "purchasePrice": 3239,
+   "basePrice": 3189,
+   "active": true,
+   "order": 3,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "gold",
+   "purity": 500,
+   "purityLabel": "500",
+   "purchasePrice": 2778,
+   "basePrice": 2735,
+   "active": true,
+   "order": 4,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "gold",
+   "purity": 375,
+   "purityLabel": "375",
+   "purchasePrice": 2050,
+   "basePrice": 2050,
+   "active": true,
+   "order": 5,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "gold",
+   "purity": 333,
+   "purityLabel": "333",
+   "purchasePrice": 1820,
+   "basePrice": 1820,
+   "active": true,
+   "order": 6,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "silver",
+   "purity": 925,
+   "purityLabel": "925, 875(1 кат)",
+   "purchasePrice": 60,
+   "basePrice": 60,
+   "note": "до 925, 875(2 кат) відносяться не ліквідні вироби (погнуті каблучки,порвані ланцюжки, обручки, хрестики, ладанки ,вироби з каменями, що випали,поламані застібки на виробах, вироби які мають дефекти...).\n925,875(1 кат)  відносяться ліквідні вироби з укр. пробою (та не мають дефектів)\nдо 1 кат не відносяться ланцюги до 10 г",
+   "active": true,
+   "order": 7,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "silver",
+   "purity": 925,
+   "purityLabel": "925, 875(2 кат)",
+   "purchasePrice": 50,
+   "basePrice": 50,
+   "note": "до 925, 875(2 кат) відносяться не ліквідні вироби (погнуті каблучки,порвані ланцюжки, обручки, хрестики, ладанки ,вироби з каменями, що випали,поламані застібки на виробах, вироби які мають дефекти...).\n925,875(1 кат)  відносяться ліквідні вироби з укр. пробою (та не мають дефектів)\nдо 1 кат не відносяться ланцюги до 10 г",
+   "active": true,
+   "order": 8,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  },
+  {
+   "metal": "silver",
+   "purityLabel": "столове срібло",
+   "purchasePrice": 50,
+   "basePrice": 50,
+   "note": "до 925, 875(2 кат) відносяться не ліквідні вироби (погнуті каблучки,порвані ланцюжки, обручки, хрестики, ладанки ,вироби з каменями, що випали,поламані застібки на виробах, вироби які мають дефекти...).\n925,875(1 кат)  відносяться ліквідні вироби з укр. пробою (та не мають дефектів)\nдо 1 кат не відносяться ланцюги до 10 г",
+   "active": true,
+   "order": 9,
+   "approvedAt": "2026-08-24T00:00:00.000Z"
+  }
+ ],
+ "rateTiers": [
+  {
+   "amountFrom": 1,
+   "amountTo": 249,
+   "rate": 2.4,
+   "unit": "uah",
+   "penalty": 3,
+   "plan": "Базовий",
+   "order": 0
+  },
+  {
+   "amountFrom": 250,
+   "amountTo": 24999,
+   "rate": 0.9,
+   "unit": "percent",
+   "penalty": 1.3,
+   "plan": "Базовий",
+   "order": 1
+  },
+  {
+   "amountFrom": 25000,
+   "amountTo": 69999,
+   "rate": 0.7,
+   "unit": "percent",
+   "penalty": 1.1,
+   "plan": "Базовий",
+   "order": 2
+  },
+  {
+   "amountFrom": 70000,
+   "amountTo": 999999,
+   "rate": 0.5,
+   "unit": "percent",
+   "penalty": 0.9,
+   "plan": "Базовий",
+   "order": 3
+  }
+ ],
+ "loyaltyTiers": [
+  {
+   "name": "Новий клієнт",
+   "color": "#9AA0A6",
+   "amountFrom": 0,
+   "amountTo": 999,
+   "metalBonus": 5,
+   "techBonus": 5,
+   "discount": 0,
+   "cashback": 0,
+   "order": 0,
+   "publicName": true
+  },
+  {
+   "name": "Смарагдовий",
+   "color": "#3E9C74",
+   "amountFrom": 1000,
+   "amountTo": 6999,
+   "metalBonus": 3,
+   "techBonus": 0,
+   "discount": 10,
+   "cashback": 1,
+   "order": 1,
+   "publicName": true
+  },
+  {
+   "name": "Рубіновий",
+   "color": "#B03A4A",
+   "amountFrom": 7000,
+   "amountTo": 14999,
+   "metalBonus": 10,
+   "techBonus": 10,
+   "discount": 15,
+   "cashback": 2,
+   "silverBonus": 5,
+   "order": 2,
+   "publicName": true
+  },
+  {
+   "name": "Діамантовий",
+   "color": "#8FC6E8",
+   "amountFrom": 15000,
+   "metalBonus": 20,
+   "techBonus": 10,
+   "discount": 22,
+   "cashback": 3,
+   "order": 3,
+   "publicName": true
+  }
+ ],
+ "cities": [
+  {
+   "name": "Дніпро",
+   "slug": "dnipro",
+   "order": 0
+  }
+ ],
+ "branches": [
+  {
+   "address": "вул. Березинська, 28А",
+   "slug": "berezynska-28a",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.525705,
+    "lng": 35.034054
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "Донецьке шосе, 2Б",
+   "slug": "donetske-shose-2b",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.503346,
+    "lng": 34.979906
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Героїв, 12",
+   "slug": "heroiv-12",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.41711,
+    "lng": 35.06034
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Петра Калнишевського, 29Б",
+   "slug": "kalnyshevskoho-29b",
+   "formerName": "вул. Косіора",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.479859,
+    "lng": 35.077941
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Калинова, 70",
+   "slug": "kalynova-70",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.514682,
+    "lng": 35.060726
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Бориса Кротова, 1Б",
+   "slug": "krotova-1b",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.406973,
+    "lng": 34.993798
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Лесі Українки, 19",
+   "slug": "lesi-ukrainky-19",
+   "formerName": "просп. Пушкіна",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.464599,
+    "lng": 35.030412
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Марії Лисиченко, 21",
+   "slug": "lysychenko-21",
+   "formerName": "вул. Героїв Громадянської війни",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.52089,
+    "lng": 35.03722
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Івана Мазепи, 58",
+   "slug": "mazepy-58",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.461889,
+    "lng": 34.969381
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Миру, 12",
+   "slug": "myru-12",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.528935,
+    "lng": 35.01829
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Набережна Заводська, 101",
+   "slug": "naberezhna-zavodska-101",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.484812,
+    "lng": 34.92071
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Науки, 175",
+   "slug": "nauky-175",
+   "formerName": "просп. Гагаріна",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.424586,
+    "lng": 35.025762
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Науки, 31",
+   "slug": "nauky-31",
+   "formerName": "просп. Гагаріна",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.449689,
+    "lng": 35.059947
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Науки, 99Д",
+   "slug": "nauky-99d",
+   "formerName": "просп. Гагаріна",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.438387,
+    "lng": 35.050241
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Незалежності, 27",
+   "slug": "nezalezhnosti-27",
+   "formerName": "вул. Титова",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.431335,
+    "lng": 35.004471
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Панікахи, 15А",
+   "slug": "panikakhy-15a",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.39955,
+    "lng": 35.026551
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "пров. Парусний, 10К",
+   "slug": "parusnyi-10k",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.480199,
+    "lng": 34.90674
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "бульвар Платонова, 3А",
+   "slug": "platonova-3a",
+   "formerName": "бульвар Королеви Анни",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": null,
+    "lng": null
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Робоча, 81, прим. 111",
+   "slug": "robocha-81",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.446618,
+    "lng": 35.000646
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Роторна, 27К",
+   "slug": "rotorna-27k",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.407247,
+    "lng": 35.130857
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Слобожанський, 1",
+   "slug": "slobozhanskyi-1",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.489325,
+    "lng": 35.063803
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "просп. Слобожанський, 60",
+   "slug": "slobozhanskyi-60",
+   "formerName": "просп. Правди",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.511786,
+    "lng": 35.077765
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Василя Сухомлинського, 44Г",
+   "slug": "sukhomlynskoho-44h",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.53104,
+    "lng": 35.071242
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Велика Діївська, 38Л",
+   "slug": "velyka-diivska-38l",
+   "formerName": "вул. Братів Трофімових",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.474003,
+    "lng": 34.873037
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "площа Вокзальна, 1",
+   "slug": "vokzalna-1",
+   "formerName": "площа Петровського",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.475326,
+    "lng": 35.014624
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  },
+  {
+   "address": "вул. Європейська, 2",
+   "slug": "yevropeiska-2",
+   "formerName": "вул. Миронова",
+   "phone": "0 800 30 85 00",
+   "schedule": {
+    "roundClock": false,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "weekend": null
+   },
+   "coords": {
+    "lat": 48.465422,
+    "lng": 35.047554
+   },
+   "services": [],
+   "active": true,
+   "paused": false
+  }
+ ],
+ "settings": {
+  "dailyRate": 0.4,
+  "maxAnnualRate": 146,
+  "minTermDays": 5,
+  "maxTermDays": 30,
+  "valuationShare": 80,
+  "processingMinutes": 6,
+  "calcTerms": "5,7,10,14,21,30",
+  "disclaimer": "Розрахунок попередній. Остаточну суму визначає оцінювач після огляду виробу.",
+  "guaranteeOn": true,
+  "guaranteeText": "У відділенні ви гарантовано отримаєте суму не меншу за ту, що показала онлайн-оцінка — за умови підтвердження заявлених характеристик.",
+  "hotline": "0 800 30 85 00",
+  "email": "support@imperial24.com.ua",
+  "chatFrom": "09:00",
+  "chatTo": "20:00",
+  "chatOffline": "Ми зараз офлайн. Залиште контакт — відповімо зранку."
+ }
+}
