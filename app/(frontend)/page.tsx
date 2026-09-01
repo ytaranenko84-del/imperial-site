@@ -94,7 +94,7 @@ export default async function Home() {
           </p>
 
           <a className="rate-link" href="#terms">
-            від {bestRate}%<sup>*</sup>&nbsp;на день — найнижча ставка серед мереж України ›
+            {`від ${bestRate}%`}<sup>*</sup>{' на день — найнижча ставка серед мереж України ›'}
           </a>
           <p className="rate-note">
             <sup>*</sup> Ставка залежить від суми позики

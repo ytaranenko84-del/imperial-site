@@ -124,9 +124,12 @@ a { color: inherit; }
 .eyebrow { color: var(--dim); font-size: 0.95rem; margin: 0 0 0.8rem; }
 .hero h1 { font-size: var(--s4); margin-bottom: 1.4rem; }
 .lede { font-size: clamp(1.15rem, 1rem + 0.7vw, 1.7rem); max-width: 30ch; margin: 0 auto 1.4rem; }
+/* На вузькому екрані рядок переноситься. Проміжок flex розривав його між
+   числом і зірочкою — тому звичайний текст, а нерозривні пробіли в розмітці
+   тримають «0,39%*» разом. */
 .rate-link {
-  display: inline-flex; align-items: baseline; gap: 0.5rem;
-  color: var(--brand); font-size: 1.05rem; text-decoration: none;
+  display: inline; color: var(--brand); font-size: 1.05rem;
+  text-decoration: none; text-wrap: balance;
 }
 .rate-link:hover { text-decoration: underline; }
 .rate-note { font-size: 0.68rem; color: var(--dim); max-width: 46ch; margin: 0.9rem auto 2.4rem; line-height: 1.5; }
