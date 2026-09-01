@@ -46,3 +46,4 @@ imperial.db-shm
 imperial.db-wal
 /public/media/
 payload-types.ts
+.netlify

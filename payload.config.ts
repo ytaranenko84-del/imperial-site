@@ -7,6 +7,7 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { uk } from '@payloadcms/translations/languages/uk'
 import { ru } from '@payloadcms/translations/languages/ru'
 
+import { resolveDatabaseUrl } from './lib/db'
 import { Tariffs } from './collections/Tariffs'
 import { RateTiers } from './collections/RateTiers'
 import { LoyaltyTiers } from './collections/LoyaltyTiers'
@@ -18,12 +19,8 @@ import { Settings } from './collections/Settings'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
-/**
- * База обирається автоматично.
- * Є DATABASE_URL (Netlify, бойовий сервер) — PostgreSQL.
- * Немає — локальний файл SQLite, щоб розробка не потребувала жодних установок.
- */
-const databaseURL = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL
+// На Netlify база підключається сама, локально — файл SQLite (див. lib/db.ts)
+const databaseURL = await resolveDatabaseUrl()
 
 export default buildConfig({
   admin: {
@@ -53,10 +50,10 @@ export default buildConfig({
   db: databaseURL
     ? postgresAdapter({
         pool: { connectionString: databaseURL },
-        // Окрема схема: у базі вже живуть таблиці інших сервісів
-        // з такими самими іменами (branches, users, settings).
-        schemaName: process.env.DATABASE_SCHEMA || 'payload',
-        push: process.env.NODE_ENV !== 'production',
+        // Схема потрібна лише тоді, коли база спільна з іншими сервісами.
+        // Для власної бази Netlify залишається public.
+        ...(process.env.DATABASE_SCHEMA ? { schemaName: process.env.DATABASE_SCHEMA } : {}),
+        push: true,
       })
     : sqliteAdapter({
         client: { url: process.env.DATABASE_URI || 'file:./imperial.db' },
