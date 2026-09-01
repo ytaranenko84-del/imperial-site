@@ -126,3 +126,14 @@
 }
 .buy__sum small { font-size: 0.5em; font-weight: 500; color: var(--dim); margin-left: 0.2rem; }
 @media (prefers-color-scheme: dark) { .buy { border-color: color-mix(in srgb, var(--gold) 40%, transparent); } }
+
+/* Понад межу ваги оцінка в усіх статусів однакова. Мовчазна цифра
+   виглядала б як помилка — поруч має бути пояснення. */
+.warn {
+  font-size: 0.7rem; line-height: 1.5; margin: 0.6rem 0 0; padding: 0.5rem 0.7rem;
+  border-radius: 10px; color: var(--gold); background: var(--gold-soft);
+  border: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+}
+.tier--base { grid-column: 1 / -1; border-style: dashed; }
+.tiers--off .tier s { color: var(--dim); }
+.tiers--off .tier em { opacity: 0.5; }

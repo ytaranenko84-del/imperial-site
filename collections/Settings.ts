@@ -25,6 +25,12 @@ export const Settings: GlobalConfig = {
             { name: 'maxTermDays', type: 'number', label: 'Максимальний строк, днів', defaultValue: 30,
               admin: { description: 'Після цього строку клієнт приходить сплатити відсотки й перезакласти річ' } },
             { name: 'valuationShare', type: 'number', label: 'Оцінка, % від ринкової', defaultValue: 80 },
+            { name: 'bonusWeightLimit', type: 'number', label: 'Надбавка статусу діє до, г', defaultValue: 20,
+              admin: { description: 'Понад цю вагу виріб оцінюється за звичайним прайсом, без надбавки статусу. '
+                + 'Порожнє поле або 0 — обмеження немає. Знижка на відсотки діє завжди.' } },
+            { name: 'bonusWeightPurity', type: 'number', label: '…для проби', defaultValue: 585,
+              admin: { description: 'Проба, для якої задано межу. Для інших проб межа перераховується '
+                + 'за вмістом золота: 20 г 585-ї = 11,7 г 999-ї = 31,2 г 375-ї.' } },
             { name: 'processingMinutes', type: 'number', label: 'Оформлення, хвилин', defaultValue: 6 },
             { name: 'calcTerms', type: 'text', label: 'Строки в калькуляторі', defaultValue: '5,7,10,14,21,30',
               admin: { description: 'Через кому — кнопки вибору строку в днях' } },

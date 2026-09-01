@@ -9,7 +9,20 @@ type Props = {
   minDays: number
   maxDays: number
   guaranteeText?: string | null
+  /** Надбавка статусу діє до цієї ваги; 0 або відсутнє — без обмеження. */
+  bonusWeightLimit?: number
+  /** Проба, для якої задано межу: для інших вона перераховується. */
+  bonusWeightPurity?: number
 }
+
+/** Статус, якого ще немає: ціна рівно за прайсом. Стоїть першим і обраний
+ *  за замовчуванням, щоб людина бачила чесну базу, а не суму з надбавкою. */
+const NO_TIER: LoyaltyTier = {
+  name: 'Без статусу', color: null, metalBonus: 0, techBonus: 0,
+  discount: 0, cashback: 0, amountFrom: 0, amountTo: null,
+}
+
+const gramm = (n: number) => (Math.round(n * 10) / 10).toString().replace('.', ',')
 
 const WEIGHTS = [1, 2, 3, 5, 10, 15, 25, 50]
 
@@ -66,9 +79,11 @@ function useCountUp(target: number) {
 
 export default function Calculator({
   tariffs, rateTiers, loyaltyTiers, minDays, maxDays, guaranteeText,
+  bonusWeightLimit = 0, bonusWeightPurity = 585,
 }: Props) {
   const gold = useMemo(() => tariffs.filter((t) => t.metal === 'gold'), [tariffs])
   const list = gold.length ? gold : tariffs
+  const tiers = useMemo(() => [NO_TIER, ...loyaltyTiers], [loyaltyTiers])
 
   const [purity, setPurity] = useState(
     () => list.find((t) => t.purityLabel.startsWith('585'))?.purityLabel ?? list[0]?.purityLabel ?? '',
@@ -83,15 +98,40 @@ export default function Calculator({
   const [daysText, setDaysText] = useState(String(Math.min(14, maxDays)))
 
   const tariff = list.find((t) => t.purityLabel === purity) ?? list[0]
-  const tier = loyaltyTiers[tierIdx]
+  const tier = tiers[tierIdx]
+
+  /**
+   * Межу задано для однієї проби — для решти вона перераховується за вмістом
+   * золота, як і весь прайс. 20 г 585-ї = 11,7 г 999-ї = 31,2 г 375-ї.
+   * Понад межу надбавка статусу не діє на весь виріб; знижка на відсотки —
+   * діє завжди, бо рахується від суми позики.
+   */
+  const limitFor = (t?: Tariff) =>
+    !bonusWeightLimit || t?.metal !== 'gold' || !t?.purity
+      ? 0
+      : (bonusWeightLimit * bonusWeightPurity) / t.purity
+
+  const limit = limitFor(tariff)
+  const overLimit = limit > 0 && weight > limit
+  const bonus = overLimit ? 0 : (tier?.metalBonus ?? 0)
 
   const base = (tariff?.basePrice ?? 0) * weight
-  const total = Math.round(base * (1 + (tier?.metalBonus ?? 0) / 100))
+  const total = Math.round(base * (1 + bonus / 100))
   const buyout = Math.round(weight * (tariff?.purchasePrice ?? tariff?.basePrice ?? 0))
 
   const r = rateFor(rateTiers, total)
   const effRate = r ? r.rate * (1 - (tier?.discount ?? 0) / 100) : 0
   const interest = r ? (r.unit === 'uah' ? effRate * days : total * (effRate / 100) * days) : 0
+
+  // перелік меж для решти проб: числа рахуються, тож зміна в адмінці
+  // одразу міняє і текст
+  const goldLimits = useMemo(
+    () => list
+      .filter((t) => t.metal === 'gold' && t.purity && t.purityLabel !== tariff?.purityLabel)
+      .map((t) => `${t.purityLabel}° — ${gramm(limitFor(t))} г`),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [list, tariff?.purityLabel, bonusWeightLimit, bonusWeightPurity],
+  )
 
   const shownTotal = useCountUp(total)
   const shownBuyout = useCountUp(buyout)
@@ -186,23 +226,33 @@ export default function Calculator({
           {loyaltyTiers.length > 0 && (
             <>
               <span className="lbl" id="lt">Ваш статус у програмі лояльності</span>
-              <div className="tiers" role="group" aria-labelledby="lt">
-                {loyaltyTiers.map((t, i) => (
-                  <button key={t.name} type="button" className="tier"
+              <div className={`tiers${overLimit ? ' tiers--off' : ''}`} role="group" aria-labelledby="lt">
+                {tiers.map((t, i) => (
+                  <button key={t.name} type="button" className={`tier${i === 0 ? ' tier--base' : ''}`}
                     aria-pressed={i === tierIdx} onClick={() => setTierIdx(i)}>
                     <b>
                       {t.name}
                       <em>
-                        +{t.metalBonus}% до оцінки
-                        {t.discount ? ` · −${t.discount}% на відсотки` : ''}
+                        {i === 0 ? 'ціна за прайсом, без надбавок' : (
+                          <>
+                            +{t.metalBonus}% до оцінки
+                            {t.discount ? ` · −${t.discount}% на відсотки` : ''}
+                          </>
+                        )}
                       </em>
                     </b>
-                    <s>{grn(base * (1 + t.metalBonus / 100))} грн</s>
+                    <s>{grn(base * (1 + (overLimit ? 0 : t.metalBonus) / 100))} грн</s>
                   </button>
                 ))}
               </div>
               <p className="hint">
-                Статус зростає від суми сплачених відсотків. Вище — оцінка тієї самої речі.
+                Статус зростає від суми сплачених відсотків і знижується, якщо заставу не викупили.
+                {limit > 0 && (
+                  <>
+                    {' '}Надбавка діє на вироби до <b>{gramm(limit)} г</b> обраної проби
+                    {goldLimits.length > 1 ? ` (${goldLimits.join(', ')})` : ''}.
+                  </>
+                )}
               </p>
             </>
           )}
@@ -215,6 +265,13 @@ export default function Calculator({
             <p className="res__base">
               Базова оцінка <b>{grn(base)} грн</b> · тариф <b>{grn(tariff.basePrice)} грн/г</b>
             </p>
+
+            {overLimit && (
+              <p className="warn">
+                Вага понад {gramm(limit)} г для цієї проби — надбавка статусу не діє,
+                оцінка за прайсом. Знижка на відсотки лишається.
+              </p>
+            )}
 
             <dl className="dl">
               {r && (

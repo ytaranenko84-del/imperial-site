@@ -122,6 +122,8 @@ export default async function Home() {
             minDays={minDays}
             maxDays={maxDays}
             guaranteeText={s.guaranteeOn ? String(s.guaranteeText || '') : null}
+            bonusWeightLimit={Number(s.bonusWeightLimit ?? 0)}
+            bonusWeightPurity={Number(s.bonusWeightPurity ?? 585)}
           />
         </section>
 
@@ -165,7 +167,10 @@ export default async function Home() {
             <div className="wrap">
               <div className="shead center" data-reveal>
                 <h2>Що частіше користуєтесь — то дешевше</h2>
-                <p>Статус зростає від суми сплачених відсотків і одразу впливає на оцінку.</p>
+                <p>
+                Статус зростає від суми сплачених відсотків і одразу впливає на оцінку.
+                Якщо заставу не викупили — статус знижується.
+              </p>
               </div>
               <div className="grid grid--4" data-reveal-group>
                 {loyaltyTiers.map((t) => (
