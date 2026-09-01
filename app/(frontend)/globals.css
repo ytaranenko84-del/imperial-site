@@ -261,3 +261,10 @@ a.soc__i:hover { color: var(--brand); border-color: var(--brand); transform: tra
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*) { animation: none !important; }
 }
+
+/* Годинники — окремий напрям, тож картка виділена смарагдом:
+   серед шести однакових вона читається як «тут інший порядок». */
+.card__how { color: var(--brand); margin-top: 0.6rem; }
+.card--em { border: 1px solid #1f9e6e; }
+.card--em .card__how { color: #1f9e6e; }
+.card--em:hover { box-shadow: 0 12px 34px rgba(31, 158, 110, 0.22); }

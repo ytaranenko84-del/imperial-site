@@ -1,0 +1,173 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Сторінка «Годинники». Власна смарагдова гама на темному — окремий зал,
+   а не той самий прилавок. Токени оголошені на .wpage, тож решта сайту
+   й адмінка їх не бачать; темна тема системи цю сторінку не міняє —
+   вона темна завжди.
+   ───────────────────────────────────────────────────────────────────────── */
+.wpage {
+  --wbg: #08110d;
+  --wbg2: #0d1a14;
+  --wink: #eaf2ee;
+  --wdim: #93a79e;
+  --wline: rgba(255, 255, 255, 0.12);
+  --em: #1f9e6e;
+  --em-soft: rgba(31, 158, 110, 0.14);
+  --em-line: rgba(31, 158, 110, 0.42);
+
+  background: var(--wbg);
+  color: var(--wink);
+  min-height: 100vh;
+}
+.wpage h1, .wpage h2, .wpage h3 {
+  margin: 0; font-family: var(--display); font-weight: 600;
+  letter-spacing: -0.028em; line-height: 1.06;
+}
+.wpage h1 { font-size: clamp(2.2rem, 1.3rem + 4.2vw, 4.4rem); max-width: 16ch; }
+.wpage h2 { font-size: clamp(1.6rem, 1.1rem + 2vw, 2.6rem); }
+.wpage a { color: inherit; }
+.wpage :focus-visible { outline: 2px solid var(--em); outline-offset: 3px; }
+
+.wwrap { max-width: 1120px; margin-inline: auto; padding-inline: var(--gut); }
+.wsec { padding-block: clamp(3rem, 6vw, 5.4rem); }
+
+.wline {
+  width: 56px; height: 2px; border-radius: 2px; margin-top: 1.1rem;
+  background: linear-gradient(90deg, transparent, var(--em), transparent);
+}
+.weyebrow {
+  font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--em); font-weight: 600; margin: 0 0 0.9rem;
+}
+.wlead { color: var(--wdim); font-size: clamp(1rem, 0.95rem + 0.5vw, 1.25rem); max-width: 56ch; margin: 1.2rem 0 0; }
+.wsmall { font-size: 0.72rem; color: var(--wdim); margin: 0.9rem 0 0; }
+.wsmall--wide { margin-top: 1.4rem; max-width: 60ch; }
+
+/* шапка */
+.wtop {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; padding-block: 0.75rem; border-bottom: 1px solid var(--wline); font-size: 0.78rem;
+}
+.wtop .brand__txt span { color: var(--wdim); }
+.wback { color: var(--wdim); text-decoration: none; font-size: 0.76rem; }
+.wback:hover { color: var(--wink); }
+
+/* герой */
+.whero { position: relative; min-height: min(78vh, 660px); display: flex; align-items: flex-end; overflow: hidden; }
+.whero__img { object-fit: cover; filter: saturate(0.5); }
+.whero::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(8, 17, 13, 0.55) 0%, rgba(8, 17, 13, 0.72) 45%, var(--wbg) 100%);
+}
+.whero__in { position: relative; z-index: 1; padding-block: clamp(2.4rem, 6vw, 4.6rem); width: 100%; }
+.whero .wlead { max-width: 46ch; }
+
+.wbtn {
+  display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1.8rem;
+  background: var(--em); color: #04140e; font: inherit; font-weight: 600; font-size: 0.95rem;
+  border: 0; border-radius: 999px; padding: 0.85rem 1.5rem; cursor: pointer;
+  text-decoration: none; transition: filter 0.16s;
+}
+.wbtn:hover { filter: brightness(1.12); }
+.wbtn:disabled { opacity: 0.6; cursor: default; }
+
+/* марки */
+.wbrands { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 0.5rem; margin-top: 2.2rem; }
+.wbrands span {
+  border: 1px solid var(--wline); border-radius: 12px; padding: 0.7rem 0.9rem;
+  font-size: 0.86rem; transition: border-color 0.16s, background 0.16s;
+}
+.wbrands span:hover { border-color: var(--em-line); background: var(--em-soft); }
+
+/* порядок оцінки */
+.wsteps { display: grid; gap: 1rem; margin-top: 2.2rem; }
+@media (min-width: 860px) { .wsteps { grid-template-columns: repeat(2, 1fr); } }
+.wstep {
+  border: 1px solid var(--wline); border-radius: 16px; padding: 1.4rem 1.5rem;
+  background: var(--wbg2); transition: transform 0.16s, border-color 0.16s;
+}
+.wstep:hover { transform: translateY(-4px); border-color: var(--em-line); }
+.wstep i { font-style: normal; font-family: var(--mono); font-size: 0.7rem; color: var(--em); display: block; margin-bottom: 0.5rem; }
+.wstep b { display: block; font-family: var(--display); font-size: 1.1rem; margin-bottom: 0.45rem; }
+.wstep p { margin: 0; color: var(--wdim); font-size: 0.86rem; }
+
+.wsplit { display: grid; gap: 1.6rem; align-items: center; }
+@media (min-width: 900px) {
+  .wsplit { grid-template-columns: 1.05fr 0.95fr; }
+  .wsplit--rev > *:first-child { order: 2; }
+}
+.wshot { position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 4 / 3; }
+.wshot img { object-fit: cover; }
+
+/* заявка */
+.wform {
+  background: var(--wbg2); border: 1px solid var(--wline); border-radius: 20px;
+  padding: clamp(1.3rem, 3vw, 2.4rem); margin-top: 2rem;
+}
+.wgrid { display: grid; gap: 1rem; }
+@media (min-width: 720px) { .wgrid { grid-template-columns: 1fr 1fr; } }
+.wform p { margin: 0 0 1rem; }
+.wform label {
+  display: block; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--wdim); font-weight: 600; margin: 0 0 0.4rem;
+}
+.req { color: var(--em); }
+.wform input[type='text'], .wform input[type='tel'], .wform select, .wform textarea {
+  width: 100%; font: inherit; font-size: 0.92rem; color: var(--wink);
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--wline);
+  border-radius: 12px; padding: 0.7rem 0.85rem;
+}
+.wform select { appearance: none; }
+.wfield { margin-top: 1.6rem; }
+.wfield h3 { font-size: 1.1rem; margin-bottom: 0.3rem; }
+.wnote { color: var(--wdim); font-size: 0.8rem; margin: 0.2rem 0 1rem !important; max-width: 64ch; }
+
+.wshots { display: grid; gap: 0.7rem; }
+@media (min-width: 640px) { .wshots { grid-template-columns: repeat(3, 1fr); } }
+/* .wslot і .wagree — теж <label>, тож загальне правило вище перебивало б
+   їм і display, і регістр. Тому селектори тут довші навмисно. */
+.wform .wslot {
+  border: 1px dashed var(--wline); border-radius: 14px; padding: 1rem; cursor: pointer;
+  display: flex; flex-direction: column; gap: 0.35rem; background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.16s, background 0.16s; margin: 0;
+  text-transform: none; letter-spacing: normal; color: var(--wink);
+  font-weight: 400; font-size: 1rem;
+}
+.wform .wslot:hover { border-color: var(--em-line); background: var(--em-soft); }
+.wform .wslot--on { border-style: solid; border-color: var(--em); background: var(--em-soft); }
+.wform .wslot em { font-style: normal; font-size: 0.66rem; color: var(--em); font-weight: 600; }
+.wform .wslot b { font-size: 0.84rem; font-weight: 600; }
+.wform .wslot span { font-size: 0.72rem; color: var(--wdim); line-height: 1.45; overflow-wrap: anywhere; }
+.wform .wslot input { display: none; }
+
+.wtips {
+  margin-top: 1rem !important; font-size: 0.74rem; color: var(--wdim); line-height: 1.6;
+  border-left: 2px solid var(--em-line); padding-left: 0.9rem;
+}
+.wform .wagree {
+  display: flex; gap: 0.6rem; align-items: flex-start; margin: 1.4rem 0 0;
+  font-size: 0.76rem; color: var(--wdim);
+  text-transform: none; letter-spacing: normal; font-weight: 400;
+}
+.wform .wagree input { margin-top: 0.25rem; accent-color: var(--em); }
+.wtrap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.werr {
+  margin-top: 1rem !important; font-size: 0.82rem; color: #ff8f8a;
+  border: 1px solid rgba(255, 143, 138, 0.4); background: rgba(255, 143, 138, 0.1);
+  border-radius: 12px; padding: 0.7rem 0.9rem;
+}
+.wbtn--send { margin-top: 1.4rem; }
+
+.wform--done { text-align: center; padding-block: clamp(2rem, 5vw, 3.4rem); }
+.wform--done b { display: block; font-family: var(--display); font-size: 1.5rem; color: var(--em); margin-bottom: 0.6rem; }
+.wform--done p { color: var(--wdim); max-width: 46ch; margin-inline: auto; }
+
+/* зберігання */
+.wpriv { display: grid; gap: 1rem; margin-top: 2rem; }
+@media (min-width: 860px) { .wpriv { grid-template-columns: repeat(3, 1fr); } }
+.wpriv div { border: 1px solid var(--wline); border-radius: 16px; padding: 1.3rem 1.4rem; background: var(--wbg2); }
+.wpriv b { display: block; font-family: var(--display); font-size: 1.05rem; margin-bottom: 0.4rem; color: var(--em); }
+.wpriv p { margin: 0; font-size: 0.84rem; color: var(--wdim); }
+
+.wfoot { border-top: 1px solid var(--wline); padding-block: 2rem; font-size: 0.78rem; color: var(--wdim); }
+.wfoot a { color: var(--em); text-decoration: none; }
+.wfoot a:hover { text-decoration: underline; }
