@@ -1,5 +1,11 @@
 import type { GlobalConfig } from 'payload'
 
+/** Посилання на мережі приймаємо тільки http(s): решта схем на сторінці небезпечна. */
+const link = (value: string | null | undefined) =>
+  !value || /^https?:\/\//i.test(value.trim())
+    ? true
+    : 'Посилання має починатися з https://'
+
 /** Те, що існує в одному екземплярі: ставки, контакти, гарантія, графік чату. */
 export const Settings: GlobalConfig = {
   slug: 'settings',
@@ -39,10 +45,10 @@ export const Settings: GlobalConfig = {
           fields: [
             { name: 'hotline', type: 'text', label: 'Гаряча лінія', defaultValue: '0 800 30 85 00' },
             { name: 'email', type: 'email', label: 'Пошта', defaultValue: 'support@imperial24.com.ua' },
-            { name: 'telegram', type: 'text', label: 'Telegram-бот' },
-            { name: 'viber', type: 'text', label: 'Viber' },
-            { name: 'instagram', type: 'text', label: 'Instagram' },
-            { name: 'facebook', type: 'text', label: 'Facebook' },
+            { name: 'telegram', type: 'text', label: 'Telegram-бот', validate: link },
+            { name: 'viber', type: 'text', label: 'Viber', validate: link },
+            { name: 'instagram', type: 'text', label: 'Instagram', validate: link },
+            { name: 'facebook', type: 'text', label: 'Facebook', validate: link },
             { name: 'license', type: 'text', label: 'Ліцензія НБУ', localized: true },
             { name: 'legalEntity', type: 'text', label: 'Юридична особа, ЄДРПОУ', localized: true },
           ],

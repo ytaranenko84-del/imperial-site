@@ -45,8 +45,23 @@ const NETS = [
   { name: 'Facebook', key: 'facebook', fallback: '', icon: FB, hold: false },
 ]
 
+/**
+ * Пропускаємо лише http(s). Поле в адмінці — звичайний рядок, і `javascript:…`
+ * у ньому перетворився б на виконуваний код у кожного відвідувача.
+ */
+function safeUrl(value: unknown): string {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  try {
+    const { protocol } = new URL(raw)
+    return protocol === 'https:' || protocol === 'http:' ? raw : ''
+  } catch {
+    return ''
+  }
+}
+
 export default function Social({ settings }: { settings: Record<string, unknown> }) {
-  const items = NETS.map((n) => ({ ...n, url: String(settings[n.key] || n.fallback || '') }))
+  const items = NETS.map((n) => ({ ...n, url: safeUrl(settings[n.key]) || safeUrl(n.fallback) }))
     .filter((n) => n.url || n.hold)
 
   if (!items.length) return null
