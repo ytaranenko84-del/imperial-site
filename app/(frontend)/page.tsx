@@ -78,8 +78,7 @@ export default async function Home() {
         <nav className="nav">
           <a href="#cats">Що приймаємо</a>
           <a href="#calc">Оцінка</a>
-          {/* єдиний пункт, що веде на окрему сторінку, — звідси й інший колір */}
-          <a className="nav__em" href="/zastava/hodynnyky">Годинники</a>
+          <a href="/zastava/hodynnyky">Годинники</a>
           <a href="#sits">Ситуації</a>
           <a href="#branches">Відділення</a>
         </nav>

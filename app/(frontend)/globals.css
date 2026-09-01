@@ -107,8 +107,16 @@ a { color: inherit; }
 .brand b { font-family: var(--display); font-size: 1.15rem; font-weight: 600; letter-spacing: 0.11em; }
 .brand span { font-size: 0.6rem; color: var(--dim); }
 .nav { display: none; gap: 2.2rem; }
-.nav a { text-decoration: none; opacity: 0.86; }
+/* Усі пункти поводяться однаково: під курсором підростає тонка риска.
+   Колір не використовуємо — у меню він одразу створює нерівність. */
+.nav a { text-decoration: none; opacity: 0.86; position: relative; padding-block: 0.2rem; }
+.nav a::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px;
+  border-radius: 2px; background: currentColor; opacity: 0; transform: scaleX(0.4);
+  transition: opacity 0.16s, transform 0.16s;
+}
 .nav a:hover { opacity: 1; }
+.nav a:hover::after { opacity: 0.5; transform: none; }
 .tel { display: flex; flex-direction: column; align-items: flex-end; text-decoration: none; }
 .tel b { font-weight: 400; font-size: 0.8rem; }
 .tel span { font-size: 0.66rem; color: var(--dim); }
@@ -270,4 +278,3 @@ a.soc__i:hover { color: var(--brand); border-color: var(--brand); transform: tra
 .card--em { border: 1px solid #1f9e6e; }
 .card--em .card__how { color: #1f9e6e; }
 .card--em:hover { box-shadow: 0 12px 34px rgba(31, 158, 110, 0.22); }
-.nav__em:hover { color: #1f9e6e; opacity: 1; }
