@@ -79,7 +79,7 @@ export default async function WatchesPage() {
         </div>
         <p className="wsmall wsmall--wide">
           Список не вичерпний: беремо й інші марки, але сума залежить від конкретної моделі,
-          а не від логотипа. Кварцові годинники масових брендів під заставу не приймаємо.
+          а не від логотипа.
         </p>
       </section>
 
@@ -95,7 +95,7 @@ export default async function WatchesPage() {
             </p>
           </div>
           <div className="wshot">
-            <Image src="/watches/master.jpg" alt="Годинникар за роботою з лупою" fill sizes="(min-width: 900px) 46vw, 100vw" />
+            <Image src="/watches/master.jpg" alt="Фахівець оглядає годинник" fill sizes="(min-width: 900px) 46vw, 100vw" />
           </div>
         </div>
 
