@@ -28,15 +28,18 @@ const SITUATIONS = [
   ['Вигідна можливість', 'Ціна діє три дні — встигніть'],
 ]
 
-/** [назва, підпис, як оцінюємо, посилання] */
-const CATEGORIES: [string, string, string, string][] = [
-  ['Золото', 'Ланцюжки, каблучки, брухт', 'онлайн', '#calc'],
-  ['Срібло', 'Столове, ювелірне, брухт', 'онлайн', '#calc'],
-  ['Годинники', 'Швейцарська механіка, вінтаж', 'окремий напрям', '/zastava/hodynnyky'],
-  ['Цифрова техніка', 'Телефони, ноутбуки, фото', 'за фото', '#calc'],
-  ['Побутова техніка', 'Холодильники, пральні', 'за фото', '#calc'],
-  ['Інструмент', 'Перфоратори, бензопили', 'за фото', '#calc'],
-  ['Спорт і відпочинок', 'Велосипеди, тренажери', 'за фото', '#calc'],
+/**
+ * Картка каже, що станеться після натискання, і як саме рахується сума.
+ * [назва, підпис, дія, спосіб оцінки, посилання]
+ */
+const CATEGORIES: [string, string, string, string, string][] = [
+  ['Золото', 'Ланцюжки, каблучки, брухт', 'Порахувати суму', 'одразу на сайті', '#calc'],
+  ['Срібло', 'Столове, ювелірне, брухт', 'Порахувати суму', 'одразу на сайті', '#calc'],
+  ['Годинники', 'Швейцарська механіка, вінтаж', 'Надіслати на оцінку', 'фахівець, протягом дня', '/zastava/hodynnyky'],
+  ['Цифрова техніка', 'Телефони, ноутбуки, фото', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/tekhnika'],
+  ['Побутова техніка', 'Холодильники, пральні', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/pobutova-tekhnika'],
+  ['Інструмент', 'Перфоратори, бензопили', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/instrument'],
+  ['Спорт і відпочинок', 'Велосипеди, тренажери', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/sport'],
 ]
 
 const TRUST = [
@@ -88,7 +91,9 @@ export default async function Home() {
       </header>
 
       <main>
-        <section className="wrap hero center" id="calc" data-reveal-group>
+        <section className="start center">
+          {/* анімація появи — лише на вміст: підказку внизу вона зсувала б за край екрана */}
+          <div className="wrap start__in" data-reveal-group>
           <p className="eyebrow">Мережа ломбардів з 2008 року</p>
           <h1>Найвища оцінка<br />вашого золота</h1>
           <div className="goldline" />
@@ -116,9 +121,18 @@ export default async function Home() {
             </div>
             <div className="fact"><b><span data-count={years}>{years}</span> років</b><span>на ринку</span></div>
           </div>
+
+          <a className="pill start__go" href="#calc">Порахувати суму →</a>
+          </div>
+
+          {/* перший екран займає всю висоту, тож потрібен знак, що сторінка триває */}
+          <div className="start__hint" aria-hidden="true">
+            <span>Калькулятор нижче</span>
+            <span className="start__arrow">↓</span>
+          </div>
         </section>
 
-        <section className="wrap" style={{ paddingBottom: 'clamp(3.6rem,7vw,6.4rem)' }} data-reveal>
+        <section className="wrap" id="calc" style={{ paddingBottom: 'clamp(3.6rem,7vw,6.4rem)' }} data-reveal>
           <Calculator
             tariffs={tariffs}
             rateTiers={rateTiers}
@@ -136,17 +150,15 @@ export default async function Home() {
           <div className="wrap">
             <div className="shead center" data-reveal>
               <h2>Що ми приймаємо</h2>
-              <p>Ювелірні вироби оцінюємо онлайн — сума одразу. Техніку оцінює фахівець за фото.</p>
+              <p>Золото і срібло рахує калькулятор одразу. Решту оцінює фахівець за фото.</p>
             </div>
             <div className="grid grid--3" data-reveal-group>
-              {CATEGORIES.map(([name, sub, how, href]) => (
-                <a
-                  className={`card card--link${href.startsWith('/') ? ' card--em' : ''}`}
-                  key={name} href={href}
-                >
+              {CATEGORIES.map(([name, sub, action, how, href]) => (
+                <a className="card card--link" key={name} href={href}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
                   <p>{sub}</p>
-                  <p className="card__how">{how} ›</p>
+                  <span className="card__act">{action}<i>→</i></span>
+                  <span className="card__how">{how}</span>
                 </a>
               ))}
             </div>
