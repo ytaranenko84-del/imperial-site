@@ -17,14 +17,16 @@ const KEYS = EVAL_CATEGORIES.map((c) => c.value) as string[]
 const text = (v: FormDataEntryValue | null, max = 200) =>
   typeof v === 'string' ? v.trim().slice(0, max) : ''
 
-/** Публічні адреси завантажених світлин — Telegram забирає їх сам. */
-function photoUrls(doc: Record<string, unknown>): string[] {
+/**
+ * Публічна адреса світлини — Telegram забирає файл сам.
+ *
+ * Будуємо її з імені файлу одразу після завантаження. Брати адресу
+ * з відповіді бази не можна: там повертаються лише номери записів,
+ * і альбом ішов порожнім.
+ */
+function photoUrl(filename: string) {
   const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/$/, '')
-  const items = (doc.photos || []) as Array<{ url?: string } | string | number>
-  return items
-    .map((p) => (typeof p === 'object' && p?.url ? p.url : ''))
-    .filter(Boolean)
-    .map((u) => (u.startsWith('http') ? u : base + u))
+  return `${base}/api/media/file/${encodeURIComponent(filename)}`
 }
 
 export async function POST(req: Request) {
@@ -74,6 +76,7 @@ export async function POST(req: Request) {
 
   try {
     const photos: (string | number)[] = []
+    const urls: string[] = []
     for (const [i, f] of files.entries()) {
       const doc = await payload.create({
         collection: 'media',
@@ -87,6 +90,7 @@ export async function POST(req: Request) {
         },
       })
       photos.push(doc.id)
+      if (doc.filename) urls.push(photoUrl(String(doc.filename)))
     }
 
     const doc = await payload.create({
@@ -113,20 +117,29 @@ export async function POST(req: Request) {
         sent = 'отримувачів не задано'
       } else {
         const card = evalCard({ ...doc, id: doc.id }, { clientInBot: false })
-        const urls = photoUrls(doc)
         const okTo: string[] = []
+        const problems: string[] = []
         for (const [chat, title] of chats) {
           try {
             await send({ chat, text: card })
-            await sendPhotos(chat, urls)
             okTo.push(title || chat)
           } catch (e) {
             payload.logger.error({ err: e, chat }, 'eval-request telegram')
+            problems.push(`${title || chat}: ${(e as Error).message}`)
+            continue
+          }
+          // світлини окремо: якщо альбом не пройшов, картка все одно дійшла
+          try {
+            await sendPhotos(chat, urls)
+          } catch (e) {
+            payload.logger.error({ err: e, chat }, 'eval-request photos')
+            problems.push(`${title || chat}: ${(e as Error).message}`)
           }
         }
-        sent = okTo.length
-          ? `надіслано: ${okTo.join(', ')}`
-          : 'не вдалося надіслати, заявка збережена'
+        sent = [
+          okTo.length ? `надіслано: ${okTo.join(', ')}` : 'не вдалося надіслати, заявка збережена',
+          problems.length ? `· проблеми — ${problems.join('; ')}` : '',
+        ].filter(Boolean).join(' ')
       }
       await payload.update({ collection: 'eval-requests', id: doc.id, data: { sent }, overrideAccess: true })
     }

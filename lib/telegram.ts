@@ -44,6 +44,10 @@ export async function send({ chat, text, replyMarkup }: SendOptions) {
   return json.result as { message_id: number; chat: { id: number } }
 }
 
+/**
+ * Світлини йдуть альбомом: Telegram забирає їх за посиланням сам.
+ * Помилку не глушимо — інакше «фото не прийшли» неможливо пояснити.
+ */
 export async function sendPhotos(chat: string, urls: string[]) {
   const t = token()
   if (!t || !urls.length) return
@@ -51,7 +55,7 @@ export async function sendPhotos(chat: string, urls: string[]) {
 
   // до десяти світлин одним альбомом — інакше чат засипає окремими фото
   const media = urls.slice(0, 10).map((url) => ({ type: 'photo', media: url }))
-  await fetch(`${API}${t}/sendMediaGroup`, {
+  const res = await fetch(`${API}${t}/sendMediaGroup`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -59,7 +63,9 @@ export async function sendPhotos(chat: string, urls: string[]) {
       media,
       ...(threadId ? { message_thread_id: Number(threadId) } : {}),
     }),
-  }).catch(() => {})
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!json.ok) throw new Error(`фото: ${json.description || res.status}`)
 }
 
 /** Екранування для parse_mode=HTML: текст людей не має ставати розміткою. */
