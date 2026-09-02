@@ -53,12 +53,14 @@ export default function Branches({ branches }: { branches: Branch[] }) {
       .filter(({ b }) => b.lat != null && b.lng != null)
       .map(({ b, i }) => {
         // Два відділення в одному будинку дали б одну мітку на двох, і нижнє
-        // не натиснути. Тому другу й наступні трохи розводимо — метрів на десять.
+        // не натиснути. Тому другу й наступні відводимо вбік. Двадцять метрів —
+        // менше не має сенсу: на робочому масштабі карти це частка пікселя,
+        // а більше вже вивело б мітку за межі будинку.
         const key = `${(b.lat as number).toFixed(5)},${(b.lng as number).toFixed(5)}`
         const n = seen.get(key) ?? 0
         seen.set(key, n + 1)
         const angle = (n * 2 * Math.PI) / 3
-        const shift = n ? 0.00009 : 0
+        const shift = n ? 0.0002 : 0
         const pos: [number, number] = [
           (b.lat as number) + shift * Math.cos(angle),
           (b.lng as number) + shift * Math.sin(angle) * 1.5,

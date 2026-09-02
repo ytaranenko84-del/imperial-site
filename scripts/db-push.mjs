@@ -46,6 +46,15 @@ const save = () => {
   } catch { /* не привід зупиняти збірку */ }
 }
 
+// Куди саме йдемо. Без цього рядка легко прогнати синхронізацію по локальному
+// файлу sqlite із .env, вирішити, що бойова база оновлена, — і зламати сайт.
+const target = process.env.DATABASE_URL || process.env.DATABASE_URI || process.env.NETLIFY_DATABASE_URL || ''
+const where = target.startsWith('postgres')
+  ? `${target.replace(/\/\/[^@]*@/, '//***@').split('?')[0]}${process.env.DATABASE_SCHEMA ? ` · схема ${process.env.DATABASE_SCHEMA}` : ''}`
+  : (target || 'локальна sqlite')
+report.target = where
+console.log(`· база: ${where}`)
+
 try {
   report.step = 'завантаження конфігу'
   const { getPayload } = await import('payload')
