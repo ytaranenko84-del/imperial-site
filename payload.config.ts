@@ -93,9 +93,12 @@ export default buildConfig({
          */
         pool: {
           connectionString: databaseURL,
-          max: 1,
-          idleTimeoutMillis: 10_000,
-          connectionTimeoutMillis: 10_000,
+          // Сторінка робить кілька запитів одночасно, тож одного підключення
+          // мало: вони стають у чергу й не дочікуються. П'ять вистачає
+          // сторінці й лишає запас транзакційному пулу.
+          max: 5,
+          idleTimeoutMillis: 20_000,
+          connectionTimeoutMillis: 15_000,
         },
         // Схема потрібна лише тоді, коли база спільна з іншими сервісами.
         // Для власної бази Netlify залишається public.
