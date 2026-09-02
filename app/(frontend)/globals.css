@@ -181,9 +181,13 @@ a { color: inherit; }
 
 /* герой */
 .hero { position: relative; padding-block: clamp(3rem, 7vw, 5.5rem) clamp(2rem, 4vw, 3rem); overflow: hidden; }
+/* та сама підкладка, що на стартовому екрані: помітна згори, гасне до середини */
 .hero::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(60% 40% at 50% 0%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 62%);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--brand) 22%, transparent) 0%,
+    color-mix(in srgb, var(--brand) 7%, transparent) 26%,
+    transparent 58%);
 }
 .hero > * { position: relative; }
 .eyebrow { color: var(--dim); font-size: clamp(0.8rem, 0.72rem + 0.4vh, 0.95rem); margin: 0 0 0.7rem; }
@@ -302,7 +306,6 @@ a.soc__i:hover { color: var(--brand); border-color: var(--brand); transform: tra
   width: 56px; height: 2px; margin: 1.3rem auto 0; border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
-.hero::before { background: radial-gradient(60% 40% at 50% 0%, var(--gold-soft), transparent 62%); }
 
 /* Темна секція розбиває суцільно світлу сторінку. У темній темі вона
    світліша за тло — інакше просто злилася б із ним. */

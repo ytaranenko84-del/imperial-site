@@ -1,0 +1,80 @@
+/* Форма оцінки за фото — сторінки категорій і годинників. */
+
+.eform {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+  padding: clamp(1.2rem, 3vw, 2rem); margin-top: 1.6rem;
+}
+.eg2 { display: grid; gap: 1rem; }
+@media (min-width: 720px) { .eg2 { grid-template-columns: 1fr 1fr; } }
+.eform p { margin: 0 0 1rem; }
+.eform label {
+  display: block; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dim); font-weight: 600; margin: 0 0 0.35rem;
+}
+.req { color: var(--brand); }
+.eform input[type='text'], .eform input[type='tel'], .eform select, .eform textarea {
+  width: 100%; font: inherit; font-size: 0.92rem; padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink);
+}
+.eform input:focus-visible, .eform select:focus-visible, .eform textarea:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 1px;
+}
+.efield { margin-top: 1.4rem; }
+.efield h3 { font-size: 1.1rem; margin-bottom: 0.3rem; }
+.ehint { font-size: 0.8rem; color: var(--dim); margin: 0.2rem 0 1rem !important; max-width: 78ch; line-height: 1.6; }
+
+.eshots { display: grid; gap: 0.7rem; }
+@media (min-width: 640px) { .eshots { grid-template-columns: repeat(3, 1fr); } }
+.eform .eslot {
+  border: 1px dashed var(--line); border-radius: 14px; padding: 1rem; cursor: pointer;
+  background: var(--gray-bg); display: flex; flex-direction: column; gap: 0.3rem; margin: 0;
+  text-transform: none; letter-spacing: normal; font-weight: 400; font-size: 1rem;
+  color: var(--ink); transition: border-color 0.16s, background 0.16s;
+}
+.eform .eslot:hover { border-color: var(--gold); background: var(--gold-soft); }
+.eform .eslot--on { border-style: solid; border-color: var(--gold); background: var(--gold-soft); }
+.eform .eslot b { font-size: 0.84rem; font-weight: 600; }
+.eform .eslot span { font-size: 0.72rem; color: var(--dim); line-height: 1.45; overflow-wrap: anywhere; }
+.eform .eslot input { display: none; }
+
+.eform .eagree {
+  display: flex; gap: 0.6rem; align-items: flex-start; margin: 1.2rem 0 0;
+  font-size: 0.76rem; color: var(--dim);
+  text-transform: none; letter-spacing: normal; font-weight: 400;
+}
+.eform .eagree input { margin-top: 0.25rem; accent-color: var(--gold); }
+.etrap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.eerr {
+  margin: 1rem 0 0 !important; font-size: 0.82rem; color: var(--brand);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border-radius: 12px; padding: 0.7rem 0.9rem;
+}
+.esend { margin-top: 1.2rem; }
+.efine { font-size: 0.68rem; color: var(--dim); margin: 0.6rem 0 0 !important; }
+
+.eform--done { text-align: center; padding-block: clamp(2rem, 5vw, 3.4rem); }
+.eform--done b {
+  display: block; font-family: var(--display); font-size: 1.5rem;
+  color: var(--ok); margin-bottom: 0.6rem;
+}
+.eform--done p { color: var(--dim); max-width: 46ch; margin-inline: auto; }
+.eform--done .pill { margin-top: 1.2rem; }
+
+/* сторінка категорії */
+.split { display: grid; gap: 1.6rem; align-items: center; }
+@media (min-width: 900px) { .split { grid-template-columns: 1.05fr 0.95fr; } }
+.cshot { position: relative; border-radius: var(--r); overflow: hidden; aspect-ratio: 4 / 3; }
+.cshot img { object-fit: cover; }
+.goldline--left { margin-inline: 0; background: linear-gradient(90deg, var(--gold), transparent); }
+.take { margin: 1.2rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; }
+.take li { padding-left: 1.2rem; position: relative; font-size: 0.92rem; }
+.take li::before {
+  content: ''; position: absolute; left: 0; top: 0.62em; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--gold);
+}
+.cnote {
+  margin: 1.2rem 0 0; font-size: 0.82rem; color: var(--dim);
+  border-left: 2px solid var(--gold); padding-left: 0.9rem; max-width: 60ch;
+}
+.shead .goldline--left { margin-top: 0.9rem; }

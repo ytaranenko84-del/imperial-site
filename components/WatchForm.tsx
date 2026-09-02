@@ -37,7 +37,9 @@ export default function WatchForm({ brands }: { brands: string[] }) {
 
     setState('sending')
     try {
-      const res = await fetch('/api/watch-request', { method: 'POST', body: data })
+      // спільний роут на всі напрямки; годинники позначені окремим ключем
+      data.set('category', 'watches')
+      const res = await fetch('/api/eval-request', { method: 'POST', body: data })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Не вдалося надіслати заявку')
       setState('sent')
