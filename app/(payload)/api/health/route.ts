@@ -25,7 +25,16 @@ export async function GET(req: Request) {
     return Response.json({ ok: false }, { status: 500 })
   }
 
-  if (!user) return Response.json(report)
+  /**
+   * Коли база недоступна, увійти в адмінку неможливо — а саме тоді
+   * діагностика й потрібна. Тому є другий шлях: заголовок із ключем
+   * застосунку, який знає лише той, хто має доступ до налаштувань хостингу.
+   */
+  const key = req.headers.get('x-health-key')
+  const secret = process.env.PAYLOAD_SECRET || ''
+  const byKey = Boolean(secret) && key === secret
+
+  if (!user && !byKey) return Response.json(report)
 
   report.node = process.version
   report.hasPayloadSecret = Boolean(process.env.PAYLOAD_SECRET)
