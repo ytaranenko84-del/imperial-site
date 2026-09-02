@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "yes '' | node --env-file-if-exists=.env scripts/db-push.mjs && next build",
+    "build": "next build",
     "start": "next start",
     "db:push": "node --env-file-if-exists=.env scripts/db-push.mjs"
   },

@@ -10,6 +10,16 @@ export async function GET() {
     node: process.version,
     hasPayloadSecret: Boolean(process.env.PAYLOAD_SECRET),
     serverUrl: process.env.NEXT_PUBLIC_SERVER_URL || null,
+    // куди насправді ходить сайт: пароль не показуємо, лише вузол і схему
+    database: (() => {
+      const url = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL || ''
+      if (!url) return 'DATABASE_URL не задано'
+      try {
+        return new URL(url).host + ' · схема ' + (process.env.DATABASE_SCHEMA || 'public')
+      } catch {
+        return 'адреса непридатна для розбору'
+      }
+    })(),
   }
 
   try {
