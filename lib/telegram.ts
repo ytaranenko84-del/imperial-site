@@ -62,7 +62,8 @@ export async function sendPhotos(chat: string, urls: string[]) {
   }).catch(() => {})
 }
 
-const esc = (v: unknown) =>
+/** Екранування для parse_mode=HTML: текст людей не має ставати розміткою. */
+export const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string))
 
 const CATEGORY_LABEL: Record<string, string> = {

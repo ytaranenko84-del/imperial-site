@@ -76,6 +76,8 @@ export const EvalRequests: CollectionConfig = {
       fields: [
         { name: 'clientChat', type: 'text', label: 'Клієнт у боті', admin: { readOnly: true,
           description: 'Порожньо — відповідь лише дзвінком або SMS' } },
+        // Таємне слово в посиланні: без нього чужу заявку не «привласнити»
+        { name: 'clientKey', type: 'text', label: 'Ключ посилання', admin: { hidden: true } },
         { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
         { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true,
           date: { pickerAppearance: 'dayAndTime' } } },

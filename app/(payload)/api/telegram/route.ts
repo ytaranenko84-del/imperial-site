@@ -1,6 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
-import { normalizePhone, send, token } from '@/lib/telegram.ts'
+import { timingSafeEqual } from 'node:crypto'
+import { esc, normalizePhone, send, token } from '@/lib/telegram.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -49,8 +50,29 @@ function requestIdFrom(text?: string) {
   return m ? Number(m[1]) : null
 }
 
+/**
+ * Порівняння без підказки за часом: інакше ключ можна підібрати,
+ * вимірюючи, як швидко приходить відмова.
+ */
+function sameSecret(a: string, b: string) {
+  if (!a || !b || a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
+
 export async function POST(req: Request) {
   if (!token()) return Response.json({ ok: true })
+
+  /**
+   * Адреса приймання відкрита всьому інтернету, тож без перевірки будь-хто
+   * міг би надіслути підроблену подію: прив'язати свій чат до відділення
+   * або змусити бота написати клієнтові. Telegram додає до кожного запиту
+   * умовне слово, яке ми задали разом із адресою.
+   */
+  const expected = process.env.TELEGRAM_WEBHOOK_SECRET || ''
+  const given = req.headers.get('x-telegram-bot-api-secret-token') || ''
+  if (!expected || !sameSecret(given, expected)) {
+    return Response.json({ ok: false }, { status: 401 })
+  }
 
   let update: { message?: TgMessage }
   try {
@@ -75,17 +97,33 @@ export async function POST(req: Request) {
     // ── «Почати», можливо з міткою заявки ──
     if (msg.text?.startsWith('/start')) {
       const arg = msg.text.split(' ')[1] || ''
-      const id = /^eval_(\d+)$/.exec(arg)?.[1]
+      const m = /^eval_(\d+)_([A-Za-z0-9]{16,})$/.exec(arg)
 
-      if (id) {
-        await payload.update({
-          collection: 'eval-requests', id, overrideAccess: true,
-          data: { clientChat: String(msg.chat.id) },
+      if (m) {
+        const [, id, key] = m
+        const doc = await payload.findByID({
+          collection: 'eval-requests', id, depth: 0, overrideAccess: true,
         }).catch(() => null)
-        await send({
-          chat: chatKey,
-          text: `Ваша заявка №${id} прийнята. Відповідь оцінювача прийде сюди.`,
-        })
+
+        // ключ із посилання має збігтися, і заявку ще не мають бути прив'язані
+        const stored = String((doc as { clientKey?: string } | null)?.clientKey || '')
+        const bound = String((doc as { clientChat?: string } | null)?.clientChat || '')
+        const mine = bound === String(msg.chat.id)
+
+        if (doc && stored && sameSecret(key, stored) && (!bound || mine)) {
+          if (!bound) {
+            await payload.update({
+              collection: 'eval-requests', id, overrideAccess: true,
+              data: { clientChat: String(msg.chat.id) },
+            })
+          }
+          await send({
+            chat: chatKey,
+            text: `Ваша заявка №${id} прийнята. Відповідь оцінювача прийде сюди.`,
+          })
+        } else {
+          await send({ chat: chatKey, text: 'Посилання застаріло. Зателефонуйте нам, будь ласка.' })
+        }
         return Response.json({ ok: true })
       }
 
@@ -134,7 +172,7 @@ async function linkByPhone(
     })
     await send({
       chat,
-      text: `Готово. Броні відділення <b>${String(branch.address ?? '')}</b> надходитимуть сюди.`,
+      text: `Готово. Броні відділення <b>${esc(branch.address)}</b> надходитимуть сюди.`,
     })
     return
   }
@@ -153,7 +191,7 @@ async function linkByPhone(
     })
     await send({
       chat,
-      text: `Готово, <b>${String((person as { title?: string }).title ?? '')}</b>. Заявки надходитимуть сюди.`,
+      text: `Готово, <b>${esc((person as { title?: string }).title)}</b>. Заявки надходитимуть сюди.`,
     })
     return
   }
@@ -186,16 +224,16 @@ async function relayAnswer(
   const answeredBy = String((doc as { answeredBy?: string }).answeredBy || '')
 
   if (answeredBy && answeredBy !== who) {
-    await send({ chat, text: `На цю заявку вже відповів ${answeredBy}. Ваше повідомлення теж надіслано.` })
+    await send({ chat, text: `На цю заявку вже відповів ${esc(answeredBy)}. Ваше повідомлення теж надіслано.` })
   }
 
   if (clientChat) {
-    await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${text}` })
+    await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}` })
     await send({ chat, text: '✓ Надіслано клієнту' })
   } else {
     await send({
       chat,
-      text: `Клієнт не підключений до бота. Телефон: ${String((doc as { phone?: string }).phone ?? '')}`,
+      text: `Клієнт не підключений до бота. Телефон: ${esc((doc as { phone?: string }).phone)}`,
     })
   }
 
@@ -240,7 +278,7 @@ async function noteClientMessage(
   for (const target of chats.keys()) {
     await send({
       chat: target,
-      text: `<b>Заявка №${doc.id}</b> · клієнт відповів:\n${text}`,
+      text: `<b>Заявка №${doc.id}</b> · клієнт відповів:\n${esc(text)}`,
     }).catch(() => {})
   }
 }

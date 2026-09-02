@@ -1,6 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
+import { randomBytes } from 'node:crypto'
 import { evalCard, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
 
 /**
@@ -99,6 +100,8 @@ export async function POST(req: Request) {
         comment: text(form.get('comment'), 2000),
         status: 'new',
         photos,
+        // ключ для посилання в Telegram: без нього чужу заявку не привласнити
+        clientKey: randomBytes(16).toString('hex'),
       },
     })
 
@@ -137,7 +140,9 @@ export async function POST(req: Request) {
       ok: true,
       id: doc.id,
       // посилання, за яким клієнт вмикає відповіді в Telegram
-      botLink: bot ? `https://t.me/${bot}?start=eval_${doc.id}` : null,
+      botLink: bot
+        ? `https://t.me/${bot}?start=eval_${doc.id}_${String((doc as { clientKey?: string }).clientKey || '')}`
+        : null,
     })
   } catch (e) {
     payload.logger.error({ err: e }, 'eval-request failed')
