@@ -1,6 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
+import { evalCard, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
 
 /**
  * Заявка на оцінку за фото: POST multipart/form-data зі сторінок категорій
@@ -14,6 +15,16 @@ const KEYS = EVAL_CATEGORIES.map((c) => c.value) as string[]
 
 const text = (v: FormDataEntryValue | null, max = 200) =>
   typeof v === 'string' ? v.trim().slice(0, max) : ''
+
+/** Публічні адреси завантажених світлин — Telegram забирає їх сам. */
+function photoUrls(doc: Record<string, unknown>): string[] {
+  const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/$/, '')
+  const items = (doc.photos || []) as Array<{ url?: string } | string | number>
+  return items
+    .map((p) => (typeof p === 'object' && p?.url ? p.url : ''))
+    .filter(Boolean)
+    .map((u) => (u.startsWith('http') ? u : base + u))
+}
 
 export async function POST(req: Request) {
   let form: FormData
@@ -77,7 +88,7 @@ export async function POST(req: Request) {
       photos.push(doc.id)
     }
 
-    await payload.create({
+    const doc = await payload.create({
       collection: 'eval-requests',
       overrideAccess: true,
       data: {
@@ -91,7 +102,43 @@ export async function POST(req: Request) {
       },
     })
 
-    return Response.json({ ok: true })
+    // ── надсилання в Telegram ──
+    let sent = 'вимкнено: немає токена бота'
+    if (token()) {
+      const chats = await recipientsFor(payload, category)
+      if (!chats.size) {
+        sent = 'отримувачів не задано'
+      } else {
+        const card = evalCard({ ...doc, id: doc.id }, { clientInBot: false })
+        const urls = photoUrls(doc)
+        const okTo: string[] = []
+        for (const [chat, title] of chats) {
+          try {
+            await send({ chat, text: card })
+            await sendPhotos(chat, urls)
+            okTo.push(title || chat)
+          } catch (e) {
+            payload.logger.error({ err: e, chat }, 'eval-request telegram')
+          }
+        }
+        sent = okTo.length
+          ? `надіслано: ${okTo.join(', ')}`
+          : 'не вдалося надіслати, заявка збережена'
+      }
+      await payload.update({ collection: 'eval-requests', id: doc.id, data: { sent }, overrideAccess: true })
+    }
+
+    const bot = await payload
+      .findGlobal({ slug: 'settings', overrideAccess: true })
+      .then((s) => String((s as { botUsername?: string }).botUsername || ''))
+      .catch(() => '')
+
+    return Response.json({
+      ok: true,
+      id: doc.id,
+      // посилання, за яким клієнт вмикає відповіді в Telegram
+      botLink: bot ? `https://t.me/${bot}?start=eval_${doc.id}` : null,
+    })
   } catch (e) {
     payload.logger.error({ err: e }, 'eval-request failed')
     return Response.json({ error: 'Не вдалося зберегти заявку. Зателефонуйте нам, будь ласка.' }, { status: 500 })

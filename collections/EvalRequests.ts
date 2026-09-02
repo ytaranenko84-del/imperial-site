@@ -71,6 +71,27 @@ export const EvalRequests: CollectionConfig = {
     { name: 'comment', type: 'textarea', label: 'Що ще варто знати' },
     { name: 'photos', type: 'upload', relationTo: 'media', hasMany: true, label: 'Фотографії' },
     { name: 'sent', type: 'text', label: 'Надіслано в чат', admin: { readOnly: true } },
+    {
+      type: 'row',
+      fields: [
+        { name: 'clientChat', type: 'text', label: 'Клієнт у боті', admin: { readOnly: true,
+          description: 'Порожньо — відповідь лише дзвінком або SMS' } },
+        { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
+        { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true,
+          date: { pickerAppearance: 'dayAndTime' } } },
+      ],
+    },
+    {
+      name: 'thread',
+      type: 'array',
+      label: 'Листування',
+      admin: { readOnly: true, description: 'Повна історія: що написали ми і що відповів клієнт' },
+      fields: [
+        { name: 'from', type: 'text', label: 'Хто' },
+        { name: 'text', type: 'textarea', label: 'Повідомлення' },
+        { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
+      ],
+    },
     { name: 'note', type: 'textarea', label: 'Нотатка оцінювача' },
   ],
   hooks: {

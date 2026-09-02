@@ -15,6 +15,7 @@ import { Cities } from './collections/Cities.ts'
 import { Branches } from './collections/Branches.ts'
 import { EvalRequests } from './collections/EvalRequests.ts'
 import { Bookings } from './collections/Bookings.ts'
+import { Recipients } from './collections/Recipients.ts'
 import { Media } from './collections/Media.ts'
 import { Users } from './collections/Users.ts'
 import { Settings } from './collections/Settings.ts'
@@ -62,7 +63,7 @@ export default buildConfig({
       afterNavLinks: ['/components/admin/AccountLink#default'],
     },
   },
-  collections: [Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, EvalRequests, Media, Users],
+  collections: [Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, EvalRequests, Recipients, Media, Users],
   globals: [Settings],
   // Українська — основна мова (розділ 18 ТЗ)
   localization: {

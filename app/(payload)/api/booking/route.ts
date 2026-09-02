@@ -1,5 +1,6 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { bookingCard, send, token as botToken } from '@/lib/telegram.ts'
 
 /**
  * Бронь суми: POST JSON із вікна на головній.
@@ -25,21 +26,6 @@ function expiry(closeTime?: string | null, roundClock?: boolean): Date {
   const end = new Date(till)
   end.setHours(h, m || 0, 0, 0)
   return end < till ? end : till
-}
-
-async function notify(token: string, chat: string, message: string) {
-  const [chatId, threadId] = chat.split(':')
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: message,
-      parse_mode: 'HTML',
-      ...(threadId ? { message_thread_id: Number(threadId) } : {}),
-    }),
-  })
-  if (!res.ok) throw new Error(`telegram ${res.status}`)
 }
 
 export async function POST(req: Request) {
@@ -95,9 +81,8 @@ export async function POST(req: Request) {
     })
 
     // ── повідомлення у чат ──
-    const token = process.env.TELEGRAM_BOT_TOKEN
     let sent = 'вимкнено: немає токена бота'
-    if (token) {
+    if (botToken()) {
       const settings = await payload.findGlobal({ slug: 'settings', overrideAccess: true })
       const chat = String((branch as { telegramChat?: string }).telegramChat
         || (settings as { telegramChatDefault?: string }).telegramChatDefault || '')
@@ -108,18 +93,14 @@ export async function POST(req: Request) {
         const till = expiresAt.toLocaleString('uk-UA', {
           day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
         })
-        const message = [
-          `<b>Бронь №${doc.id}</b>`,
-          `Сума: <b>${amount.toLocaleString('uk-UA')} грн</b>${purity ? ` · ${purity}` : ''}`
-            + `${weight ? `, ${weight} г` : ''}${days ? `, ${days} дн.` : ''}`,
-          tier ? `Статус: ${tier}` : '',
-          `Клієнт: ${name}, ${phone}`,
-          `Відділення: ${String(branch.address ?? '')}`,
-          `Діє до: ${till}`,
-        ].filter(Boolean).join('\n')
+        const message = bookingCard(
+          { id: doc.id, amount, purity, weight, days, tier, name, phone },
+          String(branch.address ?? ''),
+          till,
+        )
 
         try {
-          await notify(token, chat, message)
+          await send({ chat, text: message })
           sent = `надіслано ${new Date().toLocaleString('uk-UA')}`
         } catch (e) {
           // заявка вже збережена — мессенджер не має ламати бронь

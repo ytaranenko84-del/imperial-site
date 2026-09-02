@@ -55,6 +55,8 @@ export const Settings: GlobalConfig = {
             { name: 'viber', type: 'text', label: 'Viber', validate: link },
             { name: 'instagram', type: 'text', label: 'Instagram', validate: link },
             { name: 'facebook', type: 'text', label: 'Facebook', validate: link },
+            { name: 'botUsername', type: 'text', label: 'Ім’я бота', defaultValue: 'imperialzajavka_bot',
+              admin: { description: 'Без @. Потрібне для посилання «Отримати відповідь у Telegram»' } },
             { name: 'telegramChatDefault', type: 'text', label: 'Загальний Telegram-чат',
               admin: { description: 'Сюди йдуть заявки, якщо у відділення чат не заданий. '
                 + 'Токен бота зберігається в налаштуваннях хостингу, не тут' } },
