@@ -146,6 +146,13 @@ export async function POST(req: Request) {
     })
   } catch (e) {
     payload.logger.error({ err: e }, 'eval-request failed')
-    return Response.json({ error: 'Не вдалося зберегти заявку. Зателефонуйте нам, будь ласка.' }, { status: 500 })
+    return Response.json({
+      error: 'Не вдалося зберегти заявку. Зателефонуйте нам, будь ласка.',
+      // Подробиці — лише коли ввімкнено окремою змінною середовища:
+      // журнали функцій нам недоступні, а причину збою треба бачити.
+      ...(process.env.DEBUG_ERRORS === '1'
+        ? { detail: (e as Error).message.slice(0, 300) }
+        : {}),
+    }, { status: 500 })
   }
 }
