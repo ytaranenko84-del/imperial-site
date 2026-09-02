@@ -171,3 +171,11 @@
 .wfoot { border-top: 1px solid var(--wline); padding-block: 2rem; font-size: 0.78rem; color: var(--wdim); }
 .wfoot a { color: var(--em); text-decoration: none; }
 .wfoot a:hover { text-decoration: underline; }
+
+/* кнопка Telegram на екрані після надсилання заявки */
+.wpage .tgbtn {
+  display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1.2rem;
+  background: #229ed9; color: #fff; border-radius: 999px;
+  padding: 0.8rem 1.4rem; font-size: 0.9rem; font-weight: 600; text-decoration: none;
+}
+.wpage .tgbtn svg { width: 18px; height: 18px; fill: currentColor; }

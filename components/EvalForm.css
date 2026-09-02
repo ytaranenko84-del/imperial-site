@@ -78,3 +78,13 @@
   border-left: 2px solid var(--gold); padding-left: 0.9rem; max-width: 60ch;
 }
 .shead .goldline--left { margin-top: 0.9rem; }
+
+/* кнопка «Отримати відповідь у Telegram» на екрані після надсилання */
+.tgbtn {
+  display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1.2rem;
+  background: #229ed9; color: #fff; border: 0; border-radius: 999px;
+  padding: 0.8rem 1.4rem; font-size: 0.9rem; font-weight: 600;
+  text-decoration: none; transition: filter 0.16s;
+}
+.tgbtn:hover { filter: brightness(1.08); }
+.tgbtn svg { width: 18px; height: 18px; fill: currentColor; }

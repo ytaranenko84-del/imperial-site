@@ -7,8 +7,21 @@
  */
 export const dynamic = 'force-dynamic'
 
+/** Загальний вигляд підключення — без вузла, логіна й пароля. */
+function dbKind() {
+  const url = process.env.DATABASE_URL
+    || (process.env.DATABASE_URI?.startsWith('postgres') ? process.env.DATABASE_URI : '')
+    || process.env.NETLIFY_DATABASE_URL || ''
+  if (!url) return 'не задано'
+  if (url.includes('supabase')) return url.includes(':6543') ? 'supabase, пул 6543' : 'supabase, пул 5432'
+  if (url.includes('neon')) return 'netlify'
+  return 'інша'
+}
+
 export async function GET(req: Request) {
-  const report: Record<string, unknown> = { ok: true }
+  // Рядок безпечний і без входу: не називає ні вузол, ні пароль, але одразу
+  // показує, чи бачить працюючий сайт налаштування бази.
+  const report: Record<string, unknown> = { ok: true, db: dbKind() }
 
   let user: unknown = null
   let payload: Awaited<ReturnType<typeof import('payload')['getPayload']>> | null = null
