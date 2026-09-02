@@ -33,6 +33,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 async function resolveDatabaseUrl(): Promise<string | null> {
   const manual =
     process.env.DATABASE_URL ||
+    // те саме під іншою звичною назвою: щоб не ловити годину через одну літеру
+    (process.env.DATABASE_URI?.startsWith('postgres') ? process.env.DATABASE_URI : '') ||
     process.env.NETLIFY_DATABASE_URL ||
     process.env.NETLIFY_DATABASE_URL_UNPOOLED
   if (manual) return manual

@@ -41,7 +41,11 @@ export async function GET(req: Request) {
   report.serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || null
 
   // куди насправді ходить сайт: пароль не показуємо, лише вузол і схему
-  const url = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL || ''
+  const url = process.env.DATABASE_URL
+    || (process.env.DATABASE_URI?.startsWith('postgres') ? process.env.DATABASE_URI : '')
+    || process.env.NETLIFY_DATABASE_URL || ''
+  report.seenVars = ['DATABASE_URL', 'DATABASE_URI', 'DATABASE_SCHEMA', 'NETLIFY_DATABASE_URL']
+    .filter((k) => Boolean(process.env[k])).join(', ') || 'жодної'
   report.database = !url
     ? 'DATABASE_URL не задано'
     : (() => {
