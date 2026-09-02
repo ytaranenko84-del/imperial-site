@@ -46,10 +46,26 @@ function popupHtml(b: Branch) {
 }
 
 export default function Branches({ branches }: { branches: Branch[] }) {
-  const mapped = useMemo(
-    () => branches.map((b, i) => ({ b, i })).filter(({ b }) => b.lat != null && b.lng != null),
-    [branches],
-  )
+  const mapped = useMemo(() => {
+    const seen = new Map<string, number>()
+    return branches
+      .map((b, i) => ({ b, i }))
+      .filter(({ b }) => b.lat != null && b.lng != null)
+      .map(({ b, i }) => {
+        // Два відділення в одному будинку дали б одну мітку на двох, і нижнє
+        // не натиснути. Тому другу й наступні трохи розводимо — метрів на десять.
+        const key = `${(b.lat as number).toFixed(5)},${(b.lng as number).toFixed(5)}`
+        const n = seen.get(key) ?? 0
+        seen.set(key, n + 1)
+        const angle = (n * 2 * Math.PI) / 3
+        const shift = n ? 0.00009 : 0
+        const pos: [number, number] = [
+          (b.lat as number) + shift * Math.cos(angle),
+          (b.lng as number) + shift * Math.sin(angle) * 1.5,
+        ]
+        return { b, i, pos }
+      })
+  }, [branches])
   const firstOnMap = mapped.length ? mapped[0].i : 0
 
   const [active, setActive] = useState(firstOnMap)
@@ -66,7 +82,7 @@ export default function Branches({ branches }: { branches: Branch[] }) {
   const fitAll = useCallback(() => {
     const map = mapRef.current
     if (!map || !mapped.length) return
-    map.fitBounds(mapped.map(({ b }) => [b.lat as number, b.lng as number]), { padding: [36, 36] })
+    map.fitBounds(mapped.map(({ pos }) => pos), { padding: [36, 36] })
   }, [mapped])
 
   // ─── створення карти ───
@@ -84,15 +100,15 @@ export default function Branches({ branches }: { branches: Branch[] }) {
       // та й вигляд має збігатися з рештою сайту
       const icon = L.divIcon({ className: 'pinwrap', html: '<i class="pin"></i>', iconSize: [16, 16] })
 
-      mapped.forEach(({ b, i }) => {
-        const m = L.marker([b.lat as number, b.lng as number], { icon, title: label(b), keyboard: true })
+      mapped.forEach(({ b, i, pos }) => {
+        const m = L.marker(pos, { icon, title: label(b), keyboard: true })
           .addTo(map)
           .bindPopup(popupHtml(b), { closeButton: true, className: 'pop' })
         m.on('click', () => setActive(i))
         markersRef.current.set(i, m)
       })
 
-      map.fitBounds(mapped.map(({ b }) => [b.lat as number, b.lng as number]), { padding: [36, 36] })
+      map.fitBounds(mapped.map(({ pos }) => pos), { padding: [36, 36] })
       markersRef.current.get(activeRef.current)?.getElement()?.classList.add('pinwrap--on')
       mapRef.current = map
     })
