@@ -689,12 +689,14 @@
   "processingMinutes": 6,
   "calcTerms": "5,7,10,14,21,30",
   "disclaimer": "Розрахунок попередній. Остаточну суму визначає оцінювач після огляду виробу.",
-  "guaranteeOn": true,
+  "guaranteeOn": false,
   "guaranteeText": "У відділенні ви гарантовано отримаєте суму не меншу за ту, що показала онлайн-оцінка — за умови підтвердження заявлених характеристик.",
   "hotline": "0 800 30 85 00",
   "email": "support@imperial24.com.ua",
   "chatFrom": "09:00",
   "chatTo": "20:00",
-  "chatOffline": "Ми зараз офлайн. Залиште контакт — відповімо зранку."
+  "chatOffline": "Ми зараз офлайн. Залиште контакт — відповімо зранку.",
+  "bonusWeightLimit": 20,
+  "bonusWeightPurity": 585
  }
 }
