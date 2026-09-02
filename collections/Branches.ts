@@ -1,4 +1,7 @@
 import type { CollectionConfig } from 'payload'
+import { APIError } from 'payload'
+
+import { resolveCoords } from '../lib/geo.ts'
 
 /** Відділення. Модель даних за розділом 10 ТЗ. */
 export const Branches: CollectionConfig = {
@@ -10,6 +13,30 @@ export const Branches: CollectionConfig = {
     defaultColumns: ['displayAddress', 'city', 'phone', 'active'],
   },
   access: { read: () => true },
+  hooks: {
+    beforeChange: [
+      async ({ data, originalDoc }) => {
+        const url = typeof data?.coords?.mapsUrl === 'string' ? data.coords.mapsUrl.trim() : ''
+        if (!url) return data
+
+        // Ходимо в Google лише коли посилання нове: інакше кожне збереження — зайвий запит
+        const same = url === (originalDoc?.coords?.mapsUrl || '').trim()
+        if (same && typeof originalDoc?.coords?.lat === 'number') return data
+
+        const c = await resolveCoords(url)
+        if (!c) {
+          throw new APIError(
+            'У цьому посиланні немає координат. Відкрийте його в браузері й скопіюйте адресу '
+            + 'з адресного рядка — у ній є @49.44,32.05. Або клацніть правою кнопкою по точці '
+            + 'на карті й скопіюйте перший рядок із числами, вставивши його в це саме поле.',
+            400,
+          )
+        }
+        data.coords = { ...data.coords, lat: c.lat, lng: c.lng }
+        return data
+      },
+    ],
+  },
   fields: [
     {
       // Збирається автоматично при збереженні: адреса + колишня назва в дужках.
@@ -60,7 +87,19 @@ export const Branches: CollectionConfig = {
       type: 'group',
       label: 'Координати для карти',
       fields: [
-        { name: 'lat', type: 'number', label: 'Широта' },
+        {
+          name: 'mapsUrl',
+          type: 'text',
+          label: 'Посилання Google Maps',
+          admin: {
+            description: 'Вставте посилання на точку з Google Maps — координати підставляться '
+              + 'самі при збереженні. Найнадійніше: клацнути правою кнопкою по потрібному місцю '
+              + 'на карті й вибрати перший рядок із числами (це координати) — його теж можна '
+              + 'вставити сюди',
+          },
+        },
+        { name: 'lat', type: 'number', label: 'Широта',
+          admin: { description: 'Заповнюється з посилання. Можна виправити вручну' } },
         { name: 'lng', type: 'number', label: 'Довгота' },
       ],
     },
