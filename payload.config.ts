@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url'
 import { buildConfig } from 'payload'
 import { sqliteAdapter } from '@payloadcms/db-sqlite'
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { s3Storage } from '@payloadcms/storage-s3'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { uk } from '@payloadcms/translations/languages/uk'
 import { ru } from '@payloadcms/translations/languages/ru'
@@ -83,6 +84,31 @@ export default buildConfig({
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
+  /**
+   * Світлини із заявок зберігаються в сховищі Supabase, а не на диску:
+   * сайт працює функціями, і файлова система в них лише для читання —
+   * саме тому заявка з фото падала на бойовому сервері.
+   *
+   * Без ключів плагін не вмикається, і на своєму комп'ютері файли, як
+   * і раніше, лягають у public/media.
+   */
+  plugins: process.env.S3_ACCESS_KEY_ID
+    ? [
+        s3Storage({
+          collections: { media: true },
+          bucket: process.env.S3_BUCKET || 'site-media',
+          config: {
+            endpoint: process.env.S3_ENDPOINT,
+            region: process.env.S3_REGION || 'eu-west-1',
+            forcePathStyle: true,
+            credentials: {
+              accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+              secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+            },
+          },
+        }),
+      ]
+    : [],
   db: databaseURL
     ? postgresAdapter({
         /**
