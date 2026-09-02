@@ -13,6 +13,14 @@
  *
  * Порядок при зміні колекцій: спершу прогнати цей скрипт на бойовій базі
  * з відповідями, і лише потім відправляти код.
+ *
+ * Синхронізація вміє мовчки нічого не зробити — так було з колонкою
+ * coords_maps_url: скрипт відзвітував про успіх, а колонки в базі не з'явилось,
+ * і бойовий сайт перестав читати відділення. Тому в кінці скрипт читає по
+ * запису з кожної колекції: не збіглося — скаже одразу. Якщо синхронізація
+ * знову нічого не зробить, колонку додають руками:
+ *
+ *     alter table site.branches add column if not exists coords_maps_url varchar;
  */
 /**
  * Створює структуру таблиць у базі під час збірки.
@@ -49,9 +57,29 @@ try {
   report.step = 'перевірка таблиць'
   const { totalDocs } = await payload.count({ collection: 'users', overrideAccess: true })
   report.users = totalDocs
+
+  // Синхронізація вміє мовчки нічого не зробити, і тоді код чекає на колонку,
+  // якої в базі немає: вибірка падає вже на бойовому сайті. Тому одразу читаємо
+  // по одному запису з кожної колекції — бракує колонки, побачимо це тут.
+  report.step = 'читання колекцій'
+  const broken = []
+  for (const c of payload.config.collections || []) {
+    try {
+      await payload.find({ collection: c.slug, limit: 1, depth: 0, overrideAccess: true })
+    } catch (e) {
+      broken.push(`${c.slug}: ${(e?.message || String(e)).slice(0, 160)}`)
+    }
+  }
+  if (broken.length) {
+    report.broken = broken
+    console.error('· схема НЕ збіглася з кодом:')
+    for (const b of broken) console.error('   ', b)
+    throw new Error(`колекції не читаються: ${broken.length}`)
+  }
+
   report.step = 'готово'
   report.ok = true
-  console.log(`· схема готова, користувачів у базі: ${totalDocs}`)
+  console.log(`· схема готова, колекцій перевірено: ${(payload.config.collections || []).length}, користувачів у базі: ${totalDocs}`)
 } catch (e) {
   report.error = (e?.message || String(e)).slice(0, 400)
   console.error('· не вдалося синхронізувати схему:', report.error)
