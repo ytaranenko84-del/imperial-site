@@ -53,6 +53,12 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     meta: { titleSuffix: ' · Імперіал' },
+    components: {
+      // подвійний клац по рядку відкриває запис
+      providers: ['/components/admin/RowOpen#default'],
+      // сторінка зміни пароля схована під аватаром — виносимо в меню
+      afterNavLinks: ['/components/admin/AccountLink#default'],
+    },
   },
   collections: [Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, WatchRequests, Media, Users],
   globals: [Settings],
