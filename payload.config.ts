@@ -84,7 +84,19 @@ export default buildConfig({
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   db: databaseURL
     ? postgresAdapter({
-        pool: { connectionString: databaseURL },
+        /**
+         * Кожен запит сайту виконує окрема функція, і кожна тримає своє
+         * підключення. Сесійний пул Supabase дає лише 15 — вони закінчувались,
+         * і сайт падав із «max clients reached». Тому: транзакційний пул
+         * (порт 6543) у DATABASE_URL і не більш як одне підключення на
+         * примірник; після запиту воно швидко звільняється.
+         */
+        pool: {
+          connectionString: databaseURL,
+          max: 1,
+          idleTimeoutMillis: 10_000,
+          connectionTimeoutMillis: 10_000,
+        },
         // Схема потрібна лише тоді, коли база спільна з іншими сервісами.
         // Для власної бази Netlify залишається public.
         ...(process.env.DATABASE_SCHEMA ? { schemaName: process.env.DATABASE_SCHEMA } : {}),
