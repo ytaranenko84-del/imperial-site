@@ -62,6 +62,10 @@ export const Branches: CollectionConfig = {
     { name: 'address', type: 'text', label: 'Адреса', required: true, localized: true },
     { name: 'slug', type: 'text', label: 'Адреса сторінки',
       admin: { description: 'Латиницею: kosiora-29b' } },
+    { name: 'internalName', type: 'text', label: 'Внутрішня назва',
+      admin: { description: 'Як відділення звуть між собою: Косіора, Терра, Океан. '
+        + 'Клієнтам не показується — потрібна, щоб швидко знайти відділення тут і '
+        + 'упізнати його в заявках з бота' } },
     { name: 'phone', type: 'text', label: 'Телефон',
       admin: { description: 'Публічний: показується клієнтам на сайті' } },
     { name: 'workPhone', type: 'text', label: 'Робочий номер',
