@@ -60,7 +60,7 @@ export default buildConfig({
     meta: { titleSuffix: ' · Імперіал' },
     components: {
       // подвійний клац по рядку відкриває запис
-      providers: ['/components/admin/RowOpen#default'],
+      providers: ['/components/admin/RowEdit#default'],
       // сторінка зміни пароля схована під аватаром — виносимо в меню
       afterNavLinks: ['/components/admin/AccountLink#default'],
     },
