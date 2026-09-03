@@ -392,3 +392,39 @@ a.soc__i:hover { color: var(--brand); border-color: var(--brand); transform: tra
 .card__act i { font-style: normal; transition: transform 0.16s; }
 .card--link:hover .card__act i { transform: translateX(3px); }
 .card__how { display: block; font-size: 0.72rem; color: var(--dim); margin-top: 0.25rem; }
+
+/* Без власного заголовка секція йде впритул до попереднього блока:
+   інакше між фактами й пошуком зяяло б порожнє півекрана. */
+.sec--tight { padding-top: 0; }
+
+/* ─── сторінка відділень ─────────────────────────────────────────────────── */
+.shead h1 { font-size: var(--s3); }
+.crumbs {
+  display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: baseline;
+  font-size: var(--s-1); color: var(--dim); margin-bottom: 1.2rem;
+}
+.crumbs a { color: var(--dim); text-decoration: none; }
+.crumbs a:hover { color: var(--ink); text-decoration: underline; }
+
+.bfacts {
+  display: flex; flex-wrap: wrap; gap: 0 clamp(1.6rem, 4vw, 3.4rem);
+  margin: 1.8rem 0 0; padding: 0;
+}
+.bfacts div { display: grid; gap: 0.1rem; }
+.bfacts dt { font-size: var(--s-1); color: var(--dim); }
+.bfacts dd {
+  margin: 0; font-family: var(--display); font-size: var(--s2); font-weight: 600;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+
+/* Заголовок сторінки вирівнюється по лівому краю, як крихти й факти під ним:
+   центрований блок серед лівих виглядав би збитим. */
+.bhead { margin-inline: 0; }
+
+.bnote { max-width: 62ch; }
+.bnote h2 { font-size: var(--s2); margin-bottom: 1rem; }
+.bnote p { color: var(--dim); }
+.bnote a { color: var(--brand); text-decoration: none; font-weight: 500; }
+.bnote a:hover { text-decoration: underline; }
+
+.foot__in { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: center; justify-content: space-between; }

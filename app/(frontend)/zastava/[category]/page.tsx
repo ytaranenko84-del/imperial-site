@@ -49,7 +49,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
             { href: '/#calc', label: 'Оцінка' },
             { href: '/zastava/hodynnyky', label: 'Годинники' },
             { href: '/#sits', label: 'Ситуації' },
-            { href: '/#branches', label: 'Відділення' },
+            { href: '/viddilennya', label: 'Відділення' },
           ]}
         />
         <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>

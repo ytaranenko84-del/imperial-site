@@ -13,7 +13,9 @@ const nextConfig: NextConfig = {
       { source: '/news-shares/:path*', destination: '/novyny/:path*', permanent: true },
       { source: '/reviews', destination: '/vidhuky', permanent: true },
       { source: '/vacancy', destination: '/vakansiyi', permanent: true },
-      { source: '/contacts', destination: '/kontakty', permanent: true },
+      // На старому сайті /contacts був переліком адрес відділень — ведемо туди ж
+      { source: '/contacts', destination: '/viddilennya', permanent: true },
+      { source: '/contacts/', destination: '/viddilennya', permanent: true },
       { source: '/loans', destination: '/zastava', permanent: true },
       { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/zastava/zoloto', permanent: true },
       { source: '/loans/tsifrovaya-tekhnika/:path*', destination: '/zastava/tekhnika', permanent: true },

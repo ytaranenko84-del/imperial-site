@@ -46,7 +46,10 @@ function popupHtml(b: Branch) {
     + `<a class="pop__route" href="${routeUrl(b)}" target="_blank" rel="noopener">Прокласти маршрут →</a>`
 }
 
-export default function Branches({ branches }: { branches: Branch[] }) {
+export default function Branches(
+  { branches, heading = 'Знайдіть найближче', lead = 'Натисніть на відділення — карта підведе до нього. Кнопка «Маршрут» відкриє навігатор.' }:
+  { branches: Branch[]; heading?: string | null; lead?: string | null },
+) {
   const mapped = useMemo(() => {
     const seen = new Map<string, number>()
     return branches
@@ -71,8 +74,23 @@ export default function Branches({ branches }: { branches: Branch[] }) {
   }, [branches])
   const firstOnMap = mapped.length ? mapped[0].i : 0
 
+
   const [active, setActive] = useState(firstOnMap)
   const [geo, setGeo] = useState<'idle' | 'wait' | 'deny'>('idle')
+  const [query, setQuery] = useState('')
+
+  /**
+   * Відділень 28 — очима шукати довго. Пошук веде і за колишньою назвою
+   * вулиці, і за орієнтиром: люди частіше пам'ятають «Косіора», ніж
+   * «Петра Калнишевського».
+   */
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const all = branches.map((b, i) => ({ b, i }))
+    if (!q) return all
+    return all.filter(({ b }) => [b.displayAddress, b.address, b.formerName, b.transport]
+      .filter(Boolean).join(' ').toLowerCase().includes(q))
+  }, [branches, query])
   const activeRef = useRef(active)
   activeRef.current = active
 
@@ -176,16 +194,34 @@ export default function Branches({ branches }: { branches: Branch[] }) {
   const cur = branches[active]
 
   return (
-    <section className="sec" id="branches">
+    <section className={`sec${heading ? '' : ' sec--tight'}`} id="branches">
       <div className="wrap">
-        <div className="shead center" data-reveal>
-          <h2>Знайдіть найближче</h2>
-          <p>Натисніть на відділення — карта підведе до нього. Кнопка «Маршрут» відкриє навігатор.</p>
-        </div>
+        {heading && (
+          <div className="shead center" data-reveal>
+            <h2>{heading}</h2>
+            {lead && <p>{lead}</p>}
+          </div>
+        )}
+
+        <label className="brfind">
+          <span className="brfind__lab">Пошук за адресою</span>
+          <input
+            type="search"
+            className="brfind__in"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Вулиця, орієнтир або колишня назва"
+            autoComplete="off"
+          />
+          {query && <span className="brfind__n">{shown.length} із {branches.length}</span>}
+        </label>
 
         <div className="brwrap">
           <div className="brlist" ref={listRef}>
-            {branches.map((b, i) => (
+            {shown.length === 0 && (
+              <p className="brfind__none">Нічого не знайшлось. Спробуйте назву вулиці без номера будинку.</p>
+            )}
+            {shown.map(({ b, i }) => (
               <div
                 key={b.id}
                 className={`br${i === active ? ' br--on' : ''}`}

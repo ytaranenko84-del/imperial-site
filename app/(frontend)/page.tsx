@@ -117,7 +117,7 @@ export default async function Home() {
             { href: '#calc', label: 'Оцінка' },
             { href: '/zastava/hodynnyky', label: 'Годинники' },
             { href: '#sits', label: 'Ситуації' },
-            { href: '#branches', label: 'Відділення' },
+            { href: '/viddilennya', label: 'Відділення' },
           ]}
         />
         <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
@@ -290,14 +290,14 @@ export default async function Home() {
                 <li><a href="#calc">Кредит під заставу</a></li>
                 <li><a href="#calc">Онлайн-оцінка</a></li>
                 <li><a href="#cats">Що приймаємо</a></li>
-                <li><a href="#branches">Відділення</a></li>
+                <li><a href="/viddilennya">Відділення</a></li>
               </ul>
             </div>
             <div>
               <h4>Компанія</h4>
               <ul>
                 <li><a href="#sits">Життєві ситуації</a></li>
-                <li><a href="#branches">Контакти</a></li>
+                <li><a href="/viddilennya">Контакти</a></li>
                 <li><a href="/admin">Вхід для співробітників</a></li>
               </ul>
             </div>
