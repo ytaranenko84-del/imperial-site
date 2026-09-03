@@ -120,9 +120,56 @@ a { color: inherit; }
 .nav a:hover { opacity: 1; }
 .nav a:hover::after { opacity: 0.5; transform: none; }
 .tel { display: flex; flex-direction: column; align-items: flex-end; text-decoration: none; }
-.tel b { font-weight: 400; font-size: 0.8rem; }
+.tel b { font-weight: 400; font-size: 0.8rem; white-space: nowrap; }
 .tel span { font-size: 0.66rem; color: var(--dim); }
+/* На вузькому екрані підпис переносився на два рядки й тиснув кнопку меню.
+   Номер лишається, підпис є в самому меню. */
+@media (max-width: 560px) { .tel span { display: none; } }
 @media (min-width: 900px) { .nav { display: flex; } }
+
+/* ── меню на телефоні ─────────────────────────────────────────────────────
+   Рядок посилань не вміщається у вузький екран, тож там його замінює кнопка
+   й панель на весь екран. На широкому екрані кнопки немає зовсім.
+   ───────────────────────────────────────────────────────────────────────── */
+.burger {
+  display: grid; place-items: center;
+  width: 40px; height: 40px; margin-inline-start: auto;
+  border: 0; background: transparent; cursor: pointer; color: inherit;
+  border-radius: 10px;
+}
+.burger__i, .burger__i::before, .burger__i::after {
+  content: ''; display: block; width: 20px; height: 2px; border-radius: 2px;
+  background: currentColor; transition: transform 0.18s, opacity 0.18s;
+}
+.burger__i::before { transform: translateY(-6px); }
+.burger__i::after { transform: translateY(4px); }
+.burger__i--x { background: transparent; }
+.burger__i--x::before { transform: rotate(45deg); }
+.burger__i--x::after { transform: rotate(-45deg) translateY(-2px); }
+@media (min-width: 900px) { .burger { display: none; } }
+
+.mnav {
+  position: fixed; inset: var(--top-h) 0 0; z-index: 49;
+  background: var(--surface);
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: clamp(1.4rem, 6vw, 2.6rem) var(--gut) calc(1.6rem + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+.mnav__links { display: flex; flex-direction: column; gap: 0.2rem; }
+.mnav__links a {
+  text-decoration: none; font-family: var(--display); font-size: var(--s2);
+  font-weight: 600; letter-spacing: -0.02em; padding-block: 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+.mnav__links a:last-child { border-bottom: 0; }
+.mnav__tel {
+  display: flex; flex-direction: column; gap: 0.1rem; text-decoration: none;
+  font-size: var(--s1); font-weight: 600; padding-top: 1.4rem;
+}
+.mnav__tel span { font-size: var(--s-1); font-weight: 400; color: var(--dim); }
+@media (prefers-reduced-motion: reduce) {
+  .burger__i, .burger__i::before, .burger__i::after { transition: none; }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Стартовий екран. Займає рівно висоту вікна на будь-якому пристрої:

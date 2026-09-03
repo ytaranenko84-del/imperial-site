@@ -21,6 +21,14 @@ const nextConfig: NextConfig = {
       { source: '/loans/instrumenty-i-oborudovanie/:path*', destination: '/zastava/instrument', permanent: true },
       { source: '/loans/tovary-dlya-otdykha-i-sporta/:path*', destination: '/zastava/sport', permanent: true },
       { source: '/index.php', destination: '/', permanent: true },
+      // Усі адреси старого сайту закінчуються скісною рискою. Next спершу її
+      // прибирає, і без цих правил кожен старий лінк ішов би у два переходи,
+      // втрачаючи частину ваги посилання.
+      { source: '/loans/yuvelirnye-izdeliya/', destination: '/zastava/zoloto', permanent: true },
+      { source: '/loans/tsifrovaya-tekhnika/', destination: '/zastava/tekhnika', permanent: true },
+      { source: '/loans/bytovaya-tekhnika/', destination: '/zastava/pobutova-tekhnika', permanent: true },
+      { source: '/loans/instrumenty-i-oborudovanie/', destination: '/zastava/instrument', permanent: true },
+      { source: '/loans/tovary-dlya-otdykha-i-sporta/', destination: '/zastava/sport', permanent: true },
     ]
   },
 }

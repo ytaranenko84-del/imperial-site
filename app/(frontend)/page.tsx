@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSiteData } from '@/lib/data'
 import Calculator from '@/components/Calculator'
+import Nav from '@/components/Nav'
+import { FaqSchema, OrganizationSchema } from '@/components/Schema.tsx'
 import Branches from '@/components/Branches'
 import Social from '@/components/Social'
 import '@/components/Calculator.css'
@@ -12,6 +14,31 @@ import '@/components/Booking.css'
 // приходив за півтори секунди. Тепер готова сторінка живе хвилину: правки з
 // адмінки з'являються за той самий час, а відвідувач отримує її одразу.
 export const revalidate = 60
+
+/** Питання йдуть у розмітку: пошуковик показує їх прямо у результатах. */
+const HOME_FAQ = [
+  {
+    q: 'Скільки дають за грам золота 585 проби?',
+    a: 'За чинним прайсом — 3 100 грн за грам під заставу і 3 150 грн при викупі. '
+      + 'Ціни оновлюються за курсом металу, точну суму рахує калькулятор на сайті.',
+  },
+  {
+    q: 'Чи потрібен паспорт?',
+    a: 'Так. Договір оформлюється на паспорт або ID-картку — це вимога закону, '
+      + 'однакова для всіх ломбардів України.',
+  },
+  {
+    q: 'Скільки часу займає оцінка?',
+    a: 'Золото й срібло — близько шести хвилин разом з оформленням договору '
+      + 'і видачею готівки. Техніку дивиться оцінювач, це довше.',
+  },
+  {
+    q: 'Що буде з річчю, поки діє позика?',
+    a: 'Річ зберігається в сейфі відділення й лишається вашою. Ви забираєте її, '
+      + 'коли повертаєте позику з відсотками.',
+  },
+]
+
 
 export const metadata: Metadata = {
   title: 'Ломбард «Імперіал» — найвища оцінка золота, ставка від 0,39% на день',
@@ -76,18 +103,23 @@ export default async function Home() {
 
   return (
     <>
+      <OrganizationSchema branches={branches} hotline={hotline} minRate={bestRate} />
+      <FaqSchema items={HOME_FAQ} />
       <header className="wrap top">
         <a className="brand" href="/">
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
           <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
         </a>
-        <nav className="nav">
-          <a href="#cats">Що приймаємо</a>
-          <a href="#calc">Оцінка</a>
-          <a href="/zastava/hodynnyky">Годинники</a>
-          <a href="#sits">Ситуації</a>
-          <a href="#branches">Відділення</a>
-        </nav>
+        <Nav
+          hotline={hotline}
+          items={[
+            { href: '#cats', label: 'Що приймаємо' },
+            { href: '#calc', label: 'Оцінка' },
+            { href: '/zastava/hodynnyky', label: 'Годинники' },
+            { href: '#sits', label: 'Ситуації' },
+            { href: '#branches', label: 'Відділення' },
+          ]}
+        />
         <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
           <b>{hotline}</b><span>Цілодобово · безкоштовно</span>
         </a>

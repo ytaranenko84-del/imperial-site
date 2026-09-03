@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { getSettings } from '@/lib/data'
 import { CATEGORIES, byCategorySlug } from '@/lib/categories'
 import EvalForm from '@/components/EvalForm'
+import Nav from '@/components/Nav'
 import '@/components/EvalForm.css'
 
 export const revalidate = 600
@@ -41,12 +42,16 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
           <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
         </a>
-        <nav className="nav">
-          <a href="/#cats">Що приймаємо</a>
-          <a href="/#calc">Оцінка</a>
-          <a href="/zastava/hodynnyky">Годинники</a>
-          <a href="/#branches">Відділення</a>
-        </nav>
+        <Nav
+          hotline={hotline}
+          items={[
+            { href: '/#cats', label: 'Що приймаємо' },
+            { href: '/#calc', label: 'Оцінка' },
+            { href: '/zastava/hodynnyky', label: 'Годинники' },
+            { href: '/#sits', label: 'Ситуації' },
+            { href: '/#branches', label: 'Відділення' },
+          ]}
+        />
         <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
           <b>{hotline}</b><span>Цілодобово · безкоштовно</span>
         </a>
