@@ -10,7 +10,21 @@ const nextConfig: NextConfig = {
       { source: '/bonus', destination: '/bonusy', permanent: true },
       { source: '/about', destination: '/pro-nas', permanent: true },
       { source: '/redemption', destination: '/vykup-avto', permanent: true },
-      { source: '/news-shares/:path*', destination: '/novyny/:path*', permanent: true },
+      // Кожен матеріал зі старого сайту веде на свою нову адресу. Загальне
+      // правило нижче ловить решту — переліки й те, чого вже немає.
+      { source: '/news-shares/diskontnaya_programma_dlya_postoyannykh_klientov', destination: '/novyny/dyskontna-prohrama', permanent: true },
+      { source: '/ua/news-shares/diskontna_motivatsiyna_programa_dlya_postiynikh_kli-ntiv', destination: '/novyny/dyskontna-prohrama', permanent: true },
+      { source: '/news-shares/news4', destination: '/novyny/vysoka-otsinka', permanent: true },
+      { source: '/ua/news-shares/visoka_otsinka_dlya_nashikh_kli-ntiv', destination: '/novyny/vysoka-otsinka', permanent: true },
+      { source: '/news-shares/qr-kod_dlya_otzyvov_i_predlozheniy', destination: '/novyny/qr-kod-vidhuky', permanent: true },
+      { source: '/ua/news-shares/qr-kod', destination: '/novyny/qr-kod-vidhuky', permanent: true },
+      { source: '/news-shares/lichnyy_kabinet', destination: '/novyny/kabinet-u-telehram', permanent: true },
+      { source: '/ua/news-shares/osobystyy_kabinet', destination: '/novyny/kabinet-u-telehram', permanent: true },
+      { source: '/news-shares/apple-leto', destination: '/novyny/apple-lito-2020', permanent: true },
+      { source: '/news-shares/obsluzhivanie_klientov_vo_vremya_karantina', destination: '/novyny/robota-pid-chas-karantynu', permanent: true },
+      { source: '/ua/news-shares/novorichna_lotereya', destination: '/novyny/novorichna-lotereya-2024', permanent: true },
+      { source: '/ua/news-shares/svyatkovyy_rozigrash_podarunkiv', destination: '/novyny/svyatkovyi-rozihrash', permanent: true },
+      { source: '/news-shares/:path*', destination: '/novyny', permanent: true },
       { source: '/reviews', destination: '/vidhuky', permanent: true },
       { source: '/vacancy', destination: '/vakansiyi', permanent: true },
       // На старому сайті /contacts був переліком адрес відділень — ведемо туди ж

@@ -1,0 +1,35 @@
+/* перелік новин і акцій */
+.nlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
+.ncard {
+  display: grid; gap: 0.4rem; align-content: start;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--surface);
+  padding: 1.15rem 1.25rem; text-decoration: none;
+  transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
+}
+.ncard:hover { border-color: var(--brand); transform: translateY(-4px); box-shadow: var(--shadow); }
+.ncard b { font-family: var(--display); font-size: var(--s1); font-weight: 600; letter-spacing: -0.02em; }
+.ncard__lead { color: var(--dim); font-size: var(--s-1); }
+.ncard__meta { color: var(--dim); font-size: 0.72rem; font-family: var(--mono); }
+.ncard__kind {
+  justify-self: start; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--dim);
+  border: 1px solid var(--line); border-radius: var(--pill); padding: 0.16rem 0.6rem;
+}
+.ncard__kind--promo { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.nlist--arch .ncard { opacity: 0.7; }
+.nlist--arch .ncard:hover { opacity: 1; }
+.narch { font-size: var(--s2); font-weight: 600; margin: clamp(2rem, 4vw, 3rem) 0 1.2rem; }
+.ndim { color: var(--dim); }
+
+/* сама сторінка матеріалу */
+.nart { max-width: 68ch; }
+.nart h1 { font-size: var(--s2); margin: 0.8rem 0 0; }
+.nmeta { color: var(--dim); font-size: var(--s-1); font-family: var(--mono); margin: 0.5rem 0 1.6rem; }
+.nold {
+  border-left: 3px solid var(--gold); background: var(--gold-soft);
+  padding: 0.8rem 1rem; border-radius: 0 10px 10px 0; font-size: var(--s-1); margin: 0 0 1.6rem;
+}
+.nold a { color: var(--brand); }
+.ntext p { margin: 0 0 1rem; }
+.ntext ul { margin: 0 0 1.2rem; padding-left: 1.15rem; display: grid; gap: 0.4rem; }
+.ntext li { color: var(--ink); }

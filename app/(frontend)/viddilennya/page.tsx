@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
 
 import { getSiteData } from '@/lib/data.ts'
-import Nav from '@/components/Nav'
+import SiteHeader from '@/components/SiteHeader'
+import SiteFooter from '@/components/SiteFooter'
 import Branches from '@/components/Branches'
-import Social from '@/components/Social'
 import { BreadcrumbSchema, OrganizationSchema } from '@/components/Schema.tsx'
 import '@/components/Branches.css'
 
@@ -34,25 +33,7 @@ export default async function BranchesPage() {
         { name: 'Відділення', href: '/viddilennya' },
       ]} />
 
-      <header className="wrap top">
-        <a className="brand" href="/">
-          <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
-          <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
-        </a>
-        <Nav
-          hotline={hotline}
-          items={[
-            { href: '/#cats', label: 'Що приймаємо' },
-            { href: '/#calc', label: 'Оцінка' },
-            { href: '/zastava/hodynnyky', label: 'Годинники' },
-            { href: '/#sits', label: 'Ситуації' },
-            { href: '/viddilennya', label: 'Відділення' },
-          ]}
-        />
-        <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
-          <b>{hotline}</b><span>Цілодобово · безкоштовно</span>
-        </a>
-      </header>
+      <SiteHeader hotline={hotline} />
 
       <main>
         <section className="sec">
@@ -110,15 +91,7 @@ export default async function BranchesPage() {
         </section>
       </main>
 
-      <footer className="foot">
-        <div className="wrap foot__in">
-          <a className="brand" href="/">
-            <Image className="brand__mark" src="/logo.png" alt="" width={32} height={32} />
-            <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
-          </a>
-          <Social settings={settings} />
-        </div>
-      </footer>
+      <SiteFooter settings={settings} />
     </>
   )
 }

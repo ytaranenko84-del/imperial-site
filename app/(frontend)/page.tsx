@@ -291,6 +291,7 @@ export default async function Home() {
                 <li><a href="#calc">Онлайн-оцінка</a></li>
                 <li><a href="#cats">Що приймаємо</a></li>
                 <li><a href="/viddilennya">Відділення</a></li>
+                <li><a href="/novyny">Новини та акції</a></li>
               </ul>
             </div>
             <div>

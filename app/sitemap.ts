@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 
 import { CATEGORIES } from '@/lib/categories.ts'
+import { getNews } from '@/lib/news.ts'
 import { siteUrl } from '@/lib/site.ts'
 
 /**
@@ -9,14 +10,22 @@ import { siteUrl } from '@/lib/site.ts'
  */
 export const revalidate = 3600
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl()
   const now = new Date()
+  const news = await getNews()
 
   return [
     { url: `${base}/`, lastModified: now, changeFrequency: 'daily', priority: 1 },
     { url: `${base}/viddilennya`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${base}/zastava/hodynnyky`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${base}/novyny`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.6 },
+    ...news.map((n) => ({
+      url: `${base}/novyny/${n.slug}`,
+      lastModified: new Date(n.publishedAt),
+      changeFrequency: 'yearly' as const,
+      priority: n.archived ? 0.2 : 0.5,
+    })),
     ...CATEGORIES.map((c) => ({
       url: `${base}/zastava/${c.slug}`,
       lastModified: now,
