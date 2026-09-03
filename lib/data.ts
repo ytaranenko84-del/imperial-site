@@ -35,6 +35,7 @@ export type Branch = {
   displayAddress?: string | null
   formerName?: string | null
   phone?: string | null
+  transport?: string | null
   lat?: number | null
   lng?: number | null
   roundClock: boolean
@@ -113,6 +114,7 @@ export async function getSiteData(): Promise<SiteData> {
           displayAddress: (d.displayAddress as string) ?? null,
           formerName: (d.formerName as string) ?? null,
           phone: (d.phone as string) ?? null,
+          transport: (d.transport as string) ?? null,
           lat: c.lat != null ? Number(c.lat) : null,
           lng: c.lng != null ? Number(c.lng) : null,
           roundClock: Boolean(s.roundClock),

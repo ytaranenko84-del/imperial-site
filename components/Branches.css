@@ -12,6 +12,10 @@
 .br--on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
 .br b { display: block; font-weight: 600; font-size: var(--s0); }
 .br span { color: var(--dim); font-size: var(--s-1); font-family: var(--mono); }
+/* Орієнтир: два відділення бувають в одному будинку, і адреса їх не розрізняє */
+.br__near { display: block; font-style: normal; font-size: 0.72rem; color: var(--dim); }
+.pop__near { display: block; margin-top: 0.15rem; font-style: normal; font-size: 0.72rem; color: var(--dim); }
+.mapbox__near { display: block; font-style: normal; font-weight: 400; font-size: 0.72rem; color: var(--dim); }
 
 .br__act { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
 .br__hrs { font-size: 0.7rem; color: var(--dim); white-space: nowrap; }

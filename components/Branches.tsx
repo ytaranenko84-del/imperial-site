@@ -39,7 +39,8 @@ const escape = (t: string) => t.replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 
 function popupHtml(b: Branch) {
-  return `<b class="pop__addr">${escape(label(b))}</b>`
+  const near = b.transport ? `<i class="pop__near">${escape(b.transport)}</i>` : ''
+  return `<b class="pop__addr">${escape(label(b))}</b>${near}`
     + `<span class="pop__row">${escape(hours(b))}</span>`
     + (b.phone ? `<a class="pop__row" href="tel:${b.phone.replace(/[^\d+]/g, '')}">${escape(b.phone)}</a>` : '')
     + `<a class="pop__route" href="${routeUrl(b)}" target="_blank" rel="noopener">Прокласти маршрут →</a>`
@@ -186,7 +187,7 @@ export default function Branches({ branches }: { branches: Branch[] }) {
           <div className="brlist" ref={listRef}>
             {branches.map((b, i) => (
               <div
-                key={b.address}
+                key={b.id}
                 className={`br${i === active ? ' br--on' : ''}`}
                 onClick={() => setActive(i)}
                 role="button"
@@ -195,6 +196,7 @@ export default function Branches({ branches }: { branches: Branch[] }) {
               >
                 <div>
                   <b>{label(b)}</b>
+                  {b.transport && <i className="br__near">{b.transport}</i>}
                   <span>{b.phone}</span>
                 </div>
                 <div className="br__act">
@@ -212,7 +214,7 @@ export default function Branches({ branches }: { branches: Branch[] }) {
 
           <div className="mapbox">
             <div className="mapbox__head">
-              <b>{label(cur)}</b>
+              <b>{label(cur)}{cur.transport ? <i className="mapbox__near">{cur.transport}</i> : null}</b>
               <a className="mapbox__route" href={routeUrl(cur)} target="_blank" rel="noopener">
                 Прокласти маршрут →
               </a>
