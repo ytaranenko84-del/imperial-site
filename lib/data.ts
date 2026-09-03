@@ -53,6 +53,19 @@ export type SiteData = {
 /** Порожні дані, якщо база недоступна: сторінка має відкриватись у будь-якому разі. */
 const EMPTY: SiteData = { tariffs: [], rateTiers: [], loyaltyTiers: [], branches: [], settings: {} }
 
+/**
+ * Лише налаштування. Сторінкам категорій більше нічого не треба, а повний
+ * getSiteData тягнув би ще чотири запити до бази за океан — на кожен показ.
+ */
+export async function getSettings(): Promise<Record<string, unknown>> {
+  try {
+    const payload = await getPayload({ config })
+    return (await payload.findGlobal({ slug: 'settings', locale: 'uk', depth: 0 })) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+}
+
 export async function getSiteData(): Promise<SiteData> {
   try {
     const payload = await getPayload({ config })

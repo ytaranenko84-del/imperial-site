@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
-import { getSiteData } from '@/lib/data'
+import { getSettings } from '@/lib/data'
 import WatchForm from '@/components/WatchForm'
 import '@/components/Watches.css'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 600
 
 export const metadata: Metadata = {
   title: 'Позика під заставу годинника — ломбард «Імперіал»',
@@ -39,7 +39,7 @@ const PRIVACY: [string, string][] = [
 ]
 
 export default async function WatchesPage() {
-  const { settings } = await getSiteData()
+  const settings = await getSettings()
   const s = settings as Record<string, string | number | boolean | undefined>
   const hotline = String(s.hotline || '0 800 30 85 00')
 

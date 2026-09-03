@@ -8,7 +8,10 @@ import '@/components/Calculator.css'
 import '@/components/Branches.css'
 import '@/components/Booking.css'
 
-export const dynamic = 'force-dynamic'
+// Сторінка складалась наново на кожен запит і щоразу ходила в базу — перший байт
+// приходив за півтори секунди. Тепер готова сторінка живе хвилину: правки з
+// адмінки з'являються за той самий час, а відвідувач отримує її одразу.
+export const revalidate = 60
 
 export const metadata: Metadata = {
   title: 'Ломбард «Імперіал» — найвища оцінка золота, ставка від 0,39% на день',

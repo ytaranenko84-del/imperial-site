@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { getSiteData } from '@/lib/data'
+import { getSettings } from '@/lib/data'
 import { CATEGORIES, byCategorySlug } from '@/lib/categories'
 import EvalForm from '@/components/EvalForm'
 import '@/components/EvalForm.css'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 600
 
 /** Сторінки категорій відомі наперед, тож адреси беруться зі списку. */
 export function generateStaticParams() {
@@ -30,7 +30,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
   const c = byCategorySlug(category)
   if (!c) notFound()
 
-  const { settings } = await getSiteData()
+  const settings = await getSettings()
   const s = settings as Record<string, string | number | boolean | undefined>
   const hotline = String(s.hotline || '0 800 30 85 00')
 
