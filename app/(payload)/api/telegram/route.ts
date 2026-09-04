@@ -31,6 +31,7 @@ type TgMessage = {
   from?: TgUser
   text?: string
   contact?: { phone_number: string; user_id?: number }
+  migrate_to_chat_id?: number
   reply_to_message?: { message_id: number; text?: string }
   message_thread_id?: number
 }
@@ -104,6 +105,22 @@ export async function POST(req: Request) {
   const chatKey = msg.message_thread_id ? `${msg.chat.id}:${msg.message_thread_id}` : String(msg.chat.id)
 
   try {
+    /*
+     * Група стала супергрупою — Telegram видає їй новий номер, а старий
+     * перестає існувати. Без цього картки просто перестали б приходити,
+     * і виглядало б це як «бот зламався».
+     */
+    if (msg.migrate_to_chat_id) {
+      const settings = await payload.findGlobal({ slug: 'settings', overrideAccess: true }) as Record<string, unknown>
+      if (String(settings.reviewChat || '') === String(msg.chat.id)) {
+        await payload.updateGlobal({
+          slug: 'settings', overrideAccess: true,
+          data: { reviewChat: String(msg.migrate_to_chat_id) },
+        })
+      }
+      return Response.json({ ok: true })
+    }
+
     // ── поділився номером: шукаємо, хто це ──
     if (msg.contact) {
       await linkByPhone(payload, chatKey, msg.contact.phone_number, msg.from)
