@@ -1,7 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { timingSafeEqual } from 'node:crypto'
-import { esc, normalizePhone, send, token } from '@/lib/telegram.ts'
+import { esc, normalizePhone, send, sumFromText, token } from '@/lib/telegram.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -19,6 +19,12 @@ import { esc, normalizePhone, send, token } from '@/lib/telegram.ts'
 export const dynamic = 'force-dynamic'
 
 type TgUser = { id: number; first_name?: string; username?: string }
+type TgChatMember = {
+  chat: { id: number; title?: string; type: string }
+  from?: { id: number; first_name?: string; username?: string }
+  new_chat_member?: { status: string }
+}
+
 type TgMessage = {
   message_id: number
   chat: { id: number; type: string }
@@ -74,17 +80,27 @@ export async function POST(req: Request) {
     return Response.json({ ok: false }, { status: 401 })
   }
 
-  let update: { message?: TgMessage }
+  let update: { message?: TgMessage; my_chat_member?: TgChatMember }
   try {
     update = await req.json()
   } catch {
     return Response.json({ ok: true })
   }
 
+  const payload = await getPayload({ config })
+
+  // ── бота додали в групу або прибрали з неї ──
+  if (update.my_chat_member) {
+    try {
+      await handleGroupMembership(payload, update.my_chat_member)
+    } catch (e) {
+      console.error('group membership', e)
+    }
+    return Response.json({ ok: true })
+  }
+
   const msg = update.message
   if (!msg) return Response.json({ ok: true })
-
-  const payload = await getPayload({ config })
   const chatKey = msg.message_thread_id ? `${msg.chat.id}:${msg.message_thread_id}` : String(msg.chat.id)
 
   try {
@@ -203,6 +219,62 @@ async function linkByPhone(
   })
 }
 
+/**
+ * Бота додали в групу — запамʼятовуємо її як спільну групу оцінок.
+ *
+ * Привʼязати може лише той, хто вже підтвердив себе робочим номером: інакше
+ * будь-хто додав би бота у свою групу й отримував копії заявок.
+ */
+async function handleGroupMembership(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  ev: TgChatMember,
+) {
+  const status = ev.new_chat_member?.status || ''
+  const chat = String(ev.chat.id)
+  const isGroup = ev.chat.type === 'group' || ev.chat.type === 'supergroup'
+  if (!isGroup) return
+
+  const settings = await payload.findGlobal({ slug: 'settings', overrideAccess: true }) as Record<string, unknown>
+
+  // Прибрали з групи — забуваємо її
+  if (status === 'left' || status === 'kicked') {
+    if (String(settings.reviewChat || '') === chat) {
+      await payload.updateGlobal({
+        slug: 'settings', overrideAccess: true,
+        data: { reviewChat: '', reviewChatTitle: '' },
+      })
+    }
+    return
+  }
+
+  if (status !== 'member' && status !== 'administrator') return
+
+  const addedBy = String(ev.from?.id || '')
+  const { docs } = await payload.find({
+    collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
+    where: { chatId: { equals: addedBy } },
+  })
+  if (!docs.length) {
+    await send({
+      chat,
+      text: 'Щоб ця група отримувала оцінки, додати бота має співробітник, '
+        + 'який уже підтвердив свій робочий номер у боті.',
+    })
+    return
+  }
+
+  await payload.updateGlobal({
+    slug: 'settings', overrideAccess: true,
+    data: { reviewChat: chat, reviewChatTitle: ev.chat.title || '' },
+  })
+  await send({
+    chat,
+    text: '<b>Групу підключено.</b>\nСюди приходитиме кожна оцінена заявка з сайту: '
+      + 'річ, фото, сума й час оцінки. Телефон і імʼя клієнта не показуються. '
+      + 'Відповіді в цій групі клієнту не йдуть.',
+  })
+}
+
 /** Відповідь співробітника на картку заявки пересилаємо клієнтові. */
 async function relayAnswer(
   payload: Awaited<ReturnType<typeof getPayload>>,
@@ -238,15 +310,25 @@ async function relayAnswer(
   }
 
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
+
+  // Сума з відповіді — щоб не вписувати її ще раз руками в адмінці.
+  // Числа самої заявки не рахуємо: модель годинника теж складається з цифр.
+  const already = Number((doc as { estimate?: number }).estimate || 0)
+  const own = [doc.brand, doc.model, doc.year].filter(Boolean).join(' ')
+  const sum = already > 0 ? null : sumFromText(text, own)
+
   await payload.update({
     collection: 'eval-requests', id, overrideAccess: true,
     data: {
       status: 'work',
       answeredBy: who,
       answeredAt: new Date().toISOString(),
+      ...(sum ? { estimate: sum } : {}),
       thread: [...thread, { from: who, text, at: new Date().toISOString() }],
     },
   })
+
+  if (sum) await send({ chat, text: `Записав оцінку: <b>${sum.toLocaleString('uk-UA')} грн</b>` })
 }
 
 /** Повідомлення клієнта повертаємо в чат оцінювача й пишемо в заявку. */

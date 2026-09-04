@@ -24,6 +24,64 @@ export const EvalRequests: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'category', 'phone', 'status', 'createdAt'],
   },
+  hooks: {
+    beforeChange: [
+      ({ data, originalDoc }) => {
+        const sum = Number(data.estimate ?? originalDoc?.estimate ?? 0)
+        const alreadySent = Boolean(originalDoc?.groupSentAt)
+        return {
+          ...data,
+          title: [data.brand, data.model].filter(Boolean).join(' ') || 'Без назви',
+          // Позначку про спільну групу ставимо тут, у тому самому збереженні.
+          // Окремим записом із afterChange не виходить: він потрапляє в ту саму
+          // транзакцію й перезаписує заявку недописаними даними.
+          ...(sum > 0 && !alreadySent ? { groupSentAt: new Date().toISOString() } : {}),
+        }
+      },
+    ],
+
+    /**
+     * Копія оціненої заявки у спільну групу відділень.
+     *
+     * Йде один раз — коли в заявці вперше зʼявилась сума. Без телефона й імені:
+     * групу бачать усі відділення, а імʼя разом із фото речі вже дозволяє
+     * впізнати людину. Для звʼязку лишається номер заявки.
+     */
+    afterChange: [
+      async ({ doc, previousDoc, req }) => {
+        if (!doc?.groupSentAt || previousDoc?.groupSentAt) return doc
+        if (!(Number(doc.estimate || 0) > 0)) return doc
+
+        try {
+          const { groupCard, mediaUrl, send, sendPhotos, token } = await import('../lib/telegram.ts')
+          if (!token()) return doc
+
+          const settings = await req.payload.findGlobal({ slug: 'settings', overrideAccess: true }) as Record<string, unknown>
+          const chat = String(settings.reviewChat || '')
+          if (!chat) return doc
+
+          await send({ chat, text: groupCard(doc as Record<string, unknown>) })
+
+          const ids = (doc.photos || []) as unknown[]
+          if (ids.length) {
+            const urls: string[] = []
+            for (const it of ids) {
+              const id = typeof it === 'object' && it ? (it as { id?: unknown }).id : it
+              const m = await req.payload.findByID({ collection: 'media', id: String(id), depth: 0, overrideAccess: true })
+                .catch(() => null) as { filename?: string } | null
+              if (m?.filename) urls.push(mediaUrl(m.filename))
+            }
+            if (urls.length) await sendPhotos(chat, urls)
+          }
+        } catch (e) {
+          // Група — допоміжна копія: заявка збережена в будь-якому разі
+          console.error('картка в групу не пішла:', e)
+        }
+        return doc
+      },
+    ],
+  },
+
   access: {
     create: () => false,
     read: ({ req }) => Boolean(req.user),
@@ -79,6 +137,9 @@ export const EvalRequests: CollectionConfig = {
         // Таємне слово в посиланні: без нього чужу заявку не «привласнити»
         { name: 'clientKey', type: 'text', label: 'Ключ посилання', admin: { hidden: true } },
         { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
+        { name: 'groupSentAt', type: 'date', label: 'У групу надіслано', admin: { readOnly: true,
+          date: { pickerAppearance: 'dayAndTime' },
+          description: 'Копія пішла у спільну групу відділень. Заповнюється само' } },
         { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true,
           date: { pickerAppearance: 'dayAndTime' } } },
       ],
@@ -96,12 +157,4 @@ export const EvalRequests: CollectionConfig = {
     },
     { name: 'note', type: 'textarea', label: 'Нотатка оцінювача' },
   ],
-  hooks: {
-    beforeChange: [
-      ({ data }) => ({
-        ...data,
-        title: [data.brand, data.model].filter(Boolean).join(' ') || 'Без назви',
-      }),
-    ],
-  },
 }

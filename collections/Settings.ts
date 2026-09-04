@@ -60,6 +60,10 @@ export const Settings: GlobalConfig = {
             { name: 'telegramChatDefault', type: 'text', label: 'Загальний Telegram-чат',
               admin: { description: 'Сюди йдуть заявки, якщо у відділення чат не заданий. '
                 + 'Токен бота зберігається в налаштуваннях хостингу, не тут' } },
+            { name: 'reviewChat', type: 'text', label: 'Спільна група оцінок',
+              admin: { readOnly: true, description: 'Заповнюється сама, коли бота додають у групу. '
+                + 'Туди йде копія кожної оціненої заявки — без телефона й імені клієнта' } },
+            { name: 'reviewChatTitle', type: 'text', label: 'Назва групи', admin: { readOnly: true } },
             { name: 'license', type: 'text', label: 'Ліцензія НБУ', localized: true },
             { name: 'legalEntity', type: 'text', label: 'Юридична особа, ЄДРПОУ', localized: true },
           ],

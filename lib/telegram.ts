@@ -97,6 +97,66 @@ export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: bool
   return lines.filter(Boolean).join('\n')
 }
 
+/** Дата й час словами: «4 вересня, 12:40». */
+const MONTHS_UA = ['січня','лютого','березня','квітня','травня','червня',
+  'липня','серпня','вересня','жовтня','листопада','грудня']
+
+export function whenLabel(iso: unknown): string {
+  const d = new Date(String(iso || ''))
+  if (Number.isNaN(d.getTime())) return ''
+  // Час київський: сервер працює в UTC, різниця влітку три години
+  const k = new Date(d.getTime() + 3 * 60 * 60 * 1000)
+  const hh = String(k.getUTCHours()).padStart(2, '0')
+  const mm = String(k.getUTCMinutes()).padStart(2, '0')
+  return `${k.getUTCDate()} ${MONTHS_UA[k.getUTCMonth()]}, ${hh}:${mm}`
+}
+
+/**
+ * Картка для спільної групи відділень.
+ *
+ * Без телефона й імені: групу бачать усі відділення, а імʼя разом із фото речі
+ * та сумою вже дозволяє впізнати людину. Для звʼязку лишається номер заявки —
+ * за ним усе видно в адмінці.
+ */
+export function groupCard(doc: Record<string, unknown>) {
+  const sum = Number(doc.estimate || 0)
+  return [
+    `<b>Заявка №${doc.id}</b> · ${esc(CATEGORY_LABEL[String(doc.category)] || doc.category)}`,
+    esc([doc.brand, doc.model].filter(Boolean).join(' ')),
+    doc.year || doc.condition
+      ? `${doc.year ? esc(doc.year) + ', ' : ''}${esc(doc.condition || '')}`.replace(/, $/, '')
+      : '',
+    doc.comment ? `\n${esc(doc.comment)}` : '',
+    sum > 0 ? `\n<b>Оцінка: ${sum.toLocaleString('uk-UA')} грн</b>` : '',
+    `\nНадійшла: ${whenLabel(doc.createdAt)}`,
+    doc.answeredAt
+      ? `Оцінено: ${whenLabel(doc.answeredAt)}${doc.answeredBy ? ` · ${esc(doc.answeredBy)}` : ''}`
+      : '',
+  ].filter(Boolean).join('\n')
+}
+
+/**
+ * Сума з відповіді оцінювача.
+ *
+ * Спершу число поруч зі знаком гривні. Якщо його немає — єдине число в тексті,
+ * і тільки якщо воно не зустрічається в самій заявці: інакше відповідь
+ * «Rolex Datejust 126334 — гарний стан» дала б оцінку 126 334 грн.
+ */
+export function sumFromText(text: string, ownNumbers = ''): number | null {
+  const t = String(text || '').replace(/\u00a0/g, ' ')
+  const pick = (raw: string) => {
+    const n = Number(raw.replace(/\s/g, ''))
+    return Number.isFinite(n) && n >= 100 && n <= 10_000_000 ? n : null
+  }
+  const withCurrency = t.match(/(\d[\d\s]{2,})\s*(?:грн|₴|гривень|грв)/i)
+  if (withCurrency) return pick(withCurrency[1])
+
+  const own = new Set((String(ownNumbers).match(/\d+/g) || []))
+  const numbers = (t.match(/\d[\d\s]*\d|\d+/g) || []).filter((n) => !own.has(n.replace(/\s/g, '')))
+  if (numbers.length !== 1) return null
+  return pick(numbers[0])
+}
+
 /** Картка броні — те, що бачить відділення. */
 export function bookingCard(doc: Record<string, unknown>, branchName: string, till: string) {
   const amount = Number(doc.amount || 0).toLocaleString('uk-UA')
@@ -135,4 +195,24 @@ export async function recipientsFor(payload: Payload, category: string) {
     if (wanted) chats.set(chat, String((r as { title?: string }).title || ''))
   }
   return chats
+}
+
+/**
+ * Пряме посилання на файл у сховищі.
+ *
+ * Telegram завантажує фото сам, і йому краще давати статичний файл, а не
+ * адресу сайту: дорога через функцію хостингу довша, і на холодному старті
+ * Telegram відповідає «WEBPAGE_CURL_FAILED». Якщо сховище не налаштоване
+ * (розробка на своєму компʼютері) — лишається адреса сайту.
+ */
+export function mediaUrl(filename: string): string {
+  const name = encodeURIComponent(filename)
+  const endpoint = process.env.S3_ENDPOINT || ''
+  const bucket = process.env.S3_BUCKET || ''
+  const host = endpoint.match(/^https:\/\/([^.]+)\.storage\.supabase\.co/)?.[1]
+  if (host && bucket) {
+    return `https://${host}.supabase.co/storage/v1/object/public/${bucket}/${name}`
+  }
+  const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/$/, '')
+  return `${base}/api/media/file/${name}`
 }
