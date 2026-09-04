@@ -5,7 +5,12 @@ export const Media: CollectionConfig = {
   slug: 'media',
   labels: { singular: 'Зображення', plural: 'Медіа' },
   admin: { group: 'Контент' },
-  access: { read: () => true },
+  /*
+   * Перелік файлів більше не публічний: у цій колекції лежать фотографії
+   * речей, які клієнти надсилають на оцінку. Раніше будь-хто міг запитати
+   * /api/media й отримати їх усі списком.
+   */
+  access: { read: ({ req }) => Boolean(req.user) },
   hooks: {
     /**
      * Знімок із телефона несе в собі координати місця зйомки — тобто домівку
@@ -26,6 +31,10 @@ export const Media: CollectionConfig = {
           const clean = await sharp(file.data).rotate().toBuffer()
           file.data = clean
           file.size = clean.length
+          // Ім'я файла стає випадковим: сховище віддає файли за прямим
+          // посиланням, і «photo-1.jpg» підбирається з першої спроби.
+          const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] || '.jpg').toLowerCase()
+          file.name = `${crypto.randomUUID().replace(/-/g, '')}${ext}`
         } catch {
           // Не картинка або пошкоджений файл — хай далі розбирається Payload
         }

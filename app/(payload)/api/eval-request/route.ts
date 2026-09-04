@@ -3,6 +3,7 @@ import config from '@payload-config'
 import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
 import { randomBytes } from 'node:crypto'
 import { evalCard, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
+import { tooManyRequests } from '@/lib/ratelimit.ts'
 
 /**
  * Заявка на оцінку за фото: POST multipart/form-data зі сторінок категорій
@@ -59,6 +60,10 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Напишіть марку або модель' }, { status: 422 })
   }
 
+  const payload = await getPayload({ config })
+  const tooMany = await tooManyRequests(payload, 'eval-requests', phone, { perPhone: 5, perSite: 30 })
+  if (tooMany) return Response.json({ error: tooMany }, { status: 429 })
+
   const files = form.getAll('photos').filter((f): f is File => f instanceof File && f.size > 0)
   if (files.length > MAX_FILES) {
     return Response.json({ error: `Не більше ${MAX_FILES} фотографій` }, { status: 422 })
@@ -71,8 +76,6 @@ export async function POST(req: Request) {
       return Response.json({ error: `Формат «${f.type || 'невідомий'}» не підтримується` }, { status: 415 })
     }
   }
-
-  const payload = await getPayload({ config })
 
   try {
     const photos: (string | number)[] = []

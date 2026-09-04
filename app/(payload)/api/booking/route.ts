@@ -1,6 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { bookingCard, send, token as botToken } from '@/lib/telegram.ts'
+import { tooManyRequests } from '@/lib/ratelimit.ts'
 
 /**
  * Бронь суми: POST JSON із вікна на головній.
@@ -54,6 +55,8 @@ export async function POST(req: Request) {
   }
 
   const payload = await getPayload({ config })
+  const tooMany = await tooManyRequests(payload, 'bookings', phone, { perPhone: 5, perSite: 30 })
+  if (tooMany) return Response.json({ error: tooMany }, { status: 429 })
 
   try {
     const branch = await payload.findByID({

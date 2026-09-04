@@ -19,9 +19,9 @@ function dbKind() {
 }
 
 export async function GET(req: Request) {
-  // Рядок безпечний і без входу: не називає ні вузол, ні пароль, але одразу
-  // показує, чи бачить працюючий сайт налаштування бази.
-  const report: Record<string, unknown> = { ok: true, db: dbKind() }
+  // Стороннім — лише «живий чи ні». Назва бази й порт нікому ззовні не
+  // потрібні, а зайве слово в публічній відповіді підказує, куди стукати.
+  const report: Record<string, unknown> = { ok: true }
 
   let user: unknown = null
   let payload: Awaited<ReturnType<typeof import('payload')['getPayload']>> | null = null
@@ -39,6 +39,7 @@ export async function GET(req: Request) {
   }
 
   if (!user) return Response.json(report)
+  report.db = dbKind()
 
   report.node = process.version
   report.hasPayloadSecret = Boolean(process.env.PAYLOAD_SECRET)

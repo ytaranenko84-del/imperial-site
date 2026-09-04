@@ -20,3 +20,12 @@
   for = "/api/*"
   [headers.values]
     Cache-Control = "no-store"
+
+# Захист від вбудовування сторінок у чужий сайт: без цього адмінку можна
+# показати в невидимому вікні поверх сторонньої сторінки й ловити натискання.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), payment=(), interest-cohort=()"

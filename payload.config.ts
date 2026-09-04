@@ -67,6 +67,9 @@ export default buildConfig({
   },
   collections: [Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, EvalRequests, Recipients, News, Media, Users],
   globals: [Settings],
+  // GraphQL сайт не використовує, а відкритий /api/graphql видає стороннім
+  // повну схему даних. Вимикаємо разом з нею.
+  graphQL: { disable: true },
   // Українська — основна мова (розділ 18 ТЗ)
   localization: {
     locales: [
