@@ -2,6 +2,27 @@ import { withPayload } from '@payloadcms/next/withPayload'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  /*
+   * Заголовки безпеки. Задаються тут, а не в netlify.toml: правила хостингу
+   * діють на статику, а сторінки віддає Next — на бойовому їх не було видно.
+   *
+   * X-Frame-Options: без нього адмінку можна показати в невидимому вікні
+   * поверх чужої сторінки й ловити натискання.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), payment=(), geolocation=(self)' },
+        ],
+      },
+    ]
+  },
+
   // Редиректи зі старих адрес — розділ «Карта редиректів» у routes.md
   async redirects() {
     return [
