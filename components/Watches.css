@@ -1,8 +1,11 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   Сторінка «Годинники». Власна смарагдова гама на темному — окремий зал,
-   а не той самий прилавок. Токени оголошені на .wpage, тож решта сайту
-   й адмінка їх не бачать; темна тема системи цю сторінку не міняє —
-   вона темна завжди.
+   Сторінка «Годинники». Темне тло й латунний акцент — окремий зал, а не той
+   самий прилавок. Латунь замість зеленого: це колір самого предмета —
+   позолочений безель, механізм, циферблат кольору шампань. Зелений на майже
+   чорному читався як фінтех.
+
+   Токени оголошені на .wpage, тож решта сайту й адмінка їх не бачать; темна
+   тема системи цю сторінку не міняє — вона темна завжди.
    ───────────────────────────────────────────────────────────────────────── */
 .wpage {
   --wbg: #08110d;
@@ -10,9 +13,12 @@
   --wink: #eaf2ee;
   --wdim: #93a79e;
   --wline: rgba(255, 255, 255, 0.12);
-  --em: #1f9e6e;
-  --em-soft: rgba(31, 158, 110, 0.14);
-  --em-line: rgba(31, 158, 110, 0.42);
+  --em: #c9a961;
+  --em-soft: rgba(201, 169, 97, 0.14);
+  --em-line: rgba(201, 169, 97, 0.42);
+  /* Текст на латунній заливці. Теплий майже-чорний, а не зеленуватий:
+     контраст 8,4:1 — вище за AAA. */
+  --on-em: #16110a;
 
   background: var(--wbg);
   color: var(--wink);
@@ -48,8 +54,10 @@
   gap: 1.5rem; padding-block: 0.75rem; border-bottom: 1px solid var(--wline); font-size: 0.78rem;
 }
 .wtop .brand__txt span { color: var(--wdim); }
-.wback { color: var(--wdim); text-decoration: none; font-size: 0.76rem; }
-.wback:hover { color: var(--wink); }
+/* Меню сторінки. Свій стиль, а не загальний .nav: там світла шапка, тут темна. */
+.wnav { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; justify-content: flex-end; }
+.wnav a { color: var(--wdim); text-decoration: none; font-size: 0.76rem; white-space: nowrap; }
+.wnav a:hover, .wnav a:focus-visible { color: var(--wink); }
 
 /* герой */
 .whero { position: relative; min-height: min(78vh, 660px); display: flex; align-items: flex-end; overflow: hidden; }
@@ -61,9 +69,13 @@
 .whero__in { position: relative; z-index: 1; padding-block: clamp(2.4rem, 6vw, 4.6rem); width: 100%; }
 .whero .wlead { max-width: 46ch; }
 
-.wbtn {
+/* Селектор із .wpage навмисно: інакше правило `.wpage a { color: inherit }`
+   вище має більшу вагу й перефарбовує кнопку-посилання у світлий текст —
+   на латуні це 1,97:1, нечитабельно. Кнопки-<button> при цьому фарбувались
+   правильно, і два однакові з вигляду елементи розходились. */
+.wpage .wbtn {
   display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1.8rem;
-  background: var(--em); color: #04140e; font: inherit; font-weight: 600; font-size: 0.95rem;
+  background: var(--em); color: var(--on-em); font: inherit; font-weight: 600; font-size: 0.95rem;
   border: 0; border-radius: 999px; padding: 0.85rem 1.5rem; cursor: pointer;
   text-decoration: none; transition: filter 0.16s;
 }
@@ -169,6 +181,8 @@
 .wpriv p { margin: 0; font-size: 0.84rem; color: var(--wdim); }
 
 .wfoot { border-top: 1px solid var(--wline); padding-block: 2rem; font-size: 0.78rem; color: var(--wdim); }
+.wfoot__nav { display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem; margin-bottom: 1rem; }
+.wfoot__line { margin: 0; }
 .wfoot a { color: var(--em); text-decoration: none; }
 .wfoot a:hover { text-decoration: underline; }
 

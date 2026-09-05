@@ -5,6 +5,7 @@ import { getSettings } from '@/lib/data'
 import { CATEGORIES, byCategorySlug } from '@/lib/categories'
 import EvalForm from '@/components/EvalForm'
 import Nav from '@/components/Nav'
+import { BreadcrumbSchema } from '@/components/Schema.tsx'
 import '@/components/EvalForm.css'
 
 export const revalidate = 600
@@ -23,6 +24,9 @@ export async function generateMetadata(
   return {
     title: `${c.name} під заставу — ломбард «Імперіал»`,
     description: `${c.lead} Оцінка за фото: надішліть знімки — фахівець відповість протягом дня.`,
+    // Без цього рядка сторінка успадкує canonical головної з кореневого layout
+    // і пошуковик визнає її дублем — категорії зникнуть із видачі.
+    alternates: { canonical: `/zastava/${c.slug}` },
   }
 }
 
@@ -37,6 +41,10 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
 
   return (
     <>
+      <BreadcrumbSchema items={[
+        { name: 'Головна', href: '/' },
+        { name: c.name, href: `/zastava/${c.slug}` },
+      ]} />
       <header className="wrap top">
         <a className="brand" href="/">
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSettings } from '@/lib/data'
 import WatchForm from '@/components/WatchForm'
+import { BreadcrumbSchema } from '@/components/Schema.tsx'
 import '@/components/Watches.css'
 
 export const revalidate = 600
@@ -11,7 +12,21 @@ export const metadata: Metadata = {
   description:
     'Застава швейцарських годинників: Rolex, Omega, Patek Philippe, Cartier та інші. '
     + 'Оцінює фахівець, який працює з годинниками. Надішліть фото — відповідь протягом дня.',
+  // Інакше сторінка успадкує canonical головної з кореневого layout.
+  alternates: { canonical: '/zastava/hodynnyky' },
 }
+
+/**
+ * Розділи сайту в шапці й підвалі. Раніше звідси вело єдине посилання «на
+ * головну»: людина, що прийшла з пошуку на годинники, далі йти не могла, а
+ * вага сторінки нікуди не передавалась.
+ */
+const SECTIONS: [string, string][] = [
+  ['/#cats', 'Що приймаємо'],
+  ['/#calc', 'Оцінка'],
+  ['/viddilennya', 'Відділення'],
+  ['/novyny', 'Новини'],
+]
 
 /** Марки, з якими працюємо. Порядок — за впізнаваністю, а не за абеткою. */
 const BRANDS = [
@@ -45,12 +60,20 @@ export default async function WatchesPage() {
 
   return (
     <div className="wpage">
+      <BreadcrumbSchema items={[
+        { name: 'Головна', href: '/' },
+        { name: 'Годинники', href: '/zastava/hodynnyky' },
+      ]} />
       <header className="wwrap wtop">
         <a className="brand" href="/">
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
           <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
         </a>
-        <a className="wback" href="/">‹ На головну</a>
+        <nav className="wnav" aria-label="Розділи сайту">
+          {SECTIONS.map(([href, label]) => (
+            <a key={href} href={href}>{label}</a>
+          ))}
+        </nav>
       </header>
 
       <section className="whero">
@@ -174,9 +197,16 @@ export default async function WatchesPage() {
       </section>
 
       <footer className="wwrap wfoot">
-        Гаряча лінія <a href={`tel:${hotline.replace(/\s/g, '')}`}>{hotline}</a>
-        {' · '}{String(s.email || 'support@imperial24.com.ua')}
-        {' · '}<a href="/">на головну</a>
+        <nav className="wfoot__nav" aria-label="Розділи сайту">
+          <a href="/">Головна</a>
+          {SECTIONS.map(([href, label]) => (
+            <a key={href} href={href}>{label}</a>
+          ))}
+        </nav>
+        <p className="wfoot__line">
+          Гаряча лінія <a href={`tel:${hotline.replace(/\s/g, '')}`}>{hotline}</a>
+          {' · '}{String(s.email || 'support@imperial24.com.ua')}
+        </p>
       </footer>
     </div>
   )
