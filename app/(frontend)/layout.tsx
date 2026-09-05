@@ -1,11 +1,25 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import Motion from '@/components/Motion'
 import { siteUrl } from '@/lib/site.ts'
 
-const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
-const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
+/**
+ * Запасна гарнітура для Windows та Android — розділ 15 ТЗ.
+ *
+ * На macOS та iOS шрифт беруть із системи: у стеку першим стоїть SF Pro, і до
+ * Inter черга не доходить. Тому `preload: false` — на техніці Apple файл не
+ * качається зовсім, а там, де SF Pro немає, браузер візьме його сам.
+ *
+ * Кирилиця обов'язкова: без неї підставився б Arial, а це в ТЗ прямо названо
+ * ознакою дешевого сайту.
+ */
+const inter = Inter({
+  variable: '--font-inter',
+  subsets: ['latin', 'cyrillic'],
+  display: 'swap',
+  preload: false,
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
@@ -29,7 +43,7 @@ const MOTION_ON = `try{if(!matchMedia('(prefers-reduced-motion: reduce)').matche
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="uk" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="uk" suppressHydrationWarning className={inter.variable}>
       <head><script dangerouslySetInnerHTML={{ __html: MOTION_ON }} /></head>
       <body>
         {children}

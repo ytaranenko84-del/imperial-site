@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSiteData } from '@/lib/data'
 import Calculator from '@/components/Calculator'
+import HeroDark from '@/components/HeroDark'
 import Nav from '@/components/Nav'
 import { FaqSchema, OrganizationSchema } from '@/components/Schema.tsx'
 import Branches from '@/components/Branches'
@@ -103,6 +104,7 @@ export default async function Home() {
 
   return (
     <>
+      <HeroDark />
       <OrganizationSchema branches={branches} hotline={hotline} minRate={bestRate} />
       <FaqSchema items={HOME_FAQ} />
       <header className="wrap top">

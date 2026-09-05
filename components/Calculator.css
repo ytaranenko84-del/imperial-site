@@ -79,8 +79,11 @@
   font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--dim); font-weight: 600;
 }
+/* Головна цифра набирається основною гарнітурою, а не моноширинною: у
+   моноширинній вона читалась як вивід консолі. Від стрибків ширини при
+   перерахунку рятує не моноширинність, а табличні цифри нижче. */
 .sum {
-  font-family: var(--mono); font-weight: 600; color: var(--gold);
+  font-family: var(--display); font-weight: 600; color: var(--gold);
   font-size: clamp(2rem, 1.3rem + 2.4vw, 2.9rem); letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums; line-height: 1.05;
 }
@@ -120,8 +123,10 @@
   color: var(--dim); font-weight: 600;
 }
 .buy__note { font-size: 0.72rem; color: var(--dim); margin: 0.25rem 0 0; max-width: 30ch; line-height: 1.5; }
+/* Друга за величиною сума на картці — набір той самий, що й у головної,
+   інакше дві цифри поруч виглядали б із різних наборів. */
 .buy__sum {
-  font-family: var(--mono); font-size: 1.5rem; font-weight: 600;
+  font-family: var(--display); font-size: 1.5rem; font-weight: 600;
   font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap;
 }
 .buy__sum small { font-size: 0.5em; font-weight: 500; color: var(--dim); margin-left: 0.2rem; }
