@@ -116,7 +116,7 @@ export default async function Home() {
             { href: '#cats', label: 'Що приймаємо' },
             { href: '#calc', label: 'Оцінка' },
             { href: '/zastava/hodynnyky', label: 'Годинники' },
-            { href: '#sits', label: 'Ситуації' },
+            { href: '/novyny', label: 'Новини' },
             { href: '/viddilennya', label: 'Відділення' },
           ]}
         />

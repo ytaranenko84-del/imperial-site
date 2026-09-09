@@ -40,10 +40,12 @@ export const Settings: GlobalConfig = {
         {
           label: 'Гарантія оцінки',
           fields: [
-            { name: 'guaranteeOn', type: 'checkbox', label: 'Показувати гарантію', defaultValue: false,
-              admin: { description: 'Вмикати лише після узгодження з юристом' } },
+            { name: 'guaranteeOn', type: 'checkbox', label: 'Показувати гарантію', defaultValue: true,
+              admin: { description: 'Рішення власника мережі: онлайн-оцінка — гарантований мінімум, '
+                + 'у відділенні можуть дати більше залежно від стану виробу' } },
             { name: 'guaranteeText', type: 'textarea', label: 'Текст гарантії', localized: true,
-              defaultValue: 'У відділенні ви гарантовано отримаєте суму не меншу за ту, що показала онлайн-оцінка — за умови підтвердження заявлених характеристик.' },
+              defaultValue: 'У відділенні ви отримаєте суму не меншу за онлайн-оцінку — це гарантований '
+                + 'мінімум. Остаточна сума може бути вищою: усе залежить від стану виробу.' },
           ],
         },
         {
