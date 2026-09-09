@@ -36,11 +36,21 @@ function detectAiReferrer(): string | null {
   }
 }
 
+/**
+ * Друга перевірка формату — навмисне дублювання валідатора з Settings.ts.
+ * Значення йде прямо у вбудований <script> без екранування нижче: якщо в
+ * базі колись опиниться щось, записане в обхід адмінки (прямий запис у
+ * базу, старий рядок до появи валідатора), сторінка не виконає його як код.
+ */
+const GA_ID = /^G-[A-Z0-9]{4,20}$/
+
 export default function Analytics({ measurementId }: { measurementId: string }) {
   useEffect(() => {
     const source = detectAiReferrer()
     if (source) window.gtag?.('event', 'ai_referral', { ai_source: source })
   }, [])
+
+  if (!GA_ID.test(measurementId)) return null
 
   return (
     <>

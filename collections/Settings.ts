@@ -6,6 +6,18 @@ const link = (value: string | null | undefined) =>
     ? true
     : 'Посилання має починатися з https://'
 
+/**
+ * Значення підставляється прямо у вбудований <script> без екранування
+ * (components/Analytics.tsx) — суворий формат тут не косметика, а захист
+ * від записаного XSS: будь-хто, хто зможе записати в це поле, інакше
+ * виконав би довільний JS на кожній сторінці сайту.
+ */
+const GA_ID = /^G-[A-Z0-9]{4,20}$/
+const gaId = (value: string | null | undefined) =>
+  !value || GA_ID.test(value.trim())
+    ? true
+    : 'Формат: G-XXXXXXXXXX (з analytics.google.com)'
+
 /** Те, що існує в одному екземплярі: ставки, контакти, гарантія, графік чату. */
 export const Settings: GlobalConfig = {
   slug: 'settings',
@@ -82,7 +94,7 @@ export const Settings: GlobalConfig = {
         {
           label: 'Аналітика',
           fields: [
-            { name: 'gaMeasurementId', type: 'text', label: 'GA4 Measurement ID',
+            { name: 'gaMeasurementId', type: 'text', label: 'GA4 Measurement ID', validate: gaId,
               admin: { description: 'З analytics.google.com → Адміністрування → Потоки даних → '
                 + 'ваш потік. Вигляд: G-XXXXXXXXXX. Поки поле порожнє, лічильник на сайт не '
                 + 'вантажиться взагалі' } },

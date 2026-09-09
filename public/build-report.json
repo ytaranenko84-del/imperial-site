@@ -1,5 +1,5 @@
 {
- "at": "2026-09-09T15:24:04.114Z",
+ "at": "2026-09-09T15:34:57.644Z",
  "step": "готово",
  "ok": true,
  "target": "postgresql://***@aws-0-eu-west-1.pooler.supabase.com:6543/postgres · схема site",
