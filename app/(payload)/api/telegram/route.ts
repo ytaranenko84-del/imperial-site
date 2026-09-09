@@ -363,7 +363,33 @@ async function noteClientMessage(
     where: { clientChat: { equals: chat } },
   })
   const doc = docs[0]
-  if (!doc) return
+
+  /*
+   * Немає прив'язаної заявки — людина зайшла в бота не за посиланням із
+   * заявки, а напряму (кнопка «Telegram» на сайті) і одразу написала.
+   * Раніше повідомлення просто губилось тут: функція виходила, нікому
+   * нічого не йшло, а людина бачила своє повідомлення в чаті й не знала,
+   * що його ніхто не побачив.
+   */
+  if (!doc) {
+    const { recipientsFor } = await import('@/lib/telegram.ts')
+    const admins = await recipientsFor(payload, '')
+    const who = [msg.from?.first_name, msg.from?.username ? `@${msg.from.username}` : '']
+      .filter(Boolean).join(' ') || 'клієнт'
+    for (const target of admins.keys()) {
+      await send({
+        chat: target,
+        text: `<b>Звернення з сайту</b> · ${esc(who)}
+${esc(String(msg.text || ''))}`,
+      }).catch(() => {})
+    }
+    await send({
+      chat,
+      text: 'Дякуємо, повідомлення надійшло. Щоб відповісти швидше, поділіться номером:',
+      replyMarkup: CONTACT_KEYBOARD,
+    })
+    return
+  }
 
   const text = String(msg.text || '')
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]

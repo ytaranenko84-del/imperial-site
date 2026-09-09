@@ -437,3 +437,28 @@ a.soc__i:hover { color: var(--brand); border-color: var(--brand); transform: tra
 .bnote a:hover { text-decoration: underline; }
 
 .foot__in { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: center; justify-content: space-between; }
+
+/* ─── липка панель дій на телефоні ──────────────────────────────────────
+   Показується лише до 900px — на десктопі номер і так видно в шапці.
+   Резервуємо місце знизу сторінки, щоб панель не лягала поверх футера. */
+@media (max-width: 900px) {
+  body { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+}
+.mabar {
+  display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; gap: 6px;
+  padding: 8px calc(8px + env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-right));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border-top: 1px solid var(--line);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+@media (max-width: 900px) { .mabar { display: flex; } }
+.mabar__i {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; height: 44px; border-radius: 12px; font-size: 0.66rem; font-weight: 600; text-decoration: none;
+}
+.mabar__i svg { width: 17px; height: 17px; }
+.mabar__tg { background: var(--gold-soft); color: var(--gold); }
+.mabar__main { background: var(--brand); color: #fff; }
+.mabar__tel { background: var(--gray-bg); color: var(--ink); border: 1px solid var(--line); }
+.mabar__i--off { opacity: 0.45; pointer-events: none; }

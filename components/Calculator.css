@@ -28,13 +28,20 @@
 
 .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
 .chips--tight { margin-bottom: 1.3rem; }
+/*
+ * Висота фіксована на 44px — мінімум, який радять Apple і Google для пальця.
+ * Раніше кнопка проби була 37px, кнопка ваги — 32px: мобільна перевірка
+ * 9 вересня нарахувала 63 з 92 цілей натискання на сторінці меншими за
+ * рекомендований розмір, і це головний конверсійний елемент сайту.
+ */
 .chip {
   font: inherit; font-size: 0.82rem; font-weight: 500; cursor: pointer;
-  padding: 0.44rem 0.85rem; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 44px; padding: 0 0.95rem; border-radius: 999px;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink);
   transition: border-color 0.16s, background 0.16s, color 0.16s;
 }
-.chip--sm { font-size: 0.76rem; padding: 0.34rem 0.7rem; }
+.chip--sm { font-size: 0.78rem; height: 44px; padding: 0 0.8rem; }
 .chip:hover { border-color: var(--gold); }
 .chip[aria-pressed='true'] {
   border-color: var(--gold); background: var(--gold-soft); color: var(--gold); font-weight: 600;
@@ -48,7 +55,10 @@
 }
 .num:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 .unit { font-size: 0.78rem; color: var(--dim); }
-.rng { flex: 1 1 160px; accent-color: var(--gold); }
+/* Висота елемента — і є область торкання: браузери реєструють дотик по
+   всій рамці input[type=range], а не лише по видимій смужці. Сама смужка
+   лишається тонкою — товщину задає система через accent-color. */
+.rng { flex: 1 1 160px; height: 44px; accent-color: var(--gold); }
 
 .hint { font-size: 0.7rem; color: var(--dim); margin: 0.1rem 0 1.3rem; line-height: 1.5; }
 

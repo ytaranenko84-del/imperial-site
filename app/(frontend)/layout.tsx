@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import Motion from '@/components/Motion'
+import MobileActionBar from '@/components/MobileActionBar'
+import { getSettings } from '@/lib/data.ts'
 import { siteUrl } from '@/lib/site.ts'
 
 /**
@@ -41,12 +43,19 @@ export const metadata: Metadata = {
 const MOTION_ON = `try{if(!matchMedia('(prefers-reduced-motion: reduce)').matches)`
   + `document.documentElement.classList.add('motion')}catch(e){}`
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+export default async function RootLayout({ children }: LayoutProps<'/'>) {
+  // Одне місце для всього сайту: панель дій знає гарячу лінію й посилання на
+  // Telegram незалежно від того, яка сторінка її показує.
+  const settings = await getSettings()
+  const hotline = String(settings.hotline || '0 800 30 85 00')
+  const telegram = (settings.telegram as string) || null
+
   return (
     <html lang="uk" suppressHydrationWarning className={inter.variable}>
       <head><script dangerouslySetInnerHTML={{ __html: MOTION_ON }} /></head>
       <body>
         {children}
+        <MobileActionBar hotline={hotline} telegram={telegram} />
         <Motion />
       </body>
     </html>

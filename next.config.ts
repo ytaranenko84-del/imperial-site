@@ -63,6 +63,7 @@ const nextConfig: NextConfig = {
        * з позицій разом із накопиченою вагою. Чесна 404 відновлюється легше.
        * Правила повертаються разом зі сторінками — черга в tz-pereizd-404.md.
        */
+      { source: '/thanks.php', destination: '/dyakuyemo', permanent: true },
       { source: '/index.php', destination: '/', permanent: true },
       // Правил під адреси зі скісною рискою тут немає: Next прибирає її сам,
       // до того як дивиться на правила, тож такі правила не спрацьовували б.
