@@ -198,76 +198,6 @@ a { color: inherit; }
     color-mix(in srgb, var(--brand) 10%, transparent) 26%,
     transparent 56%);
 }
-/* ── Перший екран темний завжди ────────────────────────────────────────
-   Не залежить від теми системи: це рішення дизайну, а не налаштування
-   телефона. Токени перевизначені всередині .start, тож решта сторінки
-   лишається світлою, а компоненти всередині фарбуються самі.
-
-   Два відтінки червоного не випадково: світлий #E0413D — колір тексту
-   (4,58:1 на цьому тлі), фірмовий #B90F0D — заливка кнопки, на ній білий
-   дає 6,69:1. Один відтінок на обидві ролі не проходить за контрастом.
-   ──────────────────────────────────────────────────────────────────── */
-.start {
-  --ink: #eaf2ee;
-  --dim: #93a79e;
-  --line: rgba(255, 255, 255, 0.12);
-  --brand: #e0413d;
-  --brand-hover: #ea5854;
-  --btn: #b90f0d;
-  --gold: #d9b45f;
-  background: #08110d;
-  color: var(--ink);
-  /* місце під картку калькулятора, що заходить знизу */
-  padding-bottom: 120px;
-}
-/* тепле світло згори — на темному воно тримає екран, без нього чорне
-   читається як провал */
-.start::before {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--brand) 18%, transparent) 0%,
-    color-mix(in srgb, var(--brand) 7%, transparent) 26%,
-    transparent 58%);
-}
-/* підказка стоїть над карткою, а не під нею */
-.start__hint { bottom: calc(120px + clamp(0.5rem, 1.8vh, 1.2rem)); }
-
-/* Шапка над темним екраном. Клас ставить HeroDark, поки перший екран
-   під нею; далі шапка повертається до світлої. */
-.top[data-on-dark='true'] {
-  --ink: #eaf2ee;
-  --dim: #93a79e;
-  color: var(--ink);
-  background: transparent;
-  border-bottom-color: rgba(255, 255, 255, 0.12);
-}
-/* Сама шапка обмежена шириною контенту, тож її тло не доходить до країв
-   екрана. На білому це не було видно, на темному лишало б світлі смуги
-   з боків. Підкладка малюється окремим шаром на всю ширину вікна. */
-.top[data-on-dark='true']::before {
-  content: '';
-  position: absolute; inset-block: 0; z-index: -1;
-  left: 50%; transform: translateX(-50%); width: 100vw;
-  background: color-mix(in srgb, #08110d 82%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-}
-
-/* Картка калькулятора накриває межу собою — переходу від темного до
-   світлого не видно, бо на його місці стоїть картка. */
-#calc .calc {
-  margin-top: -118px;
-  position: relative;
-  z-index: 3;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
-}
-/* На вузькому екрані картка вища за екран, і глибокий заріз з’їдав би
-   кнопку героя. */
-@media (max-width: 560px) {
-  .start { padding-bottom: 74px; }
-  .start__hint { bottom: calc(74px + clamp(0.5rem, 1.8vh, 1.2rem)); }
-  #calc .calc { margin-top: -66px; }
-}
-
 .start > * { position: relative; }
 .start__in {
   flex: 1; display: flex; flex-direction: column; justify-content: center;
@@ -361,12 +291,9 @@ a { color: inherit; }
 .card p { color: var(--dim); font-size: var(--s-1); margin: 0; }
 .card__n { color: var(--brand); font-weight: 600; font-size: 0.72rem; }
 
-/* Заливка кнопки окремим токеном: на темному тлі посилання й кнопка беруть
-   різні відтінки червоного — світлий читається як текст, темний тримає
-   білий напис. На світлому обидва лишаються фірмовим. */
 .pill {
   display: inline-block; border: 0; border-radius: var(--pill); cursor: pointer;
-  background: var(--btn, var(--brand)); color: #fff; font: inherit; font-size: 1rem;
+  background: var(--brand); color: #fff; font: inherit; font-size: 1rem;
   padding: 0.8rem 1.4rem; text-decoration: none; transition: background 0.16s;
 }
 .pill:hover { background: var(--brand-hover); }
