@@ -26,10 +26,6 @@ const nextConfig: NextConfig = {
   // Редиректи зі старих адрес — розділ «Карта редиректів» у routes.md
   async redirects() {
     return [
-      { source: '/calc', destination: '/otsinka', permanent: true },
-      { source: '/bonus', destination: '/bonusy', permanent: true },
-      { source: '/about', destination: '/pro-nas', permanent: true },
-      { source: '/redemption', destination: '/vykup-avto', permanent: true },
       // Кожен матеріал зі старого сайту веде на свою нову адресу. Загальне
       // правило нижче ловить решту — переліки й те, чого вже немає.
       // Спершу конкретні адреси, і лише потім загальне правило /ua/* — інакше
@@ -47,18 +43,26 @@ const nextConfig: NextConfig = {
       { source: '/news-shares/obsluzhivanie_klientov_vo_vremya_karantina', destination: '/novyny/robota-pid-chas-karantynu', permanent: true },
       { source: '/ua/news-shares/novorichna_lotereya', destination: '/novyny/novorichna-lotereya-2024', permanent: true },
       { source: '/ua/news-shares/svyatkovyy_rozigrash_podarunkiv', destination: '/novyny/svyatkovyi-rozihrash', permanent: true },
+      // Гола /ua потрапляла під узагальнене правило з порожнім хвостом і
+      // віддавала перенаправлення в порожнє місце — 12,3 % переглядів старого
+      // сайту крутились у нікуди. Окреме правило мусить стояти перед ним.
+      { source: '/ua', destination: '/', permanent: true },
       { source: '/ua/:path*', destination: '/:path*', permanent: true },
       { source: '/news-shares/:path*', destination: '/novyny', permanent: true },
-      { source: '/reviews', destination: '/vidhuky', permanent: true },
-      { source: '/vacancy', destination: '/vakansiyi', permanent: true },
       // На старому сайті /contacts був переліком адрес відділень — ведемо туди ж
       { source: '/contacts', destination: '/viddilennya', permanent: true },
-      { source: '/loans', destination: '/zastava', permanent: true },
       { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/zastava/zoloto', permanent: true },
       { source: '/loans/tsifrovaya-tekhnika/:path*', destination: '/zastava/tekhnika', permanent: true },
       { source: '/loans/bytovaya-tekhnika/:path*', destination: '/zastava/pobutova-tekhnika', permanent: true },
       { source: '/loans/instrumenty-i-oborudovanie/:path*', destination: '/zastava/instrument', permanent: true },
       { source: '/loans/tovary-dlya-otdykha-i-sporta/:path*', destination: '/zastava/sport', permanent: true },
+      /*
+       * Тут навмисно немає правил для /calc, /loans, /bonus, /about, /reviews,
+       * /vacancy і /redemption. Сторінок, на які вони вели, не існує, а постійне
+       * перенаправлення на 404 пошуковик читає як видалення сторінки й знімає її
+       * з позицій разом із накопиченою вагою. Чесна 404 відновлюється легше.
+       * Правила повертаються разом зі сторінками — черга в tz-pereizd-404.md.
+       */
       { source: '/index.php', destination: '/', permanent: true },
       // Правил під адреси зі скісною рискою тут немає: Next прибирає її сам,
       // до того як дивиться на правила, тож такі правила не спрацьовували б.
