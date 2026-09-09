@@ -1,6 +1,8 @@
 'use client'
 import React, { useRef, useState } from 'react'
 
+import { trackLead } from '@/lib/analytics.ts'
+
 /** Три перші знімки обов'язкові: без них оцінити модель неможливо. */
 export const SHOTS: [string, string, boolean][] = [
   ['Циферблат повністю', 'Прямо, без відблисків. Видно марку, модель і стан стрілок.', true],
@@ -44,6 +46,7 @@ export default function WatchForm({ brands }: { brands: string[] }) {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Не вдалося надіслати заявку')
       setBotLink(json.botLink || null)
+      trackLead('eval-watches')
       setState('sent')
       form.reset()
       setFilled({})

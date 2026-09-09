@@ -1,6 +1,8 @@
 'use client'
 import React, { useRef, useState } from 'react'
 
+import { trackLead } from '@/lib/analytics.ts'
+
 const CONDITIONS = ['Не знаю', 'Як новий', 'Відмінний', 'Добрий',
   'Робочий, зі слідами використання', 'Потребує ремонту']
 
@@ -36,6 +38,7 @@ export default function EvalForm({ category, shots, example, brands }: Props) {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Не вдалося надіслати заявку')
       setBotLink(json.botLink || null)
+      trackLead(`eval-${category}`)
       setState('sent')
       form.reset()
       setFilled({})

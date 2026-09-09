@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import Motion from '@/components/Motion'
 import MobileActionBar from '@/components/MobileActionBar'
+import Analytics from '@/components/Analytics'
 import { getSettings } from '@/lib/data.ts'
 import { siteUrl } from '@/lib/site.ts'
 
@@ -49,11 +50,13 @@ export default async function RootLayout({ children }: LayoutProps<'/'>) {
   const settings = await getSettings()
   const hotline = String(settings.hotline || '0 800 30 85 00')
   const telegram = (settings.telegram as string) || null
+  const gaId = (settings.gaMeasurementId as string) || null
 
   return (
     <html lang="uk" suppressHydrationWarning className={inter.variable}>
       <head><script dangerouslySetInnerHTML={{ __html: MOTION_ON }} /></head>
       <body>
+        {gaId && <Analytics measurementId={gaId} />}
         {children}
         <MobileActionBar hotline={hotline} telegram={telegram} />
         <Motion />

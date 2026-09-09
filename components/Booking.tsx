@@ -1,5 +1,7 @@
 'use client'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { trackLead } from '@/lib/analytics.ts'
 import { createPortal } from 'react-dom'
 import 'leaflet/dist/leaflet.css'
 import type { Map as LMap, Marker as LMarker } from 'leaflet'
@@ -164,6 +166,7 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
         ? new Date(json.expiresAt).toLocaleString('uk-UA',
           { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
         : '')
+      trackLead('booking')
       setState('done')
     } catch (err) {
       setState('form')

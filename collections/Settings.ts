@@ -79,6 +79,15 @@ export const Settings: GlobalConfig = {
               defaultValue: 'Ми зараз офлайн. Залиште контакт — відповімо зранку.' },
           ],
         },
+        {
+          label: 'Аналітика',
+          fields: [
+            { name: 'gaMeasurementId', type: 'text', label: 'GA4 Measurement ID',
+              admin: { description: 'З analytics.google.com → Адміністрування → Потоки даних → '
+                + 'ваш потік. Вигляд: G-XXXXXXXXXX. Поки поле порожнє, лічильник на сайт не '
+                + 'вантажиться взагалі' } },
+          ],
+        },
       ],
     },
   ],
