@@ -114,7 +114,7 @@ export default async function Home() {
           hotline={hotline}
           items={[
             { href: '#cats', label: 'Що приймаємо' },
-            { href: '#calc', label: 'Оцінка' },
+            { href: '/calc', label: 'Оцінка' },
             { href: '/zastava/hodynnyky', label: 'Годинники' },
             { href: '/novyny', label: 'Новини' },
             { href: '/viddilennya', label: 'Відділення' },
@@ -287,8 +287,8 @@ export default async function Home() {
             <div>
               <h4>Послуги</h4>
               <ul>
-                <li><a href="#calc">Кредит під заставу</a></li>
-                <li><a href="#calc">Онлайн-оцінка</a></li>
+                <li><a href="/calc">Кредит під заставу</a></li>
+                <li><a href="/calc">Онлайн-оцінка</a></li>
                 <li><a href="#cats">Що приймаємо</a></li>
                 <li><a href="/viddilennya">Відділення</a></li>
                 <li><a href="/novyny">Новини та акції</a></li>

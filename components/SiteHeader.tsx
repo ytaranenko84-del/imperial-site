@@ -14,7 +14,7 @@ export default function SiteHeader({ hotline }: { hotline: string }) {
         hotline={hotline}
         items={[
           { href: '/#cats', label: 'Що приймаємо' },
-          { href: '/#calc', label: 'Оцінка' },
+          { href: '/calc', label: 'Оцінка' },
           { href: '/zastava/hodynnyky', label: 'Годинники' },
           { href: '/novyny', label: 'Новини' },
           { href: '/viddilennya', label: 'Відділення' },

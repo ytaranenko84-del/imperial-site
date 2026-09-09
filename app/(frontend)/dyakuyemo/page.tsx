@@ -75,7 +75,7 @@ export default async function ThankYouPage() {
             </div>
 
             <p style={{ fontSize: '0.86rem' }}>
-              <a href="/#calc">Порахувати іншу суму →</a>
+              <a href="/calc">Порахувати іншу суму →</a>
               {' · '}
               <a href="/">На головну</a>
             </p>
