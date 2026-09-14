@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { localePair } from '@/lib/locale-utils.ts'
 
@@ -54,7 +55,7 @@ export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[
         <span className={`burger__i${open ? ' burger__i--x' : ''}`} aria-hidden="true" />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div className="mnav" ref={panelRef} role="dialog" aria-modal="true" aria-label="Меню">
           <div className="mnav__links">
             {items.map((i) => (
@@ -76,7 +77,8 @@ export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[
               )
             })()}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )

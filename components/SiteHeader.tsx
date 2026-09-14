@@ -13,6 +13,7 @@ export default function SiteHeader({ hotline, locale = 'uk' }: { hotline: string
       </a>
       <Nav
         hotline={hotline}
+        locale={locale}
         items={[
           { href: '/zastava', label: 'Що приймаємо' },
           { href: '/calc', label: 'Оцінка' },
