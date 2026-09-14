@@ -67,8 +67,9 @@ const nextConfig: NextConfig = {
        * саме так і задумано — усі статуси видно одразу.
        */
       { source: '/bonus', destination: '/calc', permanent: true },
+      { source: '/loans', destination: '/zastava', permanent: true },
       /*
-       * Тут навмисно немає правил для /loans, /reviews, /vacancy і /redemption.
+       * Тут навмисно немає правил для /reviews, /vacancy і /redemption.
        * Сторінок, на які вони вели, не існує, а постійне перенаправлення на 404
        * пошуковик читає як видалення сторінки й знімає її з позицій разом із
        * накопиченою вагою. Чесна 404 відновлюється легше.

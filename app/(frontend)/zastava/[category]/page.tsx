@@ -53,7 +53,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
         <Nav
           hotline={hotline}
           items={[
-            { href: '/#cats', label: 'Що приймаємо' },
+            { href: '/zastava', label: 'Що приймаємо' },
             { href: '/calc', label: 'Оцінка' },
             { href: '/zastava/hodynnyky', label: 'Годинники' },
             { href: '/novyny', label: 'Новини' },
