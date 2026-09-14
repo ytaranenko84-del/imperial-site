@@ -297,6 +297,7 @@ export default async function Home() {
             <div>
               <h4>Компанія</h4>
               <ul>
+                <li><a href="/pro-nas">Про ломбард</a></li>
                 <li><a href="#sits">Життєві ситуації</a></li>
                 <li><a href="/viddilennya">Контакти</a></li>
                 <li><a href="/admin">Вхід для співробітників</a></li>

@@ -58,11 +58,20 @@ const nextConfig: NextConfig = {
       { source: '/loans/bytovaya-tekhnika/:path*', destination: '/zastava/pobutova-tekhnika', permanent: true },
       { source: '/loans/instrumenty-i-oborudovanie/:path*', destination: '/zastava/instrument', permanent: true },
       { source: '/loans/tovary-dlya-otdykha-i-sporta/:path*', destination: '/zastava/sport', permanent: true },
+      { source: '/about', destination: '/pro-nas', permanent: true },
       /*
-       * Тут навмисно немає правил для /calc, /loans, /bonus, /about, /reviews,
-       * /vacancy і /redemption. Сторінок, на які вони вели, не існує, а постійне
-       * перенаправлення на 404 пошуковик читає як видалення сторінки й знімає її
-       * з позицій разом із накопиченою вагою. Чесна 404 відновлюється легше.
+       * /bonus не отримує окремої сторінки: точні відсотки знижок, кешбеку й
+       * надбавок за статусами вже відкрито показані в калькуляторі при кожному
+       * розрахунку — на головній і на /calc. Окрема сторінка нічого додатково
+       * не приховала б і не розкрила б: цих цифр і так не сховати, calculator
+       * саме так і задумано — усі статуси видно одразу.
+       */
+      { source: '/bonus', destination: '/calc', permanent: true },
+      /*
+       * Тут навмисно немає правил для /loans, /reviews, /vacancy і /redemption.
+       * Сторінок, на які вони вели, не існує, а постійне перенаправлення на 404
+       * пошуковик читає як видалення сторінки й знімає її з позицій разом із
+       * накопиченою вагою. Чесна 404 відновлюється легше.
        * Правила повертаються разом зі сторінками — черга в tz-pereizd-404.md.
        */
       { source: '/thanks.php', destination: '/dyakuyemo', permanent: true },
