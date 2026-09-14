@@ -21,6 +21,7 @@ type Props = {
 const CT = {
   uk: {
     title: 'Скільки дадуть за вашу річ', live: 'Онлайн',
+    metalLbl: 'Метал', gold: 'Золото', silver: 'Срібло',
     purity: 'Проба', weight: 'Вага виробу', weightAria: 'Вага', gram: 'г',
     term: 'Строк застави', days: 'днів', termAria: 'Строк застави',
     hint: (min: number, max: number) => `Від ${min} до ${max} днів. Далі — перезастава: сплачуєте відсотки, і договір продовжується.`,
@@ -41,6 +42,7 @@ const CT = {
   },
   ru: {
     title: 'Сколько дадут за вашу вещь', live: 'Онлайн',
+    metalLbl: 'Металл', gold: 'Золото', silver: 'Серебро',
     purity: 'Проба', weight: 'Вес изделия', weightAria: 'Вес', gram: 'г',
     term: 'Срок залога', days: 'дней', termAria: 'Срок залога',
     hint: (min: number, max: number) => `От ${min} до ${max} дней. Далее — перезалог: оплачиваете проценты, и договор продлевается.`,
@@ -128,13 +130,20 @@ export default function Calculator({
   bonusWeightLimit = 0, bonusWeightPurity = 585, locale = 'uk',
 }: Props) {
   const ct = CT[locale]
-  const gold = useMemo(() => tariffs.filter((t) => t.metal === 'gold'), [tariffs])
-  const list = gold.length ? gold : tariffs
+  const hasGold = useMemo(() => tariffs.some((t) => t.metal === 'gold'), [tariffs])
+  const hasSilver = useMemo(() => tariffs.some((t) => t.metal === 'silver'), [tariffs])
+  const [metal, setMetal] = useState<'gold' | 'silver'>(hasGold ? 'gold' : 'silver')
+  const list = useMemo(() => tariffs.filter((t) => t.metal === metal), [tariffs, metal])
   const tiers = useMemo(() => [NO_TIER, ...loyaltyTiers], [loyaltyTiers])
 
   const [purity, setPurity] = useState(
     () => list.find((t) => t.purityLabel.startsWith('585'))?.purityLabel ?? list[0]?.purityLabel ?? '',
   )
+  const selectMetal = (m: 'gold' | 'silver') => {
+    setMetal(m)
+    const l = tariffs.filter((t) => t.metal === m)
+    setPurity(l.find((t) => t.purityLabel.startsWith('585'))?.purityLabel ?? l[0]?.purityLabel ?? '')
+  }
   const [weight, setWeight] = useState(5)
   const [days, setDays] = useState(Math.min(14, maxDays))
   const [tierIdx, setTierIdx] = useState(0)
@@ -208,6 +217,20 @@ export default function Calculator({
 
       <div className="calc__grid">
         <div>
+          {hasGold && hasSilver && (
+            <>
+              <span className="lbl" id="lm">{ct.metalLbl}</span>
+              <div className="chips" role="group" aria-labelledby="lm">
+                <button type="button" className="chip" aria-pressed={metal === 'gold'} onClick={() => selectMetal('gold')}>
+                  {ct.gold}
+                </button>
+                <button type="button" className="chip" aria-pressed={metal === 'silver'} onClick={() => selectMetal('silver')}>
+                  {ct.silver}
+                </button>
+              </div>
+            </>
+          )}
+
           <span className="lbl" id="lp">{ct.purity}</span>
           <div className="chips" role="group" aria-labelledby="lp">
             {list.map((t) => (
