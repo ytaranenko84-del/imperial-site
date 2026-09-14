@@ -51,7 +51,9 @@ const nextConfig: NextConfig = {
       { source: '/news-shares/:path*', destination: '/novyny', permanent: true },
       // На старому сайті /contacts був переліком адрес відділень — ведемо туди ж
       { source: '/contacts', destination: '/viddilennya', permanent: true },
-      { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/zastava/zoloto', permanent: true },
+      // Золото й срібло оцінює калькулятор, а не сторінка категорії з фото —
+      // /zastava/zoloto ніколи не існувало.
+      { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/calc', permanent: true },
       { source: '/loans/tsifrovaya-tekhnika/:path*', destination: '/zastava/tekhnika', permanent: true },
       { source: '/loans/bytovaya-tekhnika/:path*', destination: '/zastava/pobutova-tekhnika', permanent: true },
       { source: '/loans/instrumenty-i-oborudovanie/:path*', destination: '/zastava/instrument', permanent: true },
