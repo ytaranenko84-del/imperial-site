@@ -25,12 +25,12 @@ const map = (d: Record<string, unknown>): NewsItem => ({
   archived: Boolean(d.archived),
 })
 
-export async function getNews(): Promise<NewsItem[]> {
+export async function getNews(locale: 'uk' | 'ru' = 'uk'): Promise<NewsItem[]> {
   try {
     const payload = await getPayload({ config })
     const res = await payload.find({
       collection: 'news', limit: 200, sort: '-publishedAt',
-      locale: 'uk', depth: 0, overrideAccess: true,
+      locale, depth: 0, overrideAccess: true,
     })
     return res.docs.map((d) => map(d as Record<string, unknown>))
   } catch {
@@ -38,12 +38,12 @@ export async function getNews(): Promise<NewsItem[]> {
   }
 }
 
-export async function getNewsItem(slug: string): Promise<NewsItem | null> {
+export async function getNewsItem(slug: string, locale: 'uk' | 'ru' = 'uk'): Promise<NewsItem | null> {
   try {
     const payload = await getPayload({ config })
     const res = await payload.find({
       collection: 'news', where: { slug: { equals: slug } }, limit: 1,
-      locale: 'uk', depth: 0, overrideAccess: true,
+      locale, depth: 0, overrideAccess: true,
     })
     const d = res.docs[0]
     return d ? map(d as Record<string, unknown>) : null
@@ -52,12 +52,16 @@ export async function getNewsItem(slug: string): Promise<NewsItem | null> {
   }
 }
 
-/** Дата словами: «13 травня 2020». */
-const MONTHS = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня',
-  'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня']
+/** Дата словами: «13 травня 2020» / «13 мая 2020». */
+const MONTHS: Record<'uk' | 'ru', string[]> = {
+  uk: ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня',
+    'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'],
+  ru: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
+}
 
-export function dateLabel(iso: string): string {
+export function dateLabel(iso: string, locale: 'uk' | 'ru' = 'uk'): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+  return `${d.getUTCDate()} ${MONTHS[locale][d.getUTCMonth()]} ${d.getUTCFullYear()}`
 }

@@ -60,11 +60,13 @@ function safeUrl(value: unknown): string {
   }
 }
 
-export default function Social({ settings }: { settings: Record<string, unknown> }) {
+export default function Social({ settings, locale = 'uk' }: { settings: Record<string, unknown>; locale?: 'uk' | 'ru' }) {
   const items = NETS.map((n) => ({ ...n, url: safeUrl(settings[n.key]) || safeUrl(n.fallback) }))
     .filter((n) => n.url || n.hold)
 
   if (!items.length) return null
+
+  const offLabel = (name: string) => locale === 'ru' ? `${name} — ссылку добавим` : `${name} — посилання додамо`
 
   return (
     <div className="soc">
@@ -75,8 +77,8 @@ export default function Social({ settings }: { settings: Record<string, unknown>
             {n.icon}
           </a>
         ) : (
-          <span key={n.name} className="soc__i soc__i--off" title={`${n.name} — посилання додамо`}
-            aria-label={`${n.name} — посилання додамо`}>
+          <span key={n.name} className="soc__i soc__i--off" title={offLabel(n.name)}
+            aria-label={offLabel(n.name)}>
             {n.icon}
           </span>
         ),

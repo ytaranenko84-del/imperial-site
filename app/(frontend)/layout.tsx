@@ -25,16 +25,26 @@ const inter = Inter({
   preload: false,
 })
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl()),
-  alternates: { canonical: '/' },
-  title: 'Ломбард «Імперіал»',
-  description: 'Мережа ломбардів «Імперіал». Найвища оцінка золота, ставка від 0,39% на день.',
-  openGraph: {
-    type: 'website',
-    locale: 'uk_UA',
-    siteName: 'Ломбард «Імперіал»',
-  },
+/**
+ * Базові метадані — резерв для сторінок, які не задають свої (їх лишається
+ * дедалі менше). openGraph.locale тут читає x-locale, бо саме цей блок
+ * потрапляє в кожну сторінку сайту, якщо вона сама його не перекриє.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale()
+  return {
+    metadataBase: new URL(siteUrl()),
+    alternates: { canonical: locale === 'ru' ? '/ru' : '/' },
+    title: locale === 'ru' ? 'Ломбард «Империал»' : 'Ломбард «Імперіал»',
+    description: locale === 'ru'
+      ? 'Сеть ломбардов «Империал». Самая высокая оценка золота, ставка от 0,39% в день.'
+      : 'Мережа ломбардів «Імперіал». Найвища оцінка золота, ставка від 0,39% на день.',
+    openGraph: {
+      type: 'website',
+      locale: locale === 'ru' ? 'ru_UA' : 'uk_UA',
+      siteName: locale === 'ru' ? 'Ломбард «Империал»' : 'Ломбард «Імперіал»',
+    },
+  }
 }
 
 /**

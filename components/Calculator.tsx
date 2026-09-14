@@ -15,7 +15,51 @@ type Props = {
   bonusWeightLimit?: number
   /** Проба, для якої задано межу: для інших вона перераховується. */
   bonusWeightPurity?: number
+  locale?: 'uk' | 'ru'
 }
+
+const CT = {
+  uk: {
+    title: 'Скільки дадуть за вашу річ', live: 'Онлайн',
+    purity: 'Проба', weight: 'Вага виробу', weightAria: 'Вага', gram: 'г',
+    term: 'Строк застави', days: 'днів', termAria: 'Строк застави',
+    hint: (min: number, max: number) => `Від ${min} до ${max} днів. Далі — перезастава: сплачуєте відсотки, і договір продовжується.`,
+    yourStatus: 'Ваш статус у програмі лояльності',
+    baseNoBonus: 'ціна за прайсом, без надбавок',
+    bonusLine: (bonus: number, discount: number) => `+${bonus}% до оцінки${discount ? ` · −${discount}% на відсотки` : ''}`,
+    statusHint: 'Статус зростає від суми сплачених відсотків і знижується, якщо заставу не викупили.',
+    limitNote: (limit: string, extra: string) => <> Надбавка діє на вироби до <b>{limit} г</b> обраної проби{extra}.</>,
+    sum: 'Сума позики',
+    baseNote: (base: string, price: string) => <>Базова оцінка <b>{base} грн</b> · тариф <b>{price} грн/г</b></>,
+    overLimit: (limit: string) => `Вага понад ${limit} г для цієї проби — надбавка статусу не діє, оцінка за прайсом. Знижка на відсотки лишається.`,
+    rateLbl: (discount: number) => `Ставка на день${discount ? ` · знижка ${discount}%` : ''}`,
+    interestLbl: (days: number) => `Відсотки за ${days} днів`,
+    totalLbl: 'Разом повернете',
+    fine: 'Телефон знадобиться лише для броні. Розрахунок — без реєстрації.',
+    buyLbl: 'Скупка — річ залишається в нас',
+    buyNote: 'Гроші відразу й назавжди, повертати нічого не треба. За скупкою тариф вищий, ніж під заставу.',
+  },
+  ru: {
+    title: 'Сколько дадут за вашу вещь', live: 'Онлайн',
+    purity: 'Проба', weight: 'Вес изделия', weightAria: 'Вес', gram: 'г',
+    term: 'Срок залога', days: 'дней', termAria: 'Срок залога',
+    hint: (min: number, max: number) => `От ${min} до ${max} дней. Далее — перезалог: оплачиваете проценты, и договор продлевается.`,
+    yourStatus: 'Ваш статус в программе лояльности',
+    baseNoBonus: 'цена по прайсу, без надбавок',
+    bonusLine: (bonus: number, discount: number) => `+${bonus}% к оценке${discount ? ` · −${discount}% на проценты` : ''}`,
+    statusHint: 'Статус растёт от суммы уплаченных процентов и снижается, если залог не выкупили.',
+    limitNote: (limit: string, extra: string) => <> Надбавка действует на изделия до <b>{limit} г</b> выбранной пробы{extra}.</>,
+    sum: 'Сумма займа',
+    baseNote: (base: string, price: string) => <>Базовая оценка <b>{base} грн</b> · тариф <b>{price} грн/г</b></>,
+    overLimit: (limit: string) => `Вес свыше ${limit} г для этой пробы — надбавка статуса не действует, оценка по прайсу. Скидка на проценты остаётся.`,
+    rateLbl: (discount: number) => `Ставка в день${discount ? ` · скидка ${discount}%` : ''}`,
+    interestLbl: (days: number) => `Проценты за ${days} дней`,
+    totalLbl: 'Итого вернёте',
+    fine: 'Телефон понадобится только для брони. Расчёт — без регистрации.',
+    buyLbl: 'Скупка — вещь остаётся у нас',
+    buyNote: 'Деньги сразу и навсегда, возвращать ничего не нужно. По скупке тариф выше, чем под залог.',
+  },
+} satisfies Record<'uk' | 'ru', unknown>
 
 /** Статус, якого ще немає: ціна рівно за прайсом. Стоїть першим і обраний
  *  за замовчуванням, щоб людина бачила чесну базу, а не суму з надбавкою. */
@@ -81,8 +125,9 @@ function useCountUp(target: number) {
 
 export default function Calculator({
   tariffs, rateTiers, loyaltyTiers, minDays, maxDays, guaranteeText, branches = [],
-  bonusWeightLimit = 0, bonusWeightPurity = 585,
+  bonusWeightLimit = 0, bonusWeightPurity = 585, locale = 'uk',
 }: Props) {
+  const ct = CT[locale]
   const gold = useMemo(() => tariffs.filter((t) => t.metal === 'gold'), [tariffs])
   const list = gold.length ? gold : tariffs
   const tiers = useMemo(() => [NO_TIER, ...loyaltyTiers], [loyaltyTiers])
@@ -157,13 +202,13 @@ export default function Calculator({
   return (
     <div className="calc">
       <div className="calc__head">
-        <h2>Скільки дадуть за вашу річ</h2>
-        <span className="calc__live">Онлайн</span>
+        <h2>{ct.title}</h2>
+        <span className="calc__live">{ct.live}</span>
       </div>
 
       <div className="calc__grid">
         <div>
-          <span className="lbl" id="lp">Проба</span>
+          <span className="lbl" id="lp">{ct.purity}</span>
           <div className="chips" role="group" aria-labelledby="lp">
             {list.map((t) => (
               <button
@@ -176,7 +221,7 @@ export default function Calculator({
             ))}
           </div>
 
-          <label className="lbl" htmlFor="w">Вага виробу</label>
+          <label className="lbl" htmlFor="w">{ct.weight}</label>
           <div className="fld">
             <input
               className="num" id="w" type="text" inputMode="decimal" value={weightText}
@@ -187,10 +232,10 @@ export default function Calculator({
               }}
               onBlur={() => setWeightText(num(weight))}
             />
-            <span className="unit">г</span>
+            <span className="unit">{ct.gram}</span>
             <input
               className="rng" type="range" min={0.5} max={100} step={0.1}
-              value={Math.min(weight, 100)} aria-label="Вага"
+              value={Math.min(weight, 100)} aria-label={ct.weightAria}
               onChange={(e) => setW(parseFloat(e.target.value), true)}
             />
           </div>
@@ -198,12 +243,12 @@ export default function Calculator({
             {WEIGHTS.map((g) => (
               <button key={g} type="button" className="chip chip--sm"
                 aria-pressed={weight === g} onClick={() => setW(g, true)}>
-                {g} г
+                {g} {ct.gram}
               </button>
             ))}
           </div>
 
-          <label className="lbl" htmlFor="d">Строк застави</label>
+          <label className="lbl" htmlFor="d">{ct.term}</label>
           <div className="fld">
             <input
               className="num" id="d" type="text" inputMode="numeric" value={daysText}
@@ -214,47 +259,33 @@ export default function Calculator({
               }}
               onBlur={() => setDaysText(String(days))}
             />
-            <span className="unit">днів</span>
+            <span className="unit">{ct.days}</span>
             <input
               className="rng" type="range" min={minDays} max={maxDays} step={1}
-              value={days} aria-label="Строк застави"
+              value={days} aria-label={ct.termAria}
               onChange={(e) => setD(parseInt(e.target.value, 10), true)}
             />
           </div>
-          <p className="hint">
-            Від {minDays} до {maxDays} днів. Далі — перезастава: сплачуєте відсотки, і договір продовжується.
-          </p>
+          <p className="hint">{ct.hint(minDays, maxDays)}</p>
 
           {loyaltyTiers.length > 0 && (
             <>
-              <span className="lbl" id="lt">Ваш статус у програмі лояльності</span>
+              <span className="lbl" id="lt">{ct.yourStatus}</span>
               <div className={`tiers${overLimit ? ' tiers--off' : ''}`} role="group" aria-labelledby="lt">
                 {tiers.map((t, i) => (
                   <button key={t.name} type="button" className={`tier${i === 0 ? ' tier--base' : ''}`}
                     aria-pressed={i === tierIdx} onClick={() => setTierIdx(i)}>
                     <b>
                       {t.name}
-                      <em>
-                        {i === 0 ? 'ціна за прайсом, без надбавок' : (
-                          <>
-                            +{t.metalBonus}% до оцінки
-                            {t.discount ? ` · −${t.discount}% на відсотки` : ''}
-                          </>
-                        )}
-                      </em>
+                      <em>{i === 0 ? ct.baseNoBonus : ct.bonusLine(t.metalBonus, t.discount)}</em>
                     </b>
                     <s>{grn(base * (1 + (overLimit ? 0 : t.metalBonus) / 100))} грн</s>
                   </button>
                 ))}
               </div>
               <p className="hint">
-                Статус зростає від суми сплачених відсотків і знижується, якщо заставу не викупили.
-                {limit > 0 && (
-                  <>
-                    {' '}Надбавка діє на вироби до <b>{gramm(limit)} г</b> обраної проби
-                    {goldLimits.length > 1 ? ` (${goldLimits.join(', ')})` : ''}.
-                  </>
-                )}
+                {ct.statusHint}
+                {limit > 0 && ct.limitNote(gramm(limit), goldLimits.length > 1 ? ` (${goldLimits.join(', ')})` : '')}
               </p>
             </>
           )}
@@ -262,36 +293,32 @@ export default function Calculator({
 
         <div className="side">
           <div className="res">
-            <span className="res__lbl">Сума позики</span>
+            <span className="res__lbl">{ct.sum}</span>
             <div className="sum">{grn(shownTotal)}<small>грн</small></div>
-            <p className="res__base">
-              Базова оцінка <b>{grn(base)} грн</b> · тариф <b>{grn(tariff.basePrice)} грн/г</b>
-            </p>
+            <p className="res__base">{ct.baseNote(grn(base), grn(tariff.basePrice))}</p>
 
             {overLimit && (
-              <p className="warn">
-                Вага понад {gramm(limit)} г для цієї проби — надбавка статусу не діє,
-                оцінка за прайсом. Знижка на відсотки лишається.
-              </p>
+              <p className="warn">{ct.overLimit(gramm(limit))}</p>
             )}
 
             <dl className="dl">
               {r && (
                 <div>
-                  <dt>Ставка на день{tier?.discount ? ` · знижка ${tier.discount}%` : ''}</dt>
+                  <dt>{ct.rateLbl(tier?.discount ?? 0)}</dt>
                   <dd className="b">
                     {r.unit === 'uah' ? `${num(+effRate.toFixed(2))} грн` : `${num(+effRate.toFixed(2))}%`}
                   </dd>
                 </div>
               )}
-              <div><dt>Відсотки за {days} днів</dt><dd>{grn(interest)} грн</dd></div>
-              <div><dt>Разом повернете</dt><dd>{grn(total + interest)} грн</dd></div>
+              <div><dt>{ct.interestLbl(days)}</dt><dd>{grn(interest)} грн</dd></div>
+              <div><dt>{ct.totalLbl}</dt><dd>{grn(total + interest)} грн</dd></div>
             </dl>
 
             {guaranteeText && <p className="res__guar">◆&nbsp;<span>{guaranteeText}</span></p>}
 
             <Booking
               branches={branches}
+              locale={locale}
               calc={{
                 amount: total,
                 purity: `${tariff.purityLabel}°`,
@@ -300,16 +327,13 @@ export default function Calculator({
                 tier: tier?.name ?? '',
               }}
             />
-            <p className="fine">Телефон знадобиться лише для броні. Розрахунок — без реєстрації.</p>
+            <p className="fine">{ct.fine}</p>
           </div>
 
           <div className="buy">
             <div>
-              <span className="buy__lbl">Скупка — річ залишається в нас</span>
-              <p className="buy__note">
-                Гроші відразу й назавжди, повертати нічого не треба.
-                За скупкою тариф вищий, ніж під заставу.
-              </p>
+              <span className="buy__lbl">{ct.buyLbl}</span>
+              <p className="buy__note">{ct.buyNote}</p>
             </div>
             <div className="buy__sum">{grn(shownBuyout)}<small>грн</small></div>
           </div>

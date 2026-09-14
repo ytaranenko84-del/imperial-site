@@ -66,7 +66,7 @@ export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[
             {hotline}
             <span>Цілодобово · безкоштовно</span>
           </a>
-          <div className="mnav__lang" role="group" aria-label="Мова сторінки">
+          <div className="mnav__lang" role="group" aria-label={locale === 'ru' ? 'Язык страницы' : 'Мова сторінки'}>
             {(() => {
               const { uk, ru } = localePair(pathname, locale)
               return (

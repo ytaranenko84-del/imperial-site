@@ -239,7 +239,7 @@ export default async function Home() {
 
   return (
     <>
-      <OrganizationSchema branches={branches} hotline={hotline} minRate={bestRate} />
+      <OrganizationSchema branches={branches} hotline={hotline} minRate={bestRate} locale={locale} />
       <FaqSchema items={HOME_FAQ[locale]} />
       <header className="wrap top">
         <a className="brand" href="/">
@@ -311,6 +311,7 @@ export default async function Home() {
             branches={branches}
             bonusWeightLimit={Number(s.bonusWeightLimit ?? 0)}
             bonusWeightPurity={Number(s.bonusWeightPurity ?? 585)}
+            locale={locale}
           />
         </section>
 
@@ -380,7 +381,7 @@ export default async function Home() {
           </section>
         )}
 
-        <Branches branches={branches} />
+        <Branches branches={branches} locale={locale} />
 
         <section className="sec sec--dark">
           <div className="wrap">

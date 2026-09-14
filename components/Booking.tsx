@@ -23,8 +23,65 @@ type Calc = {
 
 const grn = (n: number) => Math.round(n).toLocaleString('uk-UA')
 const label = (b: Branch) => b.displayAddress || b.address
-const hours = (b: Branch) =>
-  b.roundClock ? 'цілодобово' : `${b.openTime || '09:00'}–${b.closeTime || '20:00'}`
+const hours = (b: Branch, locale: 'uk' | 'ru') =>
+  b.roundClock ? (locale === 'ru' ? 'круглосуточно' : 'цілодобово') : `${b.openTime || '09:00'}–${b.closeTime || '20:00'}`
+
+const BT = {
+  uk: {
+    cta: 'Забронювати суму на 24 години',
+    modalTitle: 'Забронювати суму',
+    modalSub: 'Зафіксуємо оцінку на 24 години. Приходьте у зручний час — телефонувати не будемо.',
+    close: 'Закрити',
+    calcNote: 'розрахунок додається до заявки',
+    name: 'Ім’я', phone: 'Телефон', namePh: 'Як до вас звертатися',
+    branchLbl: 'Відділення',
+    locating: 'Визначаємо…', nearest: 'Найближче до мене',
+    byList: 'Списком', byMap: 'На карті',
+    searchPh: 'Пошук за адресою', searchAria: 'Пошук відділення',
+    choose: 'обрати', empty: 'Нічого не знайшли — спробуйте іншу вулицю',
+    geoDeny: 'Місце не визначилось — оберіть відділення зі списку',
+    chosenNote: 'сюди прийде ваша заявка',
+    agree: 'Погоджуюсь на обробку персональних даних. Бронь фіксує оцінку, а не готівку: остаточна сума визначається після огляду виробу.',
+    sending: 'Надсилаємо…', send: 'Надіслати заявку',
+    fine: 'Сума тримається 24 години. Заявка одразу з’явиться у відділенні.',
+    errFallback: 'Не вдалося надіслати заявку',
+    doneTitle: 'Суму заброньовано на 24 години',
+    doneText: (amount: string, till: string | null) =>
+      <>Оцінка <b>{amount} грн</b>{till ? <> зафіксована до <b>{till}</b></> : null}. Приходьте у зручний час — телефонувати не будемо, хіба що знадобиться уточнення.</>,
+    doneBranch: 'Відділення',
+    doneRoute: 'Маршрут →',
+    doneFine: 'Візьміть паспорт і сам виріб. Договір оформлюється на місці за 6 хвилин.',
+    doneOk: 'Зрозуміло',
+    till: (d: Date) => d.toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
+  },
+  ru: {
+    cta: 'Забронировать сумму на 24 часа',
+    modalTitle: 'Забронировать сумму',
+    modalSub: 'Зафиксируем оценку на 24 часа. Приходите в удобное время — звонить не будем.',
+    close: 'Закрыть',
+    calcNote: 'расчёт прилагается к заявке',
+    name: 'Имя', phone: 'Телефон', namePh: 'Как к вам обращаться',
+    branchLbl: 'Отделение',
+    locating: 'Определяем…', nearest: 'Ближайшее ко мне',
+    byList: 'Списком', byMap: 'На карте',
+    searchPh: 'Поиск по адресу', searchAria: 'Поиск отделения',
+    choose: 'выбрать', empty: 'Ничего не нашли — попробуйте другую улицу',
+    geoDeny: 'Место не определилось — выберите отделение из списка',
+    chosenNote: 'сюда придёт ваша заявка',
+    agree: 'Соглашаюсь на обработку персональных данных. Бронь фиксирует оценку, а не наличные: окончательная сумма определяется после осмотра изделия.',
+    sending: 'Отправляем…', send: 'Отправить заявку',
+    fine: 'Сумма держится 24 часа. Заявка сразу появится в отделении.',
+    errFallback: 'Не удалось отправить заявку',
+    doneTitle: 'Сумма забронирована на 24 часа',
+    doneText: (amount: string, till: string | null) =>
+      <>Оценка <b>{amount} грн</b>{till ? <> зафиксирована до <b>{till}</b></> : null}. Приходите в удобное время — звонить не будем, разве что понадобится уточнение.</>,
+    doneBranch: 'Отделение',
+    doneRoute: 'Маршрут →',
+    doneFine: 'Возьмите паспорт и само изделие. Договор оформляется на месте за 6 минут.',
+    doneOk: 'Понятно',
+    till: (d: Date) => d.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
+  },
+} satisfies Record<'uk' | 'ru', unknown>
 
 const routeUrl = (b: Branch) =>
   b.lat != null
@@ -40,7 +97,8 @@ function distance(aLat: number, aLng: number, bLat: number, bLng: number) {
   return 2 * R * Math.asin(Math.sqrt(s))
 }
 
-export default function Booking({ branches, calc }: { branches: Branch[]; calc: Calc }) {
+export default function Booking({ branches, calc, locale = 'uk' }: { branches: Branch[]; calc: Calc; locale?: 'uk' | 'ru' }) {
+  const bt = BT[locale]
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
@@ -161,11 +219,8 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
         }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || 'Не вдалося надіслати заявку')
-      setTill(json.expiresAt
-        ? new Date(json.expiresAt).toLocaleString('uk-UA',
-          { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
-        : '')
+      if (!res.ok) throw new Error(json.error || bt.errFallback)
+      setTill(json.expiresAt ? bt.till(new Date(json.expiresAt)) : '')
       trackLead('booking')
       setState('done')
     } catch (err) {
@@ -179,7 +234,7 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
   return (
     <>
       <button className="pill res__cta" type="button" onClick={() => { setOpen(true); setState('form') }}>
-        Забронювати суму на 24 години
+        {bt.cta}
       </button>
 
       {/* Вікно виносимо в кінець сторінки: секція калькулятора анімується при
@@ -187,16 +242,16 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
           їхало б разом зі сторінкою замість того, щоб стояти по центру екрана. */}
       {open && mounted && createPortal(
         <div className="veil" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false) }}>
-          <div className="modal" role="dialog" aria-modal="true" aria-label="Бронювання суми">
+          <div className="modal" role="dialog" aria-modal="true" aria-label={bt.modalTitle}>
 
             {state !== 'done' ? (
               <form onSubmit={submit}>
                 <div className="modal__head">
                   <div>
-                    <h2>Забронювати суму</h2>
-                    <p>Зафіксуємо оцінку на 24 години. Приходьте у зручний час — телефонувати не будемо.</p>
+                    <h2>{bt.modalTitle}</h2>
+                    <p>{bt.modalSub}</p>
                   </div>
-                  <button className="x" type="button" onClick={() => setOpen(false)} aria-label="Закрити">✕</button>
+                  <button className="x" type="button" onClick={() => setOpen(false)} aria-label={bt.close}>✕</button>
                 </div>
 
                 <div className="modal__body">
@@ -205,63 +260,63 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
                       <b>{grn(calc.amount)} грн</b>
                       <span>
                         {calc.purity}{calc.weight ? ` · ${String(calc.weight).replace('.', ',')} г` : ''}
-                        {calc.days ? ` · строк ${calc.days} дн.` : ''}{calc.tier ? ` · «${calc.tier}»` : ''}
+                        {calc.days ? ` · ${locale === 'ru' ? 'срок' : 'строк'} ${calc.days} дн.` : ''}{calc.tier ? ` · «${calc.tier}»` : ''}
                       </span>
                     </div>
-                    <span className="amount__note">розрахунок додається до заявки</span>
+                    <span className="amount__note">{bt.calcNote}</span>
                   </div>
 
                   <div className="g2">
                     <p>
-                      <label htmlFor="bk-name">Ім’я <span className="req">*</span></label>
+                      <label htmlFor="bk-name">{bt.name} <span className="req">*</span></label>
                       <input ref={nameRef} id="bk-name" name="name" type="text" required maxLength={120}
-                        placeholder="Як до вас звертатися" autoComplete="name" />
+                        placeholder={bt.namePh} autoComplete="name" />
                     </p>
                     <p>
-                      <label htmlFor="bk-phone">Телефон <span className="req">*</span></label>
+                      <label htmlFor="bk-phone">{bt.phone} <span className="req">*</span></label>
                       <input id="bk-phone" name="phone" type="tel" required maxLength={40}
                         placeholder="+380" autoComplete="tel" />
                     </p>
                   </div>
 
                   <div className="pickhead">
-                    <span className="lbl">Відділення <span className="req">*</span></span>
+                    <span className="lbl">{bt.branchLbl} <span className="req">*</span></span>
                     <div className="pickhead__act">
                       <button type="button" className="near" onClick={findNearest} disabled={geo === 'wait'}>
-                        {geo === 'wait' ? 'Визначаємо…' : 'Найближче до мене'}
+                        {geo === 'wait' ? bt.locating : bt.nearest}
                       </button>
                       <div className="tabs">
-                        <button type="button" aria-pressed={tab === 'list'} onClick={() => setTab('list')}>Списком</button>
-                        <button type="button" aria-pressed={tab === 'map'} onClick={() => setTab('map')}>На карті</button>
+                        <button type="button" aria-pressed={tab === 'list'} onClick={() => setTab('list')}>{bt.byList}</button>
+                        <button type="button" aria-pressed={tab === 'map'} onClick={() => setTab('map')}>{bt.byMap}</button>
                       </div>
                     </div>
                   </div>
 
                   {tab === 'list' ? (
                     <>
-                      <input className="search" type="text" value={query} placeholder="Пошук за адресою"
-                        onChange={(e) => setQuery(e.target.value)} aria-label="Пошук відділення" />
+                      <input className="search" type="text" value={query} placeholder={bt.searchPh}
+                        onChange={(e) => setQuery(e.target.value)} aria-label={bt.searchAria} />
                       <div className="blist">
                         {shown.map(({ b, i }) => (
                           <button key={b.address} type="button" className="bitem"
                             aria-pressed={i === sel} onClick={() => setSel(i)}>
-                            <span><b>{label(b)}</b><span>{hours(b)}</span></span>
-                            <i>обрати</i>
+                            <span><b>{label(b)}</b><span>{hours(b, locale)}</span></span>
+                            <i>{bt.choose}</i>
                           </button>
                         ))}
-                        {!shown.length && <p className="empty">Нічого не знайшли — спробуйте іншу вулицю</p>}
+                        {!shown.length && <p className="empty">{bt.empty}</p>}
                       </div>
                     </>
                   ) : (
                     <div className="bmap" ref={boxRef} />
                   )}
 
-                  {geo === 'deny' && <p className="empty">Місце не визначилось — оберіть відділення зі списку</p>}
+                  {geo === 'deny' && <p className="empty">{bt.geoDeny}</p>}
 
                   {cur && (
                     <div className="chosen">
                       <b>{label(cur)}</b>
-                      <span>{hours(cur)} · сюди прийде ваша заявка</span>
+                      <span>{hours(cur, locale)} · {bt.chosenNote}</span>
                     </div>
                   )}
 
@@ -269,40 +324,36 @@ export default function Booking({ branches, calc }: { branches: Branch[]; calc: 
 
                   <label className="agree">
                     <input type="checkbox" required />
-                    <span>Погоджуюсь на обробку персональних даних. Бронь фіксує оцінку, а не готівку:
-                      остаточна сума визначається після огляду виробу.</span>
+                    <span>{bt.agree}</span>
                   </label>
 
                   {error && <p className="werr">{error}</p>}
 
                   <button className="pill send" type="submit" disabled={state === 'sending'}>
-                    {state === 'sending' ? 'Надсилаємо…' : 'Надіслати заявку'}
+                    {state === 'sending' ? bt.sending : bt.send}
                   </button>
-                  <p className="fine">Сума тримається 24 години. Заявка одразу з’явиться у відділенні.</p>
+                  <p className="fine">{bt.fine}</p>
                 </div>
               </form>
             ) : (
               <div className="done">
                 <div className="tick">✓</div>
-                <h2>Суму заброньовано на 24 години</h2>
-                <p>
-                  Оцінка <b>{grn(calc.amount)} грн</b>{till ? <> зафіксована до <b>{till}</b></> : null}.
-                  Приходьте у зручний час — телефонувати не будемо, хіба що знадобиться уточнення.
-                </p>
+                <h2>{bt.doneTitle}</h2>
+                <p>{bt.doneText(grn(calc.amount), till || null)}</p>
 
                 {cur && (
                   <div className="where">
                     <div>
-                      <span className="where__lbl">Відділення</span>
+                      <span className="where__lbl">{bt.doneBranch}</span>
                       <b>{label(cur)}</b>
-                      <span>{hours(cur)}</span>
+                      <span>{hours(cur, locale)}</span>
                     </div>
-                    <a className="route" href={routeUrl(cur)} target="_blank" rel="noopener">Маршрут →</a>
+                    <a className="route" href={routeUrl(cur)} target="_blank" rel="noopener">{bt.doneRoute}</a>
                   </div>
                 )}
 
-                <p className="fine">Візьміть паспорт і сам виріб. Договір оформлюється на місці за 6 хвилин.</p>
-                <button className="pill" type="button" onClick={() => setOpen(false)}>Зрозуміло</button>
+                <p className="fine">{bt.doneFine}</p>
+                <button className="pill" type="button" onClick={() => setOpen(false)}>{bt.doneOk}</button>
               </div>
             )}
 

@@ -26,16 +26,16 @@ function hoursOf(b: Branch) {
   return [{ '@type': 'OpeningHoursSpecification', dayOfWeek: DAYS, opens: b.openTime, closes: b.closeTime }]
 }
 
-function branchNode(b: Branch, hotline: string, base: string) {
+function branchNode(b: Branch, hotline: string, base: string, locale: 'uk' | 'ru') {
   return {
     '@type': 'PawnShop',
     '@id': `${base}/#branch-${b.id}`,
-    name: `Ломбард «Імперіал» — ${b.displayAddress || b.address}`,
+    name: `${locale === 'ru' ? 'Ломбард «Империал»' : 'Ломбард «Імперіал»'} — ${b.displayAddress || b.address}`,
     telephone: b.phone || hotline,
     address: {
       '@type': 'PostalAddress',
       streetAddress: b.address,
-      addressLocality: 'Дніпро',
+      addressLocality: locale === 'ru' ? 'Днепр' : 'Дніпро',
       addressCountry: 'UA',
     },
     ...(b.lat != null && b.lng != null
@@ -47,25 +47,28 @@ function branchNode(b: Branch, hotline: string, base: string) {
 }
 
 export function OrganizationSchema({
-  branches, hotline, minRate,
-}: { branches: Branch[]; hotline: string; minRate: string }) {
+  branches, hotline, minRate, locale = 'uk',
+}: { branches: Branch[]; hotline: string; minRate: string; locale?: 'uk' | 'ru' }) {
   const base = siteUrl()
 
   const graph = [
     {
       '@type': 'Organization',
       '@id': `${base}/#org`,
-      name: 'Ломбард «Імперіал»',
+      name: locale === 'ru' ? 'Ломбард «Империал»' : 'Ломбард «Імперіал»',
       url: base,
       logo: `${base}/logo.png`,
       telephone: hotline,
       foundingDate: '2008',
-      areaServed: { '@type': 'City', name: 'Дніпро' },
+      areaServed: { '@type': 'City', name: locale === 'ru' ? 'Днепр' : 'Дніпро' },
       sameAs: ['https://www.instagram.com/imperial_lomb'],
-      description: `Мережа ломбардів «Імперіал» у Дніпрі: ${branches.length} відділень, `
-        + `оцінка золота, срібла й техніки, ставка від ${minRate}% на день.`,
+      description: locale === 'ru'
+        ? `Сеть ломбардов «Империал» в Днепре: ${branches.length} отделений, `
+          + `оценка золота, серебра и техники, ставка от ${minRate}% в день.`
+        : `Мережа ломбардів «Імперіал» у Дніпрі: ${branches.length} відділень, `
+          + `оцінка золота, срібла й техніки, ставка від ${minRate}% на день.`,
     },
-    ...branches.map((b) => branchNode(b, hotline, base)),
+    ...branches.map((b) => branchNode(b, hotline, base, locale)),
   ]
 
   return (

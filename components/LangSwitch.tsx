@@ -14,7 +14,7 @@ export default function LangSwitch({ locale }: { locale: 'uk' | 'ru' }) {
   const { uk, ru } = localePair(pathname, locale)
 
   return (
-    <div className="lang" role="group" aria-label="Мова сторінки">
+    <div className="lang" role="group" aria-label={locale === 'ru' ? 'Язык страницы' : 'Мова сторінки'}>
       <a href={uk} aria-current={locale === 'uk' ? 'true' : undefined}>UA</a>
       <a href={ru} aria-current={locale === 'ru' ? 'true' : undefined}>RU</a>
     </div>

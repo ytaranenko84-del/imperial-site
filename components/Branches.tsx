@@ -20,10 +20,43 @@ const routeUrl = (b: Branch) =>
     ? `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}`
     : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(b.address + ', Дніпро')}`
 
-const hours = (b: Branch) =>
-  b.roundClock ? 'цілодобово' : `${b.openTime || '09:00'}–${b.closeTime || '20:00'}`
+const hours = (b: Branch, locale: 'uk' | 'ru') =>
+  b.roundClock ? (locale === 'ru' ? 'круглосуточно' : 'цілодобово') : `${b.openTime || '09:00'}–${b.closeTime || '20:00'}`
 
 const label = (b: Branch) => b.displayAddress || b.address
+
+const T = {
+  uk: {
+    heading: 'Знайдіть найближче',
+    lead: 'Натисніть на відділення — карта підведе до нього. Кнопка «Маршрут» відкриє навігатор.',
+    searchLbl: 'Пошук за адресою',
+    searchPh: 'Вулиця, орієнтир або колишня назва',
+    of: 'із',
+    none: 'Нічого не знайшлось. Спробуйте назву вулиці без номера будинку.',
+    route: 'Маршрут →',
+    routeFull: 'Прокласти маршрут →',
+    locating: 'Визначаємо…',
+    nearest: 'Найближче до мене',
+    showAll: 'Показати всі',
+    geoDeny: 'Місце не визначилось — оберіть відділення зі списку',
+    city: (n: number) => <>У місті <b>Дніпро</b> — <b>{n}</b> відділень.</>,
+  },
+  ru: {
+    heading: 'Найдите ближайшее',
+    lead: 'Нажмите на отделение — карта подведёт к нему. Кнопка «Маршрут» откроет навигатор.',
+    searchLbl: 'Поиск по адресу',
+    searchPh: 'Улица, ориентир или прежнее название',
+    of: 'из',
+    none: 'Ничего не нашлось. Попробуйте название улицы без номера дома.',
+    route: 'Маршрут →',
+    routeFull: 'Проложить маршрут →',
+    locating: 'Определяем…',
+    nearest: 'Ближайшее ко мне',
+    showAll: 'Показать все',
+    geoDeny: 'Место не определилось — выберите отделение из списка',
+    city: (n: number) => <>В городе <b>Днепр</b> — <b>{n}</b> отделений.</>,
+  },
+} satisfies Record<'uk' | 'ru', unknown>
 
 /** Відстань по прямій, км. Для «найближчого до мене» цього достатньо. */
 function distance(aLat: number, aLng: number, bLat: number, bLng: number) {
@@ -38,18 +71,22 @@ function distance(aLat: number, aLng: number, bLat: number, bLng: number) {
 const escape = (t: string) => t.replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 
-function popupHtml(b: Branch) {
+function popupHtml(b: Branch, locale: 'uk' | 'ru') {
+  const t = T[locale]
   const near = b.transport ? `<i class="pop__near">${escape(b.transport)}</i>` : ''
   return `<b class="pop__addr">${escape(label(b))}</b>${near}`
-    + `<span class="pop__row">${escape(hours(b))}</span>`
+    + `<span class="pop__row">${escape(hours(b, locale))}</span>`
     + (b.phone ? `<a class="pop__row" href="tel:${b.phone.replace(/[^\d+]/g, '')}">${escape(b.phone)}</a>` : '')
-    + `<a class="pop__route" href="${routeUrl(b)}" target="_blank" rel="noopener">Прокласти маршрут →</a>`
+    + `<a class="pop__route" href="${routeUrl(b)}" target="_blank" rel="noopener">${escape(t.routeFull)}</a>`
 }
 
 export default function Branches(
-  { branches, heading = 'Знайдіть найближче', lead = 'Натисніть на відділення — карта підведе до нього. Кнопка «Маршрут» відкриє навігатор.' }:
-  { branches: Branch[]; heading?: string | null; lead?: string | null },
+  { branches, heading, lead, locale = 'uk' }:
+  { branches: Branch[]; heading?: string | null; lead?: string | null; locale?: 'uk' | 'ru' },
 ) {
+  const t = T[locale]
+  const shownHeading = heading === null ? null : (heading ?? t.heading)
+  const shownLead = lead === null ? null : (lead ?? t.lead)
   const mapped = useMemo(() => {
     const seen = new Map<string, number>()
     return branches
@@ -124,7 +161,7 @@ export default function Branches(
       mapped.forEach(({ b, i, pos }) => {
         const m = L.marker(pos, { icon, title: label(b), keyboard: true })
           .addTo(map)
-          .bindPopup(popupHtml(b), { closeButton: true, className: 'pop' })
+          .bindPopup(popupHtml(b, locale), { closeButton: true, className: 'pop' })
         m.on('click', () => setActive(i))
         markersRef.current.set(i, m)
       })
@@ -194,32 +231,32 @@ export default function Branches(
   const cur = branches[active]
 
   return (
-    <section className={`sec${heading ? '' : ' sec--tight'}`} id="branches">
+    <section className={`sec${shownHeading ? '' : ' sec--tight'}`} id="branches">
       <div className="wrap">
-        {heading && (
+        {shownHeading && (
           <div className="shead center" data-reveal>
-            <h2>{heading}</h2>
-            {lead && <p>{lead}</p>}
+            <h2>{shownHeading}</h2>
+            {shownLead && <p>{shownLead}</p>}
           </div>
         )}
 
         <label className="brfind">
-          <span className="brfind__lab">Пошук за адресою</span>
+          <span className="brfind__lab">{t.searchLbl}</span>
           <input
             type="search"
             className="brfind__in"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Вулиця, орієнтир або колишня назва"
+            placeholder={t.searchPh}
             autoComplete="off"
           />
-          {query && <span className="brfind__n">{shown.length} із {branches.length}</span>}
+          {query && <span className="brfind__n">{shown.length} {t.of} {branches.length}</span>}
         </label>
 
         <div className="brwrap">
           <div className="brlist" ref={listRef}>
             {shown.length === 0 && (
-              <p className="brfind__none">Нічого не знайшлось. Спробуйте назву вулиці без номера будинку.</p>
+              <p className="brfind__none">{t.none}</p>
             )}
             {shown.map(({ b, i }) => (
               <div
@@ -236,12 +273,12 @@ export default function Branches(
                   <span>{b.phone}</span>
                 </div>
                 <div className="br__act">
-                  <span className="br__hrs">{hours(b)}</span>
+                  <span className="br__hrs">{hours(b, locale)}</span>
                   <a
                     className="br__route" href={routeUrl(b)} target="_blank" rel="noopener"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    Маршрут →
+                    {t.route}
                   </a>
                 </div>
               </div>
@@ -252,7 +289,7 @@ export default function Branches(
             <div className="mapbox__head">
               <b>{label(cur)}{cur.transport ? <i className="mapbox__near">{cur.transport}</i> : null}</b>
               <a className="mapbox__route" href={routeUrl(cur)} target="_blank" rel="noopener">
-                Прокласти маршрут →
+                {t.routeFull}
               </a>
             </div>
 
@@ -260,14 +297,14 @@ export default function Branches(
 
             <div className="mapbox__bar">
               <button type="button" className="mapbtn" onClick={findNearest} disabled={geo === 'wait'}>
-                {geo === 'wait' ? 'Визначаємо…' : 'Найближче до мене'}
+                {geo === 'wait' ? t.locating : t.nearest}
               </button>
               <button type="button" className="mapbtn mapbtn--ghost" onClick={fitAll}>
-                Показати всі
+                {t.showAll}
               </button>
               {geo === 'deny' && (
                 <span className="mapbox__geo">
-                  Місце не визначилось — оберіть відділення зі списку
+                  {t.geoDeny}
                 </span>
               )}
             </div>
@@ -275,7 +312,7 @@ export default function Branches(
         </div>
 
         <p className="brm">
-          У місті <b>Дніпро</b> — <b>{branches.length}</b> відділень.
+          {t.city(branches.length)}
         </p>
       </div>
     </section>

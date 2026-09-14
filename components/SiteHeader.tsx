@@ -3,8 +3,14 @@ import Image from 'next/image'
 import Nav from '@/components/Nav'
 import LangSwitch from '@/components/LangSwitch'
 
+const NAV_LABELS = {
+  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини', branches: 'Відділення', roundClock: 'Цілодобово · безкоштовно' },
+  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости', branches: 'Отделения', roundClock: 'Круглосуточно · бесплатно' },
+} satisfies Record<'uk' | 'ru', unknown>
+
 /** Шапка внутрішніх сторінок. Одна на всіх, щоб меню не розповзалося по копіях. */
 export default function SiteHeader({ hotline, locale = 'uk' }: { hotline: string; locale?: 'uk' | 'ru' }) {
+  const n = NAV_LABELS[locale]
   return (
     <header className="wrap top">
       <a className="brand" href="/">
@@ -15,16 +21,16 @@ export default function SiteHeader({ hotline, locale = 'uk' }: { hotline: string
         hotline={hotline}
         locale={locale}
         items={[
-          { href: '/zastava', label: 'Що приймаємо' },
-          { href: '/calc', label: 'Оцінка' },
-          { href: '/zastava/hodynnyky', label: 'Годинники' },
-          { href: '/novyny', label: 'Новини' },
-          { href: '/viddilennya', label: 'Відділення' },
+          { href: '/zastava', label: n.catalog },
+          { href: '/calc', label: n.calc },
+          { href: '/zastava/hodynnyky', label: n.watches },
+          { href: '/novyny', label: n.news },
+          { href: '/viddilennya', label: n.branches },
         ]}
       />
       <LangSwitch locale={locale} />
       <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
-        <b>{hotline}</b><span>Цілодобово · безкоштовно</span>
+        <b>{hotline}</b><span>{n.roundClock}</span>
       </a>
     </header>
   )
