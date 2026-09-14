@@ -10,10 +10,13 @@
  * На десктопі панель не показується — там і так видно номер у шапці.
  */
 export default function MobileActionBar({
-  hotline, telegram,
-}: { hotline: string; telegram?: string | null }) {
+  hotline, telegram, locale = 'uk',
+}: { hotline: string; telegram?: string | null; locale?: 'uk' | 'ru' }) {
+  const t = locale === 'ru'
+    ? { aria: 'Быстрые действия', eval: 'Оценить', call: 'Позвонить' }
+    : { aria: 'Швидкі дії', eval: 'Оцінити', call: 'Подзвонити' }
   return (
-    <nav className="mabar" aria-label="Швидкі дії">
+    <nav className="mabar" aria-label={t.aria}>
       {telegram ? (
         <a className="mabar__i mabar__tg" href={telegram} target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
@@ -35,14 +38,14 @@ export default function MobileActionBar({
           <path d="M12 2 20 10a2 2 0 0 1 0 2.8l-6.2 6.2a2 2 0 0 1-2.8 0L3 11V4a2 2 0 0 1 2-2h7Z" />
           <circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none" />
         </svg>
-        Оцінити
+        {t.eval}
       </a>
 
       <a className="mabar__i mabar__tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 4 6a2 2 0 0 1 2-2Z" />
         </svg>
-        Подзвонити
+        {t.call}
       </a>
     </nav>
   )

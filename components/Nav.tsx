@@ -1,6 +1,9 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+
+import { localePair } from '@/lib/locale-utils.ts'
 
 /**
  * Меню сайту.
@@ -12,8 +15,9 @@ import { useEffect, useRef, useState } from 'react'
 
 export type NavItem = { href: string; label: string }
 
-export default function Nav({ items, hotline }: { items: NavItem[]; hotline: string }) {
+export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[]; hotline: string; locale?: 'uk' | 'ru' }) {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
   const panelRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
@@ -61,6 +65,17 @@ export default function Nav({ items, hotline }: { items: NavItem[]; hotline: str
             {hotline}
             <span>Цілодобово · безкоштовно</span>
           </a>
+          <div className="mnav__lang" role="group" aria-label="Мова сторінки">
+            {(() => {
+              const { uk, ru } = localePair(pathname, locale)
+              return (
+                <>
+                  <a href={uk} aria-current={locale === 'uk' ? 'true' : undefined}>Українська</a>
+                  <a href={ru} aria-current={locale === 'ru' ? 'true' : undefined}>Русский</a>
+                </>
+              )
+            })()}
+          </div>
         </div>
       )}
     </>

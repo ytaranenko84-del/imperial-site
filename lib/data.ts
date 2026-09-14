@@ -58,19 +58,19 @@ const EMPTY: SiteData = { tariffs: [], rateTiers: [], loyaltyTiers: [], branches
  * Лише налаштування. Сторінкам категорій більше нічого не треба, а повний
  * getSiteData тягнув би ще чотири запити до бази за океан — на кожен показ.
  */
-export async function getSettings(): Promise<Record<string, unknown>> {
+export async function getSettings(locale: 'uk' | 'ru' = 'uk'): Promise<Record<string, unknown>> {
   try {
     const payload = await getPayload({ config })
-    return (await payload.findGlobal({ slug: 'settings', locale: 'uk', depth: 0 })) as Record<string, unknown>
+    return (await payload.findGlobal({ slug: 'settings', locale, depth: 0 })) as Record<string, unknown>
   } catch {
     return {}
   }
 }
 
-export async function getSiteData(): Promise<SiteData> {
+export async function getSiteData(locale: 'uk' | 'ru' = 'uk'): Promise<SiteData> {
   try {
     const payload = await getPayload({ config })
-    const opts = { locale: 'uk' as const, depth: 0, overrideAccess: true }
+    const opts = { locale, depth: 0, overrideAccess: true }
 
     const [tariffs, rateTiers, loyaltyTiers, branches, settings] = await Promise.all([
       payload.find({ collection: 'tariffs', limit: 100, sort: 'order', where: { active: { equals: true } }, ...opts }),

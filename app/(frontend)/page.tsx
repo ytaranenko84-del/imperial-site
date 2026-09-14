@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSiteData } from '@/lib/data'
+import { getLocale } from '@/lib/locale.ts'
 import Calculator from '@/components/Calculator'
 import Nav from '@/components/Nav'
+import LangSwitch from '@/components/LangSwitch'
 import { FaqSchema, OrganizationSchema } from '@/components/Schema.tsx'
 import Branches from '@/components/Branches'
 import Social from '@/components/Social'
@@ -13,74 +15,208 @@ import '@/components/Booking.css'
 // Сторінка складалась наново на кожен запит і щоразу ходила в базу — перший байт
 // приходив за півтори секунди. Тепер готова сторінка живе хвилину: правки з
 // адмінки з'являються за той самий час, а відвідувач отримує її одразу.
+//
+// Локалізація читає заголовок x-locale через headers() — це знімає повну
+// статичну оптимізацію сторінки (Next віддає її динамічно на кожен запит),
+// але лишається єдиним способом показати /ru тим самим файлом без дублю.
 export const revalidate = 60
 
+type L = 'uk' | 'ru'
+
 /** Питання йдуть у розмітку: пошуковик показує їх прямо у результатах. */
-const HOME_FAQ = [
-  {
-    q: 'Скільки дають за грам золота 585 проби?',
-    a: 'За чинним прайсом — 3 100 грн за грам під заставу і 3 150 грн при викупі. '
-      + 'Ціни оновлюються за курсом металу, точну суму рахує калькулятор на сайті.',
-  },
-  {
-    q: 'Чи потрібен паспорт?',
-    a: 'Так. Договір оформлюється на паспорт або ID-картку — це вимога закону, '
-      + 'однакова для всіх ломбардів України.',
-  },
-  {
-    q: 'Скільки часу займає оцінка?',
-    a: 'Золото й срібло — близько шести хвилин разом з оформленням договору '
-      + 'і видачею готівки. Техніку дивиться оцінювач, це довше.',
-  },
-  {
-    q: 'Що буде з річчю, поки діє позика?',
-    a: 'Річ зберігається в сейфі відділення й лишається вашою. Ви забираєте її, '
-      + 'коли повертаєте позику з відсотками.',
-  },
-]
-
-
-export const metadata: Metadata = {
-  title: 'Ломбард «Імперіал» — найвища оцінка золота, ставка від 0,39% на день',
-  description:
-    'Мережа ломбардів «Імперіал» з 2008 року. Оцінка до 80% ринкової вартості, '
-    + 'ставка від 0,39% на день, оформлення за 6 хвилин. Розрахунок онлайн без реєстрації.',
+const HOME_FAQ: Record<L, { q: string; a: string }[]> = {
+  uk: [
+    {
+      q: 'Скільки дають за грам золота 585 проби?',
+      a: 'За чинним прайсом — 3 100 грн за грам під заставу і 3 150 грн при викупі. '
+        + 'Ціни оновлюються за курсом металу, точну суму рахує калькулятор на сайті.',
+    },
+    {
+      q: 'Чи потрібен паспорт?',
+      a: 'Так. Договір оформлюється на паспорт або ID-картку — це вимога закону, '
+        + 'однакова для всіх ломбардів України.',
+    },
+    {
+      q: 'Скільки часу займає оцінка?',
+      a: 'Золото й срібло — близько шести хвилин разом з оформленням договору '
+        + 'і видачею готівки. Техніку дивиться оцінювач, це довше.',
+    },
+    {
+      q: 'Що буде з річчю, поки діє позика?',
+      a: 'Річ зберігається в сейфі відділення й лишається вашою. Ви забираєте її, '
+        + 'коли повертаєте позику з відсотками.',
+    },
+  ],
+  ru: [
+    {
+      q: 'Сколько дают за грамм золота 585 пробы?',
+      a: 'По действующему прайсу — 3 100 грн за грамм под залог и 3 150 грн при выкупе. '
+        + 'Цены обновляются по курсу металла, точную сумму считает калькулятор на сайте.',
+    },
+    {
+      q: 'Нужен ли паспорт?',
+      a: 'Да. Договор оформляется на паспорт или ID-карту — это требование закона, '
+        + 'одинаковое для всех ломбардов Украины.',
+    },
+    {
+      q: 'Сколько времени занимает оценка?',
+      a: 'Золото и серебро — около шести минут вместе с оформлением договора '
+        + 'и выдачей наличных. Технику смотрит оценщик, это дольше.',
+    },
+    {
+      q: 'Что будет с вещью, пока действует заём?',
+      a: 'Вещь хранится в сейфе отделения и остаётся вашей. Вы забираете её, '
+        + 'когда возвращаете заём с процентами.',
+    },
+  ],
 }
 
-const SITUATIONS = [
-  ['Терміновий ремонт авто', 'Машина потрібна завтра, а не післязавтра'],
-  ['Лікування', 'Коли гроші потрібні сьогодні, а не після оформлення'],
-  ['Оплата навчання', 'Семестр, курси, репетитор — до дедлайну'],
-  ['Спадщина та подарунки', 'Золото лежить у шкатулці 20 років. Хай попрацює'],
-  ['Касовий розрив', 'Товар треба викупити, а оплата — за тиждень'],
-  ['Весілля та великі події', 'Одна подія — одна позика, річ повертається'],
-  ['Ремонт житла', 'Матеріали подорожчають, поки чекаєте зарплату'],
-  ['Вигідна можливість', 'Ціна діє три дні — встигніть'],
-]
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale()
+  const title = locale === 'ru'
+    ? 'Ломбард «Империал» — самая высокая оценка золота, ставка от 0,39% в день'
+    : 'Ломбард «Імперіал» — найвища оцінка золота, ставка від 0,39% на день'
+  const description = locale === 'ru'
+    ? 'Сеть ломбардов «Империал» с 2008 года. Оценка до 80% рыночной стоимости, '
+      + 'ставка от 0,39% в день, оформление за 6 минут. Расчёт онлайн без регистрации.'
+    : 'Мережа ломбардів «Імперіал» з 2008 року. Оцінка до 80% ринкової вартості, '
+      + 'ставка від 0,39% на день, оформлення за 6 хвилин. Розрахунок онлайн без реєстрації.'
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: locale === 'ru' ? '/ru' : '/',
+      languages: { 'uk-UA': '/', 'ru-UA': '/ru', 'x-default': '/' },
+    },
+  }
+}
+
+const SITUATIONS: Record<L, [string, string][]> = {
+  uk: [
+    ['Терміновий ремонт авто', 'Машина потрібна завтра, а не післязавтра'],
+    ['Лікування', 'Коли гроші потрібні сьогодні, а не після оформлення'],
+    ['Оплата навчання', 'Семестр, курси, репетитор — до дедлайну'],
+    ['Спадщина та подарунки', 'Золото лежить у шкатулці 20 років. Хай попрацює'],
+    ['Касовий розрив', 'Товар треба викупити, а оплата — за тиждень'],
+    ['Весілля та великі події', 'Одна подія — одна позика, річ повертається'],
+    ['Ремонт житла', 'Матеріали подорожчають, поки чекаєте зарплату'],
+    ['Вигідна можливість', 'Ціна діє три дні — встигніть'],
+  ],
+  ru: [
+    ['Срочный ремонт авто', 'Машина нужна завтра, а не послезавтра'],
+    ['Лечение', 'Когда деньги нужны сегодня, а не после оформления'],
+    ['Оплата обучения', 'Семестр, курсы, репетитор — к дедлайну'],
+    ['Наследство и подарки', 'Золото лежит в шкатулке 20 лет. Пусть поработает'],
+    ['Кассовый разрыв', 'Товар нужно выкупить, а оплата — через неделю'],
+    ['Свадьба и большие события', 'Одно событие — один заём, вещь возвращается'],
+    ['Ремонт жилья', 'Материалы подорожают, пока ждёте зарплату'],
+    ['Выгодная возможность', 'Цена действует три дня — успейте'],
+  ],
+}
 
 /**
  * Картка каже, що станеться після натискання, і як саме рахується сума.
  * [назва, підпис, дія, спосіб оцінки, посилання]
  */
-const CATEGORIES: [string, string, string, string, string][] = [
-  ['Золото', 'Ланцюжки, каблучки, брухт', 'Порахувати суму', 'одразу на сайті', '#calc'],
-  ['Срібло', 'Столове, ювелірне, брухт', 'Порахувати суму', 'одразу на сайті', '#calc'],
-  ['Годинники', 'Швейцарська механіка, вінтаж', 'Надіслати на оцінку', 'фахівець, протягом дня', '/zastava/hodynnyky'],
-  ['Цифрова техніка', 'Телефони, ноутбуки, фото', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/tekhnika'],
-  ['Побутова техніка', 'Холодильники, пральні', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/pobutova-tekhnika'],
-  ['Інструмент', 'Перфоратори, бензопили', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/instrument'],
-  ['Спорт і відпочинок', 'Велосипеди, тренажери', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/sport'],
-]
+const CATEGORIES: Record<L, [string, string, string, string, string][]> = {
+  uk: [
+    ['Золото', 'Ланцюжки, каблучки, брухт', 'Порахувати суму', 'одразу на сайті', '#calc'],
+    ['Срібло', 'Столове, ювелірне, брухт', 'Порахувати суму', 'одразу на сайті', '#calc'],
+    ['Годинники', 'Швейцарська механіка, вінтаж', 'Надіслати на оцінку', 'фахівець, протягом дня', '/zastava/hodynnyky'],
+    ['Цифрова техніка', 'Телефони, ноутбуки, фото', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/tekhnika'],
+    ['Побутова техніка', 'Холодильники, пральні', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/pobutova-tekhnika'],
+    ['Інструмент', 'Перфоратори, бензопили', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/instrument'],
+    ['Спорт і відпочинок', 'Велосипеди, тренажери', 'Оцінити за фото', 'фахівець, протягом дня', '/zastava/sport'],
+  ],
+  ru: [
+    ['Золото', 'Цепочки, кольца, лом', 'Посчитать сумму', 'сразу на сайте', '#calc'],
+    ['Серебро', 'Столовое, ювелирное, лом', 'Посчитать сумму', 'сразу на сайте', '#calc'],
+    ['Часы', 'Швейцарская механика, винтаж', 'Отправить на оценку', 'специалист, в течение дня', '/zastava/hodynnyky'],
+    ['Цифровая техника', 'Телефоны, ноутбуки, фото', 'Оценить по фото', 'специалист, в течение дня', '/zastava/tekhnika'],
+    ['Бытовая техника', 'Холодильники, стиральные машины', 'Оценить по фото', 'специалист, в течение дня', '/zastava/pobutova-tekhnika'],
+    ['Инструмент', 'Перфораторы, бензопилы', 'Оценить по фото', 'специалист, в течение дня', '/zastava/instrument'],
+    ['Спорт и отдых', 'Велосипеды, тренажёры', 'Оценить по фото', 'специалист, в течение дня', '/zastava/sport'],
+  ],
+}
 
-const TRUST = [
-  ['Опис при вас', 'Стан речі фіксуємо в договорі разом із вами — до найдрібнішої подряпини.'],
-  ['Окреме сховище', 'Сейф під охороною. Річ не потрапляє у продаж, доки діє договір.'],
-  ['Страхування', 'Майно застраховане на повну суму оцінки на весь строк застави.'],
-  ['Ліцензія НБУ', 'Діяльність під наглядом Національного банку України з 2008 року.'],
-]
+const TRUST: Record<L, [string, string][]> = {
+  uk: [
+    ['Опис при вас', 'Стан речі фіксуємо в договорі разом із вами — до найдрібнішої подряпини.'],
+    ['Окреме сховище', 'Сейф під охороною. Річ не потрапляє у продаж, доки діє договір.'],
+    ['Страхування', 'Майно застраховане на повну суму оцінки на весь строк застави.'],
+    ['Ліцензія НБУ', 'Діяльність під наглядом Національного банку України з 2008 року.'],
+  ],
+  ru: [
+    ['Описание при вас', 'Состояние вещи фиксируем в договоре вместе с вами — до мельчайшей царапины.'],
+    ['Отдельное хранилище', 'Сейф под охраной. Вещь не попадает в продажу, пока действует договор.'],
+    ['Страхование', 'Имущество застраховано на полную сумму оценки на весь срок залога.'],
+    ['Лицензия НБУ', 'Деятельность под надзором Национального банка Украины с 2008 года.'],
+  ],
+}
+
+const NAV_LABELS: Record<L, { catalog: string; calc: string; watches: string; news: string; branches: string }> = {
+  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини', branches: 'Відділення' },
+  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости', branches: 'Отделения' },
+}
+
+const T = {
+  uk: {
+    roundClock: 'Цілодобово · безкоштовно',
+    eyebrow: 'Мережа ломбардів з 2008 року',
+    h1a: 'Найвища оцінка', h1b: 'вашого золота',
+    lede: (share: number) => `До ${share}% ринкової вартості. Річ залишається вашою — ви забираєте її, коли повернете позику.`,
+    rateLinkFrom: 'від', rateLinkTail: ' на день — найнижча ставка серед мереж України ›',
+    rateNoteBase: 'Ставка залежить від суми позики',
+    rateNoteFrom: (rate: number, from: number) => `: від ${rate}% на день при позиці понад ${from.toLocaleString('uk-UA')} грн`,
+    rateNoteTier: (rate: string, discount: number, name: string) => `. ${rate}% — з урахуванням знижки ${discount}% для статусу «${name}»`,
+    factMin: 'хв', factReg: 'оформлення', factBranches: 'відділень', factYears: 'років', factMarket: 'на ринку',
+    ctaCalc: 'Порахувати суму →',
+    hint: 'Калькулятор нижче',
+    catsH2: 'Що ми приймаємо', catsP: 'Золото і срібло рахує калькулятор одразу. Решту оцінює фахівець за фото.',
+    sitsH2: 'Коли по гроші приходять до нас', sitsP: 'Гроші не закінчилися — вони просто лежать у незручній формі.',
+    loyaltyH2: 'Що частіше користуєтесь — то дешевше',
+    loyaltyP: 'Статус зростає від суми сплачених відсотків і одразу впливає на оцінку. Якщо заставу не викупили — статус знижується.',
+    tierBonus: 'Надбавка до оцінки', tierDiscount: 'Знижка на відсотки', tierCashback: 'Кешбек', tierTech: 'За техніку',
+    trustH2: 'Що відбувається з вашим майном',
+    hotlineLbl: 'Гаряча лінія',
+    footServices: 'Послуги', footLoan: 'Кредит під заставу', footOnline: 'Онлайн-оцінка',
+    footCompany: 'Компанія', footAbout: 'Про ломбард', footSituations: 'Життєві ситуації',
+    footContacts: 'Контакти', footStaff: 'Вхід для співробітників', footNews: 'Новини та акції',
+    legal: (max: number, minDays: number, maxDays: number) =>
+      `Максимальна річна ставка — до ${max}% річних з урахуванням усіх обов'язкових платежів. Строк застави — від ${minDays} до ${maxDays} днів; далі річ перезакладається: клієнт сплачує відсотки, і договір продовжується. Розрахунок у калькуляторі є попереднім: остаточну суму визначає оцінювач після огляду виробу.`,
+  },
+  ru: {
+    roundClock: 'Круглосуточно · бесплатно',
+    eyebrow: 'Сеть ломбардов с 2008 года',
+    h1a: 'Самая высокая оценка', h1b: 'вашего золота',
+    lede: (share: number) => `До ${share}% рыночной стоимости. Вещь остаётся вашей — вы забираете её, когда вернёте заём.`,
+    rateLinkFrom: 'от', rateLinkTail: ' в день — самая низкая ставка среди сетей Украины ›',
+    rateNoteBase: 'Ставка зависит от суммы займа',
+    rateNoteFrom: (rate: number, from: number) => `: от ${rate}% в день при займе свыше ${from.toLocaleString('uk-UA')} грн`,
+    rateNoteTier: (rate: string, discount: number, name: string) => `. ${rate}% — с учётом скидки ${discount}% для статуса «${name}»`,
+    factMin: 'мин', factReg: 'оформление', factBranches: 'отделений', factYears: 'лет', factMarket: 'на рынке',
+    ctaCalc: 'Посчитать сумму →',
+    hint: 'Калькулятор ниже',
+    catsH2: 'Что мы принимаем', catsP: 'Золото и серебро считает калькулятор сразу. Остальное оценивает специалист по фото.',
+    sitsH2: 'Когда за деньгами приходят к нам', sitsP: 'Деньги не закончились — они просто лежат в неудобной форме.',
+    loyaltyH2: 'Чем чаще пользуетесь — тем дешевле',
+    loyaltyP: 'Статус растёт от суммы уплаченных процентов и сразу влияет на оценку. Если залог не выкупили — статус снижается.',
+    tierBonus: 'Надбавка к оценке', tierDiscount: 'Скидка на проценты', tierCashback: 'Кэшбек', tierTech: 'За технику',
+    trustH2: 'Что происходит с вашим имуществом',
+    hotlineLbl: 'Горячая линия',
+    footServices: 'Услуги', footLoan: 'Кредит под залог', footOnline: 'Онлайн-оценка',
+    footCompany: 'Компания', footAbout: 'О ломбарде', footSituations: 'Жизненные ситуации',
+    footContacts: 'Контакты', footStaff: 'Вход для сотрудников', footNews: 'Новости и акции',
+    legal: (max: number, minDays: number, maxDays: number) =>
+      `Максимальная годовая ставка — до ${max}% годовых с учётом всех обязательных платежей. Срок залога — от ${minDays} до ${maxDays} дней; далее вещь перезакладывается: клиент оплачивает проценты, и договор продлевается. Расчёт в калькуляторе является предварительным: окончательную сумму определяет оценщик после осмотра изделия.`,
+  },
+} satisfies Record<L, unknown>
 
 export default async function Home() {
-  const { tariffs, rateTiers, loyaltyTiers, branches, settings } = await getSiteData()
+  const locale = await getLocale()
+  const t = T[locale]
+  const { tariffs, rateTiers, loyaltyTiers, branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | boolean | undefined>
 
   const hotline = String(s.hotline || '0 800 30 85 00')
@@ -94,17 +230,17 @@ export default async function Home() {
   const lowestRate = rateTiers.filter((r) => r.unit === 'percent').reduce(
     (min, r) => Math.min(min, r.rate), Infinity,
   )
-  const maxDiscount = loyaltyTiers.reduce((max, t) => Math.max(max, t.discount), 0)
+  const maxDiscount = loyaltyTiers.reduce((max, t2) => Math.max(max, t2.discount), 0)
   const bestRate = Number.isFinite(lowestRate)
     ? (lowestRate * (1 - maxDiscount / 100)).toFixed(2).replace('.', ',')
     : '0,39'
-  const bestTier = loyaltyTiers.find((t) => t.discount === maxDiscount)
+  const bestTier = loyaltyTiers.find((tier) => tier.discount === maxDiscount)
   const bestFrom = rateTiers.find((r) => r.rate === lowestRate)?.amountFrom
 
   return (
     <>
       <OrganizationSchema branches={branches} hotline={hotline} minRate={bestRate} />
-      <FaqSchema items={HOME_FAQ} />
+      <FaqSchema items={HOME_FAQ[locale]} />
       <header className="wrap top">
         <a className="brand" href="/">
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
@@ -112,16 +248,18 @@ export default async function Home() {
         </a>
         <Nav
           hotline={hotline}
+          locale={locale}
           items={[
-            { href: '/zastava', label: 'Що приймаємо' },
-            { href: '/calc', label: 'Оцінка' },
-            { href: '/zastava/hodynnyky', label: 'Годинники' },
-            { href: '/novyny', label: 'Новини' },
-            { href: '/viddilennya', label: 'Відділення' },
+            { href: '/zastava', label: NAV_LABELS[locale].catalog },
+            { href: '/calc', label: NAV_LABELS[locale].calc },
+            { href: '/zastava/hodynnyky', label: NAV_LABELS[locale].watches },
+            { href: '/novyny', label: NAV_LABELS[locale].news },
+            { href: '/viddilennya', label: NAV_LABELS[locale].branches },
           ]}
         />
+        <LangSwitch locale={locale} />
         <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
-          <b>{hotline}</b><span>Цілодобово · безкоштовно</span>
+          <b>{hotline}</b><span>{t.roundClock}</span>
         </a>
       </header>
 
@@ -129,40 +267,35 @@ export default async function Home() {
         <section className="start center">
           {/* анімація появи — лише на вміст: підказку внизу вона зсувала б за край екрана */}
           <div className="wrap start__in" data-reveal-group>
-          <p className="eyebrow">Мережа ломбардів з 2008 року</p>
-          <h1>Найвища оцінка<br />вашого золота</h1>
+          <p className="eyebrow">{t.eyebrow}</p>
+          <h1>{t.h1a}<br />{t.h1b}</h1>
           <div className="goldline" />
-          <p className="lede">
-            До {share}% ринкової вартості. Річ залишається вашою — ви забираєте її,
-            коли повернете позику.
-          </p>
+          <p className="lede">{t.lede(share)}</p>
 
           <a className="rate-link" href="#terms">
-            {`від ${bestRate}%`}<sup>*</sup>{' на день — найнижча ставка серед мереж України ›'}
+            {`${t.rateLinkFrom} ${bestRate}%`}<sup>*</sup>{t.rateLinkTail}
           </a>
           <p className="rate-note">
-            <sup>*</sup> Ставка залежить від суми позики
-            {Number.isFinite(lowestRate) && bestFrom
-              ? `: від ${lowestRate}% на день при позиці понад ${bestFrom.toLocaleString('uk-UA')} грн`
-              : ''}
-            {bestTier ? `. ${bestRate}% — з урахуванням знижки ${maxDiscount}% для статусу «${bestTier.name}»` : ''}.
+            <sup>*</sup> {t.rateNoteBase}
+            {Number.isFinite(lowestRate) && bestFrom ? t.rateNoteFrom(lowestRate, bestFrom) : ''}
+            {bestTier ? t.rateNoteTier(bestRate, maxDiscount, bestTier.name) : ''}.
           </p>
 
           <div className="facts">
-            <div className="fact"><b><span data-count={minutes}>{minutes}</span> хв</b><span>оформлення</span></div>
+            <div className="fact"><b><span data-count={minutes}>{minutes}</span> {t.factMin}</b><span>{t.factReg}</span></div>
             <div className="fact">
               <b><span data-count={branches.length || 50}>{branches.length || 50}</span>+</b>
-              <span>відділень</span>
+              <span>{t.factBranches}</span>
             </div>
-            <div className="fact"><b><span data-count={years}>{years}</span> років</b><span>на ринку</span></div>
+            <div className="fact"><b><span data-count={years}>{years}</span> {t.factYears}</b><span>{t.factMarket}</span></div>
           </div>
 
-          <a className="pill start__go" href="#calc">Порахувати суму →</a>
+          <a className="pill start__go" href="#calc">{t.ctaCalc}</a>
           </div>
 
           {/* перший екран займає всю висоту, тож потрібен знак, що сторінка триває */}
           <div className="start__hint" aria-hidden="true">
-            <span>Калькулятор нижче</span>
+            <span>{t.hint}</span>
             <span className="start__arrow">↓</span>
           </div>
         </section>
@@ -184,11 +317,11 @@ export default async function Home() {
         <section className="sec sec--gray" id="cats">
           <div className="wrap">
             <div className="shead center" data-reveal>
-              <h2>Що ми приймаємо</h2>
-              <p>Золото і срібло рахує калькулятор одразу. Решту оцінює фахівець за фото.</p>
+              <h2>{t.catsH2}</h2>
+              <p>{t.catsP}</p>
             </div>
             <div className="grid grid--3" data-reveal-group>
-              {CATEGORIES.map(([name, sub, action, how, href]) => (
+              {CATEGORIES[locale].map(([name, sub, action, how, href]) => (
                 <a className="card card--link" key={name} href={href}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
                   <p>{sub}</p>
@@ -203,11 +336,11 @@ export default async function Home() {
         <section className="sec" id="sits">
           <div className="wrap">
             <div className="shead center" data-reveal>
-              <h2>Коли по гроші приходять до нас</h2>
-              <p>Гроші не закінчилися — вони просто лежать у незручній формі.</p>
+              <h2>{t.sitsH2}</h2>
+              <p>{t.sitsP}</p>
             </div>
             <div className="grid grid--4" data-reveal-group>
-              {SITUATIONS.map(([name, sub]) => (
+              {SITUATIONS[locale].map(([name, sub]) => (
                 <a className="card card--link" key={name} href="#calc">
                   <h3 style={{ fontSize: 'var(--s0)' }}>{name}</h3>
                   <p>{sub}</p>
@@ -221,27 +354,24 @@ export default async function Home() {
           <section className="sec sec--gray">
             <div className="wrap">
               <div className="shead center" data-reveal>
-                <h2>Що частіше користуєтесь — то дешевше</h2>
-                <p>
-                Статус зростає від суми сплачених відсотків і одразу впливає на оцінку.
-                Якщо заставу не викупили — статус знижується.
-              </p>
+                <h2>{t.loyaltyH2}</h2>
+                <p>{t.loyaltyP}</p>
               </div>
               <div className="grid grid--4" data-reveal-group>
-                {loyaltyTiers.map((t) => (
-                  <div className="card card--lift" key={t.name}>
+                {loyaltyTiers.map((tier) => (
+                  <div className="card card--lift" key={tier.name}>
                     <h3 style={{ fontSize: 'var(--s1)', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                       <i style={{
                         width: 10, height: 10, transform: 'rotate(45deg)',
-                        background: t.color || '#9AA0A6', display: 'inline-block',
+                        background: tier.color || '#9AA0A6', display: 'inline-block',
                       }} />
-                      {t.name}
+                      {tier.name}
                     </h3>
                     <dl className="tiercard">
-                      <div><dt>Надбавка до оцінки</dt><dd>+{t.metalBonus}%</dd></div>
-                      <div><dt>Знижка на відсотки</dt><dd>{t.discount}%</dd></div>
-                      <div><dt>Кешбек</dt><dd>{t.cashback}%</dd></div>
-                      <div><dt>За техніку</dt><dd>{t.techBonus ? `+${t.techBonus}%` : '—'}</dd></div>
+                      <div><dt>{t.tierBonus}</dt><dd>+{tier.metalBonus}%</dd></div>
+                      <div><dt>{t.tierDiscount}</dt><dd>{tier.discount}%</dd></div>
+                      <div><dt>{t.tierCashback}</dt><dd>{tier.cashback}%</dd></div>
+                      <div><dt>{t.tierTech}</dt><dd>{tier.techBonus ? `+${tier.techBonus}%` : '—'}</dd></div>
                     </dl>
                   </div>
                 ))}
@@ -255,11 +385,11 @@ export default async function Home() {
         <section className="sec sec--dark">
           <div className="wrap">
             <div className="shead center" data-reveal>
-              <h2>Що відбувається з вашим майном</h2>
+              <h2>{t.trustH2}</h2>
               <div className="goldline" />
             </div>
             <div className="grid grid--4" data-reveal-group>
-              {TRUST.map(([name, text]) => (
+              {TRUST[locale].map(([name, text]) => (
                 <div className="dcard" key={name}>
                   <h3>{name}</h3>
                   <p>{text}</p>
@@ -279,36 +409,33 @@ export default async function Home() {
                 <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
               </a>
               <p style={{ color: 'var(--dim)', fontSize: 'var(--s-1)', marginTop: '.6rem' }}>
-                Гаряча лінія <a href={`tel:${hotline.replace(/\s/g, '')}`} style={{ color: 'var(--brand)' }}>{hotline}</a>
+                {t.hotlineLbl} <a href={`tel:${hotline.replace(/\s/g, '')}`} style={{ color: 'var(--brand)' }}>{hotline}</a>
                 <br />{String(s.email || 'support@imperial24.com.ua')}
               </p>
               <Social settings={s} />
             </div>
             <div>
-              <h4>Послуги</h4>
+              <h4>{t.footServices}</h4>
               <ul>
-                <li><a href="/calc">Кредит під заставу</a></li>
-                <li><a href="/calc">Онлайн-оцінка</a></li>
-                <li><a href="/zastava">Що приймаємо</a></li>
-                <li><a href="/viddilennya">Відділення</a></li>
-                <li><a href="/novyny">Новини та акції</a></li>
+                <li><a href="/calc">{t.footLoan}</a></li>
+                <li><a href="/calc">{t.footOnline}</a></li>
+                <li><a href="/zastava">{NAV_LABELS[locale].catalog}</a></li>
+                <li><a href="/viddilennya">{NAV_LABELS[locale].branches}</a></li>
+                <li><a href="/novyny">{t.footNews}</a></li>
               </ul>
             </div>
             <div>
-              <h4>Компанія</h4>
+              <h4>{t.footCompany}</h4>
               <ul>
-                <li><a href="/pro-nas">Про ломбард</a></li>
-                <li><a href="#sits">Життєві ситуації</a></li>
-                <li><a href="/viddilennya">Контакти</a></li>
-                <li><a href="/admin">Вхід для співробітників</a></li>
+                <li><a href="/pro-nas">{t.footAbout}</a></li>
+                <li><a href="#sits">{t.footSituations}</a></li>
+                <li><a href="/viddilennya">{t.footContacts}</a></li>
+                <li><a href="/admin">{t.footStaff}</a></li>
               </ul>
             </div>
           </div>
           <p className="foot__legal">
-            Максимальна річна ставка — до {String(s.maxAnnualRate ?? 146)}% річних з урахуванням усіх
-            обов&apos;язкових платежів. Строк застави — від {minDays} до {maxDays} днів; далі річ
-            перезакладається: клієнт сплачує відсотки, і договір продовжується.
-            Розрахунок у калькуляторі є попереднім: остаточну суму визначає оцінювач після огляду виробу.
+            {t.legal(Number(s.maxAnnualRate ?? 146), minDays, maxDays)}
             {s.license ? ` ${s.license}` : ''}
           </p>
         </div>

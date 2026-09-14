@@ -5,6 +5,7 @@ import Motion from '@/components/Motion'
 import MobileActionBar from '@/components/MobileActionBar'
 import Analytics from '@/components/Analytics'
 import { getSettings } from '@/lib/data.ts'
+import { getLocale } from '@/lib/locale.ts'
 import { siteUrl } from '@/lib/site.ts'
 
 /**
@@ -47,18 +48,19 @@ const MOTION_ON = `try{if(!matchMedia('(prefers-reduced-motion: reduce)').matche
 export default async function RootLayout({ children }: LayoutProps<'/'>) {
   // Одне місце для всього сайту: панель дій знає гарячу лінію й посилання на
   // Telegram незалежно від того, яка сторінка її показує.
-  const settings = await getSettings()
+  const locale = await getLocale()
+  const settings = await getSettings(locale)
   const hotline = String(settings.hotline || '0 800 30 85 00')
   const telegram = (settings.telegram as string) || null
   const gaId = (settings.gaMeasurementId as string) || null
 
   return (
-    <html lang="uk" suppressHydrationWarning className={inter.variable}>
+    <html lang={locale} suppressHydrationWarning className={inter.variable}>
       <head><script dangerouslySetInnerHTML={{ __html: MOTION_ON }} /></head>
       <body>
         {gaId && <Analytics measurementId={gaId} />}
         {children}
-        <MobileActionBar hotline={hotline} telegram={telegram} />
+        <MobileActionBar hotline={hotline} telegram={telegram} locale={locale} />
         <Motion />
       </body>
     </html>

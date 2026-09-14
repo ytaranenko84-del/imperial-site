@@ -1,9 +1,10 @@
 import Image from 'next/image'
 
 import Nav from '@/components/Nav'
+import LangSwitch from '@/components/LangSwitch'
 
 /** Шапка внутрішніх сторінок. Одна на всіх, щоб меню не розповзалося по копіях. */
-export default function SiteHeader({ hotline }: { hotline: string }) {
+export default function SiteHeader({ hotline, locale = 'uk' }: { hotline: string; locale?: 'uk' | 'ru' }) {
   return (
     <header className="wrap top">
       <a className="brand" href="/">
@@ -20,6 +21,7 @@ export default function SiteHeader({ hotline }: { hotline: string }) {
           { href: '/viddilennya', label: 'Відділення' },
         ]}
       />
+      <LangSwitch locale={locale} />
       <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
         <b>{hotline}</b><span>Цілодобово · безкоштовно</span>
       </a>
