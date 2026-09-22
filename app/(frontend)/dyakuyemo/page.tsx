@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { getSettings } from '@/lib/data.ts'
-import { getLocale } from '@/lib/locale.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
@@ -38,8 +37,7 @@ const T = {
   },
 } satisfies Record<L, unknown>
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale()
+export async function dyakuyemoMetadata(locale: L): Promise<Metadata> {
   const t = T[locale]
   return {
     title: t.title,
@@ -52,8 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function ThankYouPage() {
-  const locale = await getLocale()
+export async function DyakuyemoContent({ locale }: { locale: L }) {
   const t = T[locale]
   const settings = await getSettings(locale)
   const hotline = String(settings.hotline || '0 800 30 85 00')
@@ -121,4 +118,12 @@ export default async function ThankYouPage() {
       <SiteFooter settings={settings} locale={locale} />
     </>
   )
+}
+
+export default async function ThankYouPage() {
+  return await DyakuyemoContent({ locale: 'uk' })
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return dyakuyemoMetadata('uk')
 }

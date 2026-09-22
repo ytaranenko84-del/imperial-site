@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { getSiteData } from '@/lib/data.ts'
-import { getLocale } from '@/lib/locale.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
@@ -61,8 +60,7 @@ const T = {
   },
 } satisfies Record<L, unknown>
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale()
+export async function proNasMetadata(locale: L): Promise<Metadata> {
   const t = T[locale]
   return {
     title: t.title,
@@ -74,8 +72,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function AboutPage() {
-  const locale = await getLocale()
+export async function ProNasContent({ locale }: { locale: L }) {
   const t = T[locale]
   const { branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | undefined>
@@ -127,4 +124,12 @@ export default async function AboutPage() {
       <SiteFooter settings={settings} locale={locale} />
     </>
   )
+}
+
+export default async function AboutPage() {
+  return await ProNasContent({ locale: 'uk' })
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return proNasMetadata('uk')
 }

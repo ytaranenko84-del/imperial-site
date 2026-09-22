@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { getSettings } from '@/lib/data.ts'
-import { getLocale } from '@/lib/locale.ts'
 import { dateLabel, getNews, getNewsItem } from '@/lib/news.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
@@ -37,9 +36,7 @@ export async function generateStaticParams() {
   return (await getNews()).map((n) => ({ slug: n.slug }))
 }
 
-export async function generateMetadata({ params }: PageProps<'/novyny/[slug]'>): Promise<Metadata> {
-  const { slug } = await params
-  const locale = await getLocale()
+export async function novynyItemMetadata(slug: string, locale: L): Promise<Metadata> {
   const t = T[locale]
   const n = await getNewsItem(slug, locale)
   if (!n) return {}
@@ -54,9 +51,7 @@ export async function generateMetadata({ params }: PageProps<'/novyny/[slug]'>):
   }
 }
 
-export default async function NewsItemPage({ params }: PageProps<'/novyny/[slug]'>) {
-  const { slug } = await params
-  const locale = await getLocale()
+export async function NovynyItemContent({ slug, locale }: { slug: string; locale: L }) {
   const t = T[locale]
   const [n, settings] = await Promise.all([getNewsItem(slug, locale), getSettings(locale)])
   if (!n) notFound()
@@ -130,4 +125,14 @@ export default async function NewsItemPage({ params }: PageProps<'/novyny/[slug]
       <SiteFooter settings={settings} locale={locale} />
     </>
   )
+}
+
+export default async function NewsItemPage({ params }: PageProps<'/novyny/[slug]'>) {
+  const { slug } = await params
+  return await NovynyItemContent({ slug, locale: 'uk' })
+}
+
+export async function generateMetadata({ params }: PageProps<'/novyny/[slug]'>): Promise<Metadata> {
+  const { slug } = await params
+  return novynyItemMetadata(slug, 'uk')
 }

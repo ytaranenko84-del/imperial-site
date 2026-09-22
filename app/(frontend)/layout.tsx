@@ -1,50 +1,29 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import Motion from '@/components/Motion'
 import MobileActionBar from '@/components/MobileActionBar'
 import Analytics from '@/components/Analytics'
 import { getSettings } from '@/lib/data.ts'
-import { getLocale } from '@/lib/locale.ts'
+import { inter } from '@/lib/fonts.ts'
 import { siteUrl } from '@/lib/site.ts'
 
 /**
- * Запасна гарнітура для Windows та Android — розділ 15 ТЗ.
- *
- * На macOS та iOS шрифт беруть із системи: у стеку першим стоїть SF Pro, і до
- * Inter черга не доходить. Тому `preload: false` — на техніці Apple файл не
- * качається зовсім, а там, де SF Pro немає, браузер візьме його сам.
- *
- * Кирилиця обов'язкова: без неї підставився б Arial, а це в ТЗ прямо названо
- * ознакою дешевого сайту.
+ * Кореневий layout української версії (адреси без префіксу). Локаль — літерал
+ * 'uk', а не читання заголовка: так сторінка лишається статичною й кешованою.
+ * Дзеркало для російської — app/ru/layout.tsx, з окремим <html>/<body>: два
+ * кореневих layout'и на одну версію мови, той самий підхід, що вже розділяє
+ * (frontend) і (payload).
  */
-const inter = Inter({
-  variable: '--font-inter',
-  subsets: ['latin', 'cyrillic'],
-  display: 'swap',
-  preload: false,
-})
-
-/**
- * Базові метадані — резерв для сторінок, які не задають свої (їх лишається
- * дедалі менше). openGraph.locale тут читає x-locale, бо саме цей блок
- * потрапляє в кожну сторінку сайту, якщо вона сама його не перекриє.
- */
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale()
-  return {
-    metadataBase: new URL(siteUrl()),
-    alternates: { canonical: locale === 'ru' ? '/ru' : '/' },
-    title: locale === 'ru' ? 'Ломбард «Империал»' : 'Ломбард «Імперіал»',
-    description: locale === 'ru'
-      ? 'Сеть ломбардов «Империал». Самая высокая оценка золота, ставка от 0,39% в день.'
-      : 'Мережа ломбардів «Імперіал». Найвища оцінка золота, ставка від 0,39% на день.',
-    openGraph: {
-      type: 'website',
-      locale: locale === 'ru' ? 'ru_UA' : 'uk_UA',
-      siteName: locale === 'ru' ? 'Ломбард «Империал»' : 'Ломбард «Імперіал»',
-    },
-  }
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
+  alternates: { canonical: '/' },
+  title: 'Ломбард «Імперіал»',
+  description: 'Мережа ломбардів «Імперіал». Найвища оцінка золота, ставка від 0,39% на день.',
+  openGraph: {
+    type: 'website',
+    locale: 'uk_UA',
+    siteName: 'Ломбард «Імперіал»',
+  },
 }
 
 /**
@@ -56,21 +35,18 @@ const MOTION_ON = `try{if(!matchMedia('(prefers-reduced-motion: reduce)').matche
   + `document.documentElement.classList.add('motion')}catch(e){}`
 
 export default async function RootLayout({ children }: LayoutProps<'/'>) {
-  // Одне місце для всього сайту: панель дій знає гарячу лінію й посилання на
-  // Telegram незалежно від того, яка сторінка її показує.
-  const locale = await getLocale()
-  const settings = await getSettings(locale)
+  const settings = await getSettings('uk')
   const hotline = String(settings.hotline || '0 800 30 85 00')
   const telegram = (settings.telegram as string) || null
   const gaId = (settings.gaMeasurementId as string) || null
 
   return (
-    <html lang={locale} suppressHydrationWarning className={inter.variable}>
+    <html lang="uk" suppressHydrationWarning className={inter.variable}>
       <head><script dangerouslySetInnerHTML={{ __html: MOTION_ON }} /></head>
       <body>
         {gaId && <Analytics measurementId={gaId} />}
         {children}
-        <MobileActionBar hotline={hotline} telegram={telegram} locale={locale} />
+        <MobileActionBar hotline={hotline} telegram={telegram} locale="uk" />
         <Motion />
       </body>
     </html>

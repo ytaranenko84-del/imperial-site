@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { getSiteData } from '@/lib/data.ts'
-import { getLocale } from '@/lib/locale.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import Calculator from '@/components/Calculator'
@@ -109,8 +108,7 @@ const T = {
   },
 } satisfies Record<L, unknown>
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale()
+export async function calcMetadata(locale: L): Promise<Metadata> {
   const t = T[locale]
   return {
     title: t.title,
@@ -122,8 +120,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function CalcPage() {
-  const locale = await getLocale()
+export async function CalcContent({ locale }: { locale: L }) {
   const t = T[locale]
   const { tariffs, rateTiers, loyaltyTiers, branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | undefined>
@@ -203,4 +200,12 @@ export default async function CalcPage() {
       <SiteFooter settings={settings} locale={locale} />
     </>
   )
+}
+
+export default async function CalcPage() {
+  return await CalcContent({ locale: 'uk' })
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return calcMetadata('uk')
 }

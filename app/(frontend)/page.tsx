@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSiteData } from '@/lib/data'
-import { getLocale } from '@/lib/locale.ts'
 import Calculator from '@/components/Calculator'
 import Nav from '@/components/Nav'
 import LangSwitch from '@/components/LangSwitch'
@@ -16,9 +15,8 @@ import '@/components/Booking.css'
 // приходив за півтори секунди. Тепер готова сторінка живе хвилину: правки з
 // адмінки з'являються за той самий час, а відвідувач отримує її одразу.
 //
-// Локалізація читає заголовок x-locale через headers() — це знімає повну
-// статичну оптимізацію сторінки (Next віддає її динамічно на кожен запит),
-// але лишається єдиним способом показати /ru тим самим файлом без дублю.
+// Локаль — не з headers(), а літерал 'uk': сторінка лишається статичною й
+// кешованою. Російська версія — app/ru/page.tsx, той самий рендер із locale='ru'.
 export const revalidate = 60
 
 type L = 'uk' | 'ru'
@@ -71,8 +69,7 @@ const HOME_FAQ: Record<L, { q: string; a: string }[]> = {
   ],
 }
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale()
+export async function homeMetadata(locale: L): Promise<Metadata> {
   const title = locale === 'ru'
     ? 'Ломбард «Империал» — самая высокая оценка золота, ставка от 0,39% в день'
     : 'Ломбард «Імперіал» — найвища оцінка золота, ставка від 0,39% на день'
@@ -213,8 +210,7 @@ const T = {
   },
 } satisfies Record<L, unknown>
 
-export default async function Home() {
-  const locale = await getLocale()
+export async function HomePage({ locale }: { locale: L }) {
   const t = T[locale]
   const { tariffs, rateTiers, loyaltyTiers, branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | boolean | undefined>
@@ -413,7 +409,7 @@ export default async function Home() {
                 {t.hotlineLbl} <a href={`tel:${hotline.replace(/\s/g, '')}`} style={{ color: 'var(--brand)' }}>{hotline}</a>
                 <br />{String(s.email || 'support@imperial24.com.ua')}
               </p>
-              <Social settings={s} />
+              <Social settings={s} locale={locale} />
             </div>
             <div>
               <h4>{t.footServices}</h4>
@@ -443,4 +439,12 @@ export default async function Home() {
       </footer>
     </>
   )
+}
+
+export default async function Home() {
+  return await HomePage({ locale: 'uk' })
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return homeMetadata('uk')
 }

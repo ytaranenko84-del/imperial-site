@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { getSiteData } from '@/lib/data.ts'
-import { getLocale } from '@/lib/locale.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import Branches from '@/components/Branches'
@@ -76,8 +75,7 @@ const T = {
   },
 } satisfies Record<L, unknown>
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale()
+export async function viddilennyaMetadata(locale: L): Promise<Metadata> {
   const t = T[locale]
   return {
     title: t.title,
@@ -89,8 +87,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function BranchesPage() {
-  const locale = await getLocale()
+export async function ViddilennyaContent({ locale }: { locale: L }) {
   const t = T[locale]
   const { branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | undefined>
@@ -152,4 +149,12 @@ export default async function BranchesPage() {
       <SiteFooter settings={settings} locale={locale} />
     </>
   )
+}
+
+export default async function BranchesPage() {
+  return await ViddilennyaContent({ locale: 'uk' })
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return viddilennyaMetadata('uk')
 }

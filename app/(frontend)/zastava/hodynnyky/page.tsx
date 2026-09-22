@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSettings } from '@/lib/data'
-import { getLocale } from '@/lib/locale.ts'
 import WatchForm from '@/components/WatchForm'
 import LangSwitch from '@/components/LangSwitch'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
@@ -124,8 +123,7 @@ const T = {
   },
 } satisfies Record<L, unknown>
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale()
+export async function hodynnykyMetadata(locale: L): Promise<Metadata> {
   const t = T[locale]
   return {
     title: t.metaTitle,
@@ -140,8 +138,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function WatchesPage() {
-  const locale = await getLocale()
+export async function HodynnykyContent({ locale }: { locale: L }) {
   const t = T[locale]
   const settings = await getSettings(locale)
   const s = settings as Record<string, string | number | boolean | undefined>
@@ -279,4 +276,12 @@ export default async function WatchesPage() {
       </footer>
     </div>
   )
+}
+
+export default async function WatchesPage() {
+  return await HodynnykyContent({ locale: 'uk' })
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return hodynnykyMetadata('uk')
 }

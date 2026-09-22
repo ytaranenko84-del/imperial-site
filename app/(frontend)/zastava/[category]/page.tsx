@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { getSettings } from '@/lib/data'
-import { getLocale } from '@/lib/locale.ts'
 import { CATEGORIES, byCategorySlug } from '@/lib/categories'
 import EvalForm from '@/components/EvalForm'
 import Nav from '@/components/Nav'
@@ -60,11 +59,7 @@ export function generateStaticParams() {
   return CATEGORIES.uk.map((c) => ({ category: c.slug }))
 }
 
-export async function generateMetadata(
-  { params }: { params: Promise<{ category: string }> },
-): Promise<Metadata> {
-  const { category } = await params
-  const locale = await getLocale()
+export async function categoryMetadata(category: string, locale: L): Promise<Metadata> {
   const t = T[locale]
   const c = byCategorySlug(category, locale)
   if (!c) return {}
@@ -82,9 +77,7 @@ export async function generateMetadata(
   }
 }
 
-export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
-  const { category } = await params
-  const locale = await getLocale()
+export async function CategoryContent({ category, locale }: { category: string; locale: L }) {
   const t = T[locale]
   const c = byCategorySlug(category, locale)
   if (!c) notFound()
@@ -197,4 +190,16 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
       </footer>
     </>
   )
+}
+
+export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
+  const { category } = await params
+  return await CategoryContent({ category, locale: 'uk' })
+}
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ category: string }> },
+): Promise<Metadata> {
+  const { category } = await params
+  return categoryMetadata(category, 'uk')
 }
