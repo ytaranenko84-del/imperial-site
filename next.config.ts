@@ -54,6 +54,9 @@ const nextConfig: NextConfig = {
       // Золото й срібло оцінює калькулятор, а не сторінка категорії з фото —
       // /zastava/zoloto ніколи не існувало.
       { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/calc', permanent: true },
+      // Старий лендинг калькулятора золота — за Search Console, 88 кліків і
+      // 3784 покази за 3 місяці, реальний трафік, без правила йшов би в 404.
+      { source: '/imperial-landing/calculator_zoloto/:path*', destination: '/calc', permanent: true },
       { source: '/loans/tsifrovaya-tekhnika/:path*', destination: '/zastava/tekhnika', permanent: true },
       { source: '/loans/bytovaya-tekhnika/:path*', destination: '/zastava/pobutova-tekhnika', permanent: true },
       { source: '/loans/instrumenty-i-oborudovanie/:path*', destination: '/zastava/instrument', permanent: true },
