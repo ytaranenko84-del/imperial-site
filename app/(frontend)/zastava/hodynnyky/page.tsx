@@ -67,6 +67,7 @@ const T = {
     setLead: 'Повний комплект — коробка, паспорт, сервісна книжка — помітно підвищує оцінку. '
       + 'Якщо чогось немає, це не відмова: просто інша сума.',
     hotlineLbl: 'Гаряча лінія',
+    heroAlt: 'Швейцарський годинник під заставою в ломбарді «Імперіал»',
     masterAlt: 'Фахівець оглядає годинник', movementAlt: 'Механізм годинника крупним планом',
     vaultAlt: 'Сховище', boxAlt: 'Годинник у коробці',
   },
@@ -117,6 +118,7 @@ const T = {
     setLead: 'Полный комплект — коробка, паспорт, сервисная книжка — заметно повышает оценку. '
       + 'Если чего-то нет, это не отказ: просто другая сумма.',
     hotlineLbl: 'Горячая линия',
+    heroAlt: 'Швейцарские часы под залогом в ломбарде «Империал»',
     masterAlt: 'Специалист осматривает часы', movementAlt: 'Механизм часов крупным планом',
     vaultAlt: 'Хранилище', boxAlt: 'Часы в коробке',
   },
@@ -165,7 +167,7 @@ export default async function WatchesPage() {
       </header>
 
       <section className="whero">
-        <Image className="whero__img" src="/watches/hero.jpg" alt="" fill priority sizes="100vw" />
+        <Image className="whero__img" src="/watches/hero.jpg" alt={t.heroAlt} fill priority sizes="100vw" />
         <div className="wwrap whero__in">
           <p className="weyebrow">{t.heroEyebrow}</p>
           <h1>{t.h1}</h1>

@@ -32,6 +32,7 @@ const T = {
     watchesTitle: 'Годинники', watchesSub: 'Швейцарська механіка, вінтаж', watchesAct: 'Надіслати на оцінку',
     photoAct: 'Оцінити за фото',
     hotlineLbl: 'Гаряча лінія', toHome: 'на головну',
+    photoAlt: (name: string) => `${name} під заставу в ломбарді «Імперіал»`,
   },
   ru: {
     home: 'Главная',
@@ -50,6 +51,7 @@ const T = {
     watchesTitle: 'Часы', watchesSub: 'Швейцарская механика, винтаж', watchesAct: 'Отправить на оценку',
     photoAct: 'Оценить по фото',
     hotlineLbl: 'Горячая линия', toHome: 'на главную',
+    photoAlt: (name: string) => `${name} под залог в ломбарде «Империал»`,
   },
 } satisfies Record<L, unknown>
 
@@ -140,7 +142,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
               <p className="cnote">{c.note}</p>
             </div>
             <div className="cshot">
-              <Image src={c.photo} alt="" fill sizes="(min-width: 900px) 46vw, 100vw" />
+              <Image src={c.photo} alt={t.photoAlt(c.name)} fill sizes="(min-width: 900px) 46vw, 100vw" />
             </div>
           </div>
         </section>
