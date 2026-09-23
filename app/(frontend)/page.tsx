@@ -261,8 +261,10 @@ export async function HomePage({ locale }: { locale: L }) {
 
       <main>
         <section className="start center">
-          {/* анімація появи — лише на вміст: підказку внизу вона зсувала б за край екрана */}
-          <div className="wrap start__in" data-reveal-group>
+          {/* Без анімації появи: це перший екран, тут немає чого «розкривати»
+              прокручуванням — а очікування на IntersectionObserver після
+              гідратації віддаляло LCP на мобільних на секунди. */}
+          <div className="wrap start__in">
           <p className="eyebrow">{t.eyebrow}</p>
           <h1>{t.h1a}<br />{t.h1b}</h1>
           <div className="goldline" />

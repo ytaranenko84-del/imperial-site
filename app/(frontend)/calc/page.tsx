@@ -150,7 +150,9 @@ export async function CalcContent({ locale }: { locale: L }) {
           </div>
         </section>
 
-        <section className="wrap" style={{ paddingTop: 0, paddingBottom: 'clamp(3.6rem,7vw,6.4rem)' }} data-reveal>
+        {/* Без анімації появи: калькулятор — головний вміст сторінки й лежить
+            прямо під коротким заголовком, тобто в першому екрані. */}
+        <section className="wrap" style={{ paddingTop: 0, paddingBottom: 'clamp(3.6rem,7vw,6.4rem)' }}>
           <Calculator
             tariffs={tariffs}
             rateTiers={rateTiers}
