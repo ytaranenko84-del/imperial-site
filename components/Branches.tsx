@@ -143,9 +143,23 @@ export default function Branches(
     map.fitBounds(mapped.map(({ pos }) => pos), { padding: [36, 36] })
   }, [mapped])
 
+  // ─── карта вантажиться, лише коли блок наближається до екрана ───
+  // Leaflet і тайли важать помітно: на головній цей блок — шостий за
+  // порядком, і немає сенсу качати карту тим, хто його ще не прогорнув.
+  const [mapVisible, setMapVisible] = useState(false)
+  useEffect(() => {
+    if (!boxRef.current) return
+    const io = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) { setMapVisible(true); io.disconnect() } },
+      { rootMargin: '600px 0px' },
+    )
+    io.observe(boxRef.current)
+    return () => io.disconnect()
+  }, [])
+
   // ─── створення карти ───
   useEffect(() => {
-    if (!boxRef.current || !mapped.length || mapRef.current) return
+    if (!boxRef.current || !mapped.length || mapRef.current || !mapVisible) return
     let cancelled = false
 
     import('leaflet').then((L) => {
@@ -177,7 +191,7 @@ export default function Branches(
       mapRef.current = null
       markersRef.current.clear()
     }
-  }, [mapped])
+  }, [mapped, mapVisible])
 
   // ─── вибране відділення: підсвітити мітку, підвести карту, догорнути список ───
   useEffect(() => {

@@ -98,7 +98,7 @@ export async function ViddilennyaContent({ locale }: { locale: L }) {
 
   return (
     <>
-      <OrganizationSchema branches={branches} hotline={hotline} minRate="0,39" locale={locale} />
+      <OrganizationSchema branches={branches} hotline={hotline} minRate="0,39" locale={locale} includeBranches />
       <BreadcrumbSchema items={[
         { name: t.home, href: '/' },
         { name: t.crumb, href: '/viddilennya' },

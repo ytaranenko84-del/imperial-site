@@ -47,8 +47,14 @@ function branchNode(b: Branch, hotline: string, base: string, locale: 'uk' | 'ru
 }
 
 export function OrganizationSchema({
-  branches, hotline, minRate, locale = 'uk',
-}: { branches: Branch[]; hotline: string; minRate: string; locale?: 'uk' | 'ru' }) {
+  branches, hotline, minRate, locale = 'uk', includeBranches = false,
+}: {
+  branches: Branch[]; hotline: string; minRate: string; locale?: 'uk' | 'ru'
+  /** Повний список відділень окремими вузлами PawnShop — важить ~18 КБ на 28
+   *  відділень. Потрібен лише на сторінці відділень; на головній і решті
+   *  сторінок досить організації без дубля цієї розмітки. */
+  includeBranches?: boolean
+}) {
   const base = siteUrl()
 
   const graph = [
@@ -68,7 +74,7 @@ export function OrganizationSchema({
         : `Мережа ломбардів «Імперіал» у Дніпрі: ${branches.length} відділень, `
           + `оцінка золота, срібла й техніки, ставка від ${minRate}% на день.`,
     },
-    ...branches.map((b) => branchNode(b, hotline, base, locale)),
+    ...(includeBranches ? branches.map((b) => branchNode(b, hotline, base, locale)) : []),
   ]
 
   return (
