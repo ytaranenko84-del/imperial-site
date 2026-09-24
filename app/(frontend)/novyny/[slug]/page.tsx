@@ -115,17 +115,11 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
               <div className="nlist">
                 {others.map((o) => (
                   <a className="ncard" key={o.id} href={`/novyny/${o.slug}`}>
-                    {o.cover && (
-                      <Image className="ncard__img" src={o.cover.url} alt={o.cover.alt || o.title}
-                        width={o.cover.width} height={o.cover.height} sizes="(min-width: 900px) 33vw, 100vw" />
-                    )}
-                    <div className="ncard__body">
-                      <span className={`ncard__kind${o.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
-                        {o.kind === 'promo' ? t.promo : t.news}
-                      </span>
-                      <b>{o.title}</b>
-                      <span className="ncard__meta">{dateLabel(o.publishedAt, locale)}</span>
-                    </div>
+                    <span className={`ncard__kind${o.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
+                      {o.kind === 'promo' ? t.promo : t.news}
+                    </span>
+                    <b>{o.title}</b>
+                    <span className="ncard__meta">{dateLabel(o.publishedAt, locale)}</span>
                   </a>
                 ))}
               </div>

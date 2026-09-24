@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
 
 import { getSettings } from '@/lib/data.ts'
 import { dateLabel, getNews } from '@/lib/news.ts'
@@ -55,21 +54,15 @@ export async function NovynyContent({ locale }: { locale: L }) {
 
   const card = (n: (typeof all)[number]) => (
     <a className="ncard" key={n.id} href={`/novyny/${n.slug}`}>
-      {n.cover && (
-        <Image className="ncard__img" src={n.cover.url} alt={n.cover.alt || n.title}
-          width={n.cover.width} height={n.cover.height} sizes="(min-width: 900px) 33vw, 100vw" />
-      )}
-      <div className="ncard__body">
-        <span className={`ncard__kind${n.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
-          {n.kind === 'promo' ? t.promo : t.news}
-        </span>
-        <b>{n.title}</b>
-        {n.lead && <span className="ncard__lead">{n.lead}</span>}
-        <span className="ncard__meta">
-          {dateLabel(n.publishedAt, locale)}
-          {n.term ? ` · ${n.term}` : ''}
-        </span>
-      </div>
+      <span className={`ncard__kind${n.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
+        {n.kind === 'promo' ? t.promo : t.news}
+      </span>
+      <b>{n.title}</b>
+      {n.lead && <span className="ncard__lead">{n.lead}</span>}
+      <span className="ncard__meta">
+        {dateLabel(n.publishedAt, locale)}
+        {n.term ? ` · ${n.term}` : ''}
+      </span>
     </a>
   )
 

@@ -1,14 +1,12 @@
 /* перелік новин і акцій */
 .nlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
 .ncard {
-  display: grid; gap: 0; align-content: start; overflow: hidden;
+  display: grid; gap: 0.4rem; align-content: start;
   border: 1px solid var(--line); border-radius: var(--r); background: var(--surface);
-  text-decoration: none;
+  padding: 1.15rem 1.25rem; text-decoration: none;
   transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
 }
 .ncard:hover { border-color: var(--brand); transform: translateY(-4px); box-shadow: var(--shadow); }
-.ncard__img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; background: var(--gray-bg); }
-.ncard__body { display: grid; gap: 0.4rem; align-content: start; padding: 1.15rem 1.25rem; }
 .ncard b { font-family: var(--display); font-size: var(--s1); font-weight: 600; letter-spacing: -0.02em; }
 .ncard__lead { color: var(--dim); font-size: var(--s-1); }
 .ncard__meta { color: var(--dim); font-size: 0.72rem; font-family: var(--mono); }
