@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { getSettings } from '@/lib/data.ts'
+import { withLocale } from '@/lib/locale-utils.ts'
 import { dateLabel, getNews } from '@/lib/news.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
@@ -53,7 +54,7 @@ export async function NovynyContent({ locale }: { locale: L }) {
   const archived = all.filter((n) => n.archived)
 
   const card = (n: (typeof all)[number]) => (
-    <a className="ncard" key={n.id} href={`/novyny/${n.slug}`}>
+    <a className="ncard" key={n.id} href={withLocale(`/novyny/${n.slug}`, locale)}>
       <span className={`ncard__kind${n.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
         {n.kind === 'promo' ? t.promo : t.news}
       </span>
@@ -69,8 +70,8 @@ export async function NovynyContent({ locale }: { locale: L }) {
   return (
     <>
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: t.crumb, href: '/novyny' },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: t.crumb, href: withLocale('/novyny', locale) },
       ]} />
       <SiteHeader hotline={hotline} locale={locale} />
 
@@ -78,7 +79,7 @@ export async function NovynyContent({ locale }: { locale: L }) {
         <section className="sec">
           <div className="wrap">
             <nav className="crumbs" aria-label={locale === 'ru' ? 'Путь' : 'Шлях'}>
-              <a href="/">{t.home}</a><span aria-hidden="true">/</span><span>{t.crumb}</span>
+              <a href={withLocale('/', locale)}>{t.home}</a><span aria-hidden="true">/</span><span>{t.crumb}</span>
             </nav>
             <div className="shead bhead">
               <h1>{t.h1}</h1>

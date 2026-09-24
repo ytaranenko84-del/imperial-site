@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 
 import { getSettings } from '@/lib/data.ts'
+import { withLocale } from '@/lib/locale-utils.ts'
 import { dateLabel, getNews, getNewsItem } from '@/lib/news.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
@@ -67,9 +68,9 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
   return (
     <>
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: t.crumb, href: '/novyny' },
-        { name: n.title, href: `/novyny/${n.slug}` },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: t.crumb, href: withLocale('/novyny', locale) },
+        { name: n.title, href: withLocale(`/novyny/${n.slug}`, locale) },
       ]} />
       <SiteHeader hotline={hotline} locale={locale} />
 
@@ -77,8 +78,8 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
         <article className="sec">
           <div className="wrap nart">
             <nav className="crumbs" aria-label={locale === 'ru' ? 'Путь' : 'Шлях'}>
-              <a href="/">{t.home}</a><span aria-hidden="true">/</span>
-              <a href="/novyny">{t.crumb}</a><span aria-hidden="true">/</span>
+              <a href={withLocale('/', locale)}>{t.home}</a><span aria-hidden="true">/</span>
+              <a href={withLocale('/novyny', locale)}>{t.crumb}</a><span aria-hidden="true">/</span>
               <span>{n.title}</span>
             </nav>
 
@@ -100,7 +101,7 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
             {n.archived && (
               <p className="nold">
                 {t.archNote}{' '}
-                <a href="/novyny">{t.archLink}</a>.
+                <a href={withLocale('/novyny', locale)}>{t.archLink}</a>.
               </p>
             )}
 
@@ -114,7 +115,7 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
               <h2 className="narch">{t.others}</h2>
               <div className="nlist">
                 {others.map((o) => (
-                  <a className="ncard" key={o.id} href={`/novyny/${o.slug}`}>
+                  <a className="ncard" key={o.id} href={withLocale(`/novyny/${o.slug}`, locale)}>
                     <span className={`ncard__kind${o.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
                       {o.kind === 'promo' ? t.promo : t.news}
                     </span>

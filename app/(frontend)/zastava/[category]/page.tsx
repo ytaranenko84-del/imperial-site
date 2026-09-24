@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { getSettings } from '@/lib/data'
+import { withLocale } from '@/lib/locale-utils.ts'
 import { CATEGORIES, byCategorySlug } from '@/lib/categories'
 import EvalForm from '@/components/EvalForm'
 import Nav from '@/components/Nav'
@@ -89,11 +90,11 @@ export async function CategoryContent({ category, locale }: { category: string; 
   return (
     <>
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: c.name, href: `/zastava/${c.slug}` },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: c.name, href: withLocale(`/zastava/${c.slug}`, locale) },
       ]} />
       <header className="wrap top">
-        <a className="brand" href="/">
+        <a className="brand" href={withLocale('/', locale)}>
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
           <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
         </a>
@@ -157,18 +158,18 @@ export async function CategoryContent({ category, locale }: { category: string; 
               <h2>{t.otherH2}</h2>
             </div>
             <div className="grid grid--4" data-reveal-group>
-              <a className="card card--link" href="/calc">
+              <a className="card card--link" href={withLocale('/calc', locale)}>
                 <h3 style={{ fontSize: 'var(--s1)' }}>{t.goldTitle}</h3>
                 <p>{t.goldSub}</p>
                 <span className="card__act">{t.goldAct}<i>→</i></span>
               </a>
-              <a className="card card--link" href="/zastava/hodynnyky">
+              <a className="card card--link" href={withLocale('/zastava/hodynnyky', locale)}>
                 <h3 style={{ fontSize: 'var(--s1)' }}>{t.watchesTitle}</h3>
                 <p>{t.watchesSub}</p>
                 <span className="card__act">{t.watchesAct}<i>→</i></span>
               </a>
               {CATEGORIES[locale].filter((x) => x.slug !== c.slug).slice(0, 2).map((x) => (
-                <a className="card card--link" key={x.slug} href={`/zastava/${x.slug}`}>
+                <a className="card card--link" key={x.slug} href={withLocale(`/zastava/${x.slug}`, locale)}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{x.name}</h3>
                   <p>{x.take[0]}</p>
                   <span className="card__act">{t.photoAct}<i>→</i></span>
@@ -184,7 +185,7 @@ export async function CategoryContent({ category, locale }: { category: string; 
           <p style={{ margin: 0, fontSize: 'var(--s-1)' }}>
             {t.hotlineLbl} <a href={`tel:${hotline.replace(/\s/g, '')}`} style={{ color: 'var(--brand)' }}>{hotline}</a>
             {' · '}{String(s.email || 'support@imperial24.com.ua')}
-            {' · '}<a href="/">{t.toHome}</a>
+            {' · '}<a href={withLocale('/', locale)}>{t.toHome}</a>
           </p>
         </div>
       </footer>

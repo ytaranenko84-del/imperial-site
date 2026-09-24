@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSettings } from '@/lib/data'
+import { withLocale } from '@/lib/locale-utils.ts'
 import WatchForm from '@/components/WatchForm'
 import LangSwitch from '@/components/LangSwitch'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
@@ -147,17 +148,17 @@ export async function HodynnykyContent({ locale }: { locale: L }) {
   return (
     <div className="wpage">
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: t.crumb, href: '/zastava/hodynnyky' },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: t.crumb, href: withLocale('/zastava/hodynnyky', locale) },
       ]} />
       <header className="wwrap wtop">
-        <a className="brand" href="/">
+        <a className="brand" href={withLocale('/', locale)}>
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
           <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
         </a>
         <nav className="wnav" aria-label={t.sectionsAria}>
           {t.sections.map(([href, label]) => (
-            <a key={href} href={href}>{label}</a>
+            <a key={href} href={withLocale(href, locale)}>{label}</a>
           ))}
         </nav>
         <LangSwitch locale={locale} />
@@ -264,9 +265,9 @@ export async function HodynnykyContent({ locale }: { locale: L }) {
 
       <footer className="wwrap wfoot">
         <nav className="wfoot__nav" aria-label={t.sectionsAria}>
-          <a href="/">{t.home}</a>
+          <a href={withLocale('/', locale)}>{t.home}</a>
           {t.sections.map(([href, label]) => (
-            <a key={href} href={href}>{label}</a>
+            <a key={href} href={withLocale(href, locale)}>{label}</a>
           ))}
         </nav>
         <p className="wfoot__line">

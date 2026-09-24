@@ -9,6 +9,8 @@
  *
  * На десктопі панель не показується — там і так видно номер у шапці.
  */
+import { withLocale } from '@/lib/locale-utils.ts'
+
 export default function MobileActionBar({
   hotline, telegram, locale = 'uk',
 }: { hotline: string; telegram?: string | null; locale?: 'uk' | 'ru' }) {
@@ -33,7 +35,7 @@ export default function MobileActionBar({
         </span>
       )}
 
-      <a className="mabar__i mabar__main" href="/calc">
+      <a className="mabar__i mabar__main" href={withLocale('/calc', locale)}>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
           <path d="M12 2 20 10a2 2 0 0 1 0 2.8l-6.2 6.2a2 2 0 0 1-2.8 0L3 11V4a2 2 0 0 1 2-2h7Z" />
           <circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none" />

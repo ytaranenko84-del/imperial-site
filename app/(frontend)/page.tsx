@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { getSiteData } from '@/lib/data'
+import { withLocale } from '@/lib/locale-utils.ts'
 import Calculator from '@/components/Calculator'
 import Nav from '@/components/Nav'
 import LangSwitch from '@/components/LangSwitch'
@@ -238,7 +239,7 @@ export async function HomePage({ locale }: { locale: L }) {
       <OrganizationSchema branches={branches} hotline={hotline} minRate={bestRate} locale={locale} />
       <FaqSchema items={HOME_FAQ[locale]} />
       <header className="wrap top">
-        <a className="brand" href="/">
+        <a className="brand" href={withLocale('/', locale)}>
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
           <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
         </a>
@@ -321,7 +322,7 @@ export async function HomePage({ locale }: { locale: L }) {
             </div>
             <div className="grid grid--3" data-reveal-group>
               {CATEGORIES[locale].map(([name, sub, action, how, href]) => (
-                <a className="card card--link" key={name} href={href}>
+                <a className="card card--link" key={name} href={href.startsWith('#') ? href : withLocale(href, locale)}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
                   <p>{sub}</p>
                   <span className="card__act">{action}<i>→</i></span>
@@ -403,7 +404,7 @@ export async function HomePage({ locale }: { locale: L }) {
         <div className="wrap">
           <div className="foot__grid">
             <div>
-              <a className="brand" href="/">
+              <a className="brand" href={withLocale('/', locale)}>
                 <Image className="brand__mark" src="/logo.png" alt="" width={56} height={56} />
                 <span className="brand__txt"><b>ІМПЕРІАЛ</b><span>Ломбард</span></span>
               </a>
@@ -416,19 +417,19 @@ export async function HomePage({ locale }: { locale: L }) {
             <div>
               <h4>{t.footServices}</h4>
               <ul>
-                <li><a href="/calc">{t.footLoan}</a></li>
-                <li><a href="/calc">{t.footOnline}</a></li>
-                <li><a href="/zastava">{NAV_LABELS[locale].catalog}</a></li>
-                <li><a href="/viddilennya">{NAV_LABELS[locale].branches}</a></li>
-                <li><a href="/novyny">{t.footNews}</a></li>
+                <li><a href={withLocale('/calc', locale)}>{t.footLoan}</a></li>
+                <li><a href={withLocale('/calc', locale)}>{t.footOnline}</a></li>
+                <li><a href={withLocale('/zastava', locale)}>{NAV_LABELS[locale].catalog}</a></li>
+                <li><a href={withLocale('/viddilennya', locale)}>{NAV_LABELS[locale].branches}</a></li>
+                <li><a href={withLocale('/novyny', locale)}>{t.footNews}</a></li>
               </ul>
             </div>
             <div>
               <h4>{t.footCompany}</h4>
               <ul>
-                <li><a href="/pro-nas">{t.footAbout}</a></li>
+                <li><a href={withLocale('/pro-nas', locale)}>{t.footAbout}</a></li>
                 <li><a href="#sits">{t.footSituations}</a></li>
-                <li><a href="/viddilennya">{t.footContacts}</a></li>
+                <li><a href={withLocale('/viddilennya', locale)}>{t.footContacts}</a></li>
                 <li><a href="/admin">{t.footStaff}</a></li>
               </ul>
             </div>

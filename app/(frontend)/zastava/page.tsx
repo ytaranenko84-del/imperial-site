@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { getSettings } from '@/lib/data.ts'
+import { withLocale } from '@/lib/locale-utils.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
@@ -70,8 +71,8 @@ export async function ZastavaContent({ locale }: { locale: L }) {
   return (
     <>
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: t.crumb, href: '/zastava' },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: t.crumb, href: withLocale('/zastava', locale) },
       ]} />
       <SiteHeader hotline={hotline} locale={locale} />
 
@@ -79,7 +80,7 @@ export async function ZastavaContent({ locale }: { locale: L }) {
         <section className="sec">
           <div className="wrap">
             <nav className="crumbs" aria-label={locale === 'ru' ? 'Путь' : 'Шлях'}>
-              <a href="/">{t.home}</a><span aria-hidden="true">/</span><span>{t.crumb}</span>
+              <a href={withLocale('/', locale)}>{t.home}</a><span aria-hidden="true">/</span><span>{t.crumb}</span>
             </nav>
             <div className="shead bhead">
               <h1>{t.h1}</h1>
@@ -88,7 +89,7 @@ export async function ZastavaContent({ locale }: { locale: L }) {
 
             <div className="grid grid--3" data-reveal-group>
               {CATEGORIES[locale].map(([name, sub, action, how, href]) => (
-                <a className="card card--link" key={name} href={href}>
+                <a className="card card--link" key={name} href={withLocale(href, locale)}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
                   <p>{sub}</p>
                   <span className="card__act">{action}<i>→</i></span>

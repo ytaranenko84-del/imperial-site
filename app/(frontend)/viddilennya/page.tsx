@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { getSiteData } from '@/lib/data.ts'
+import { withLocale } from '@/lib/locale-utils.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import Branches from '@/components/Branches'
@@ -68,7 +69,7 @@ const T = {
       <>
         Не уверены, примут ли вашу вещь, — позвоните на горячую линию
         перед выездом. Оценку можно посчитать заранее в{' '}
-        <a href="/calc">калькуляторе</a> и забронировать сумму: она держится
+        <a href="/ru/calc">калькуляторе</a> и забронировать сумму: она держится
         24 часа, но не дольше, чем до закрытия отделения.
       </>
     ),
@@ -100,8 +101,8 @@ export async function ViddilennyaContent({ locale }: { locale: L }) {
     <>
       <OrganizationSchema branches={branches} hotline={hotline} minRate="0,39" locale={locale} includeBranches />
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: t.crumb, href: '/viddilennya' },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: t.crumb, href: withLocale('/viddilennya', locale) },
       ]} />
 
       <SiteHeader hotline={hotline} locale={locale} />
@@ -110,7 +111,7 @@ export async function ViddilennyaContent({ locale }: { locale: L }) {
         <section className="sec">
           <div className="wrap">
             <nav className="crumbs" aria-label={locale === 'ru' ? 'Путь' : 'Шлях'}>
-              <a href="/">{t.home}</a>
+              <a href={withLocale('/', locale)}>{t.home}</a>
               <span aria-hidden="true">/</span>
               <span>{t.crumb}</span>
             </nav>

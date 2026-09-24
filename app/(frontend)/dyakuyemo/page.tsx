@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { getSettings } from '@/lib/data.ts'
+import { withLocale } from '@/lib/locale-utils.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
@@ -59,8 +60,8 @@ export async function DyakuyemoContent({ locale }: { locale: L }) {
   return (
     <>
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: t.crumb, href: '/dyakuyemo' },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: t.crumb, href: withLocale('/dyakuyemo', locale) },
       ]} />
       <SiteHeader hotline={hotline} locale={locale} />
 
@@ -107,9 +108,9 @@ export async function DyakuyemoContent({ locale }: { locale: L }) {
             </div>
 
             <p style={{ fontSize: '0.86rem' }}>
-              <a href="/calc">{t.calc}</a>
+              <a href={withLocale('/calc', locale)}>{t.calc}</a>
               {' · '}
-              <a href="/">{t.toHome}</a>
+              <a href={withLocale('/', locale)}>{t.toHome}</a>
             </p>
           </div>
         </section>

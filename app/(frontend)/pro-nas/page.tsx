@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { getSiteData } from '@/lib/data.ts'
+import { withLocale } from '@/lib/locale-utils.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
@@ -82,8 +83,8 @@ export async function ProNasContent({ locale }: { locale: L }) {
   return (
     <>
       <BreadcrumbSchema items={[
-        { name: t.home, href: '/' },
-        { name: t.crumb, href: '/pro-nas' },
+        { name: t.home, href: withLocale('/', locale) },
+        { name: t.crumb, href: withLocale('/pro-nas', locale) },
       ]} />
       <SiteHeader hotline={hotline} locale={locale} />
 
@@ -91,7 +92,7 @@ export async function ProNasContent({ locale }: { locale: L }) {
         <section className="sec">
           <div className="wrap">
             <nav className="crumbs" aria-label={locale === 'ru' ? 'Путь' : 'Шлях'}>
-              <a href="/">{t.home}</a><span aria-hidden="true">/</span><span>{t.crumb}</span>
+              <a href={withLocale('/', locale)}>{t.home}</a><span aria-hidden="true">/</span><span>{t.crumb}</span>
             </nav>
             <div className="shead bhead">
               <h1>{t.h1}</h1>
@@ -107,7 +108,7 @@ export async function ProNasContent({ locale }: { locale: L }) {
             <p>{t.p2}</p>
             <p>
               {t.p3pre}{' '}
-              <a href="/calc">{t.p3link}</a> {t.p3post}
+              <a href={withLocale('/calc', locale)}>{t.p3link}</a> {t.p3post}
             </p>
           </div>
         </section>
@@ -116,7 +117,7 @@ export async function ProNasContent({ locale }: { locale: L }) {
           <div className="wrap">
             <h2>{t.findH2}</h2>
             <p className="lead">{t.findLede(branches.length)}</p>
-            <a className="pill" href="/viddilennya">{t.findCta}</a>
+            <a className="pill" href={withLocale('/viddilennya', locale)}>{t.findCta}</a>
           </div>
         </section>
       </main>
