@@ -153,8 +153,8 @@ const TRUST: Record<L, [string, string][]> = {
 }
 
 const NAV_LABELS: Record<L, { catalog: string; calc: string; watches: string; news: string; branches: string }> = {
-  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини', branches: 'Відділення' },
-  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости', branches: 'Отделения' },
+  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини та акції', branches: 'Відділення' },
+  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости и акции', branches: 'Отделения' },
 }
 
 const T = {

@@ -4,8 +4,8 @@ import Nav from '@/components/Nav'
 import LangSwitch from '@/components/LangSwitch'
 
 const NAV_LABELS = {
-  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини', branches: 'Відділення', roundClock: 'Цілодобово · безкоштовно' },
-  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости', branches: 'Отделения', roundClock: 'Круглосуточно · бесплатно' },
+  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини та акції', branches: 'Відділення', roundClock: 'Цілодобово · безкоштовно' },
+  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости и акции', branches: 'Отделения', roundClock: 'Круглосуточно · бесплатно' },
 } satisfies Record<'uk' | 'ru', unknown>
 
 /** Шапка внутрішніх сторінок. Одна на всіх, щоб меню не розповзалося по копіях. */
