@@ -2,6 +2,15 @@ import { withPayload } from '@payloadcms/next/withPayload'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // Медіа з адмінки (обкладинки новин тощо) на бойовому лежать у Supabase
+  // Storage через S3-сумісний ендпоінт — без цього next/image відмовляється
+  // оптимізувати «чужий» домен і кидає помилку замість картинки.
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.storage.supabase.co', pathname: '/**' },
+    ],
+  },
+
   /*
    * Заголовки безпеки. Задаються тут, а не в netlify.toml: правила хостингу
    * діють на статику, а сторінки віддає Next — на бойовому їх не було видно.

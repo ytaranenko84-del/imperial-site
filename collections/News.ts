@@ -16,6 +16,29 @@ export const News: CollectionConfig = {
     defaultColumns: ['title', 'kind', 'publishedAt', 'archived'],
   },
   access: { read: () => true },
+  hooks: {
+    /**
+     * Медіа за замовчуванням приватне (там і фото клієнтів на оцінку) —
+     * а обкладинка новини чи акції має бути видна всім відвідувачам сайту.
+     * Тому щойно картинку обрали обкладинкою, позначаємо її публічною сама.
+     */
+    afterChange: [
+      async ({ doc, req }) => {
+        const coverId = typeof doc.cover === 'object' ? doc.cover?.id : doc.cover
+        if (!coverId) return
+        try {
+          const media = await req.payload.findByID({ collection: 'media', id: coverId, overrideAccess: true, depth: 0 })
+          if (!media?.public) {
+            await req.payload.update({
+              collection: 'media', id: coverId, data: { public: true }, overrideAccess: true,
+            })
+          }
+        } catch {
+          // Файл міг видалитися між збереженнями — нічого критичного
+        }
+      },
+    ],
+  },
   fields: [
     { name: 'title', type: 'text', label: 'Заголовок', required: true, localized: true },
     {

@@ -1,6 +1,8 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 
+export type NewsCover = { url: string; width: number; height: number; alt: string }
+
 export type NewsItem = {
   id: string
   title: string
@@ -11,6 +13,27 @@ export type NewsItem = {
   lead?: string | null
   body: string
   archived: boolean
+  cover?: NewsCover | null
+}
+
+/**
+ * «hero»-розмір (1600px) генерується, лише якщо оригінал не менший — для
+ * більшості завантажень з телефону чи готових банерів такого розміру немає,
+ * тож дивимось на card (800px), а тоді вже на сам оригінал.
+ */
+function coverOf(raw: unknown): NewsCover | null {
+  if (!raw || typeof raw !== 'object') return null
+  const c = raw as Record<string, unknown>
+  const sizes = (c.sizes as Record<string, Record<string, unknown>>) || {}
+  const best = sizes.hero?.url ? sizes.hero : sizes.card?.url ? sizes.card : null
+  const url = (best?.url as string) || (c.url as string)
+  if (!url) return null
+  return {
+    url,
+    width: Number(best?.width ?? c.width ?? 1200),
+    height: Number(best?.height ?? c.height ?? 630),
+    alt: String(c.alt || ''),
+  }
 }
 
 const map = (d: Record<string, unknown>): NewsItem => ({
@@ -23,6 +46,7 @@ const map = (d: Record<string, unknown>): NewsItem => ({
   lead: (d.lead as string) ?? null,
   body: String(d.body || ''),
   archived: Boolean(d.archived),
+  cover: coverOf(d.cover),
 })
 
 export async function getNews(locale: 'uk' | 'ru' = 'uk'): Promise<NewsItem[]> {
@@ -30,7 +54,7 @@ export async function getNews(locale: 'uk' | 'ru' = 'uk'): Promise<NewsItem[]> {
     const payload = await getPayload({ config })
     const res = await payload.find({
       collection: 'news', limit: 200, sort: '-publishedAt',
-      locale, depth: 0, overrideAccess: true,
+      locale, depth: 1, overrideAccess: true,
     })
     return res.docs.map((d) => map(d as Record<string, unknown>))
   } catch {
@@ -43,7 +67,7 @@ export async function getNewsItem(slug: string, locale: 'uk' | 'ru' = 'uk'): Pro
     const payload = await getPayload({ config })
     const res = await payload.find({
       collection: 'news', where: { slug: { equals: slug } }, limit: 1,
-      locale, depth: 0, overrideAccess: true,
+      locale, depth: 1, overrideAccess: true,
     })
     const d = res.docs[0]
     return d ? map(d as Record<string, unknown>) : null

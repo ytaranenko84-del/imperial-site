@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
 
 import { getSettings } from '@/lib/data.ts'
@@ -81,6 +82,11 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
               <span>{n.title}</span>
             </nav>
 
+            {n.cover && (
+              <Image className="nart__cover" src={n.cover.url} alt={n.cover.alt || n.title}
+                width={n.cover.width} height={n.cover.height} priority sizes="(min-width: 900px) 68ch, 100vw" />
+            )}
+
             <span className={`ncard__kind${n.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
               {n.kind === 'promo' ? t.promo : t.news}
             </span>
@@ -109,11 +115,17 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
               <div className="nlist">
                 {others.map((o) => (
                   <a className="ncard" key={o.id} href={`/novyny/${o.slug}`}>
-                    <span className={`ncard__kind${o.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
-                      {o.kind === 'promo' ? t.promo : t.news}
-                    </span>
-                    <b>{o.title}</b>
-                    <span className="ncard__meta">{dateLabel(o.publishedAt, locale)}</span>
+                    {o.cover && (
+                      <Image className="ncard__img" src={o.cover.url} alt={o.cover.alt || o.title}
+                        width={o.cover.width} height={o.cover.height} sizes="(min-width: 900px) 33vw, 100vw" />
+                    )}
+                    <div className="ncard__body">
+                      <span className={`ncard__kind${o.kind === 'promo' ? ' ncard__kind--promo' : ''}`}>
+                        {o.kind === 'promo' ? t.promo : t.news}
+                      </span>
+                      <b>{o.title}</b>
+                      <span className="ncard__meta">{dateLabel(o.publishedAt, locale)}</span>
+                    </div>
                   </a>
                 ))}
               </div>

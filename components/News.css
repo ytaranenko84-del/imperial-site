@@ -1,12 +1,14 @@
 /* перелік новин і акцій */
 .nlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
 .ncard {
-  display: grid; gap: 0.4rem; align-content: start;
+  display: grid; gap: 0; align-content: start; overflow: hidden;
   border: 1px solid var(--line); border-radius: var(--r); background: var(--surface);
-  padding: 1.15rem 1.25rem; text-decoration: none;
+  text-decoration: none;
   transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
 }
 .ncard:hover { border-color: var(--brand); transform: translateY(-4px); box-shadow: var(--shadow); }
+.ncard__img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; background: var(--gray-bg); }
+.ncard__body { display: grid; gap: 0.4rem; align-content: start; padding: 1.15rem 1.25rem; }
 .ncard b { font-family: var(--display); font-size: var(--s1); font-weight: 600; letter-spacing: -0.02em; }
 .ncard__lead { color: var(--dim); font-size: var(--s-1); }
 .ncard__meta { color: var(--dim); font-size: 0.72rem; font-family: var(--mono); }
@@ -23,6 +25,7 @@
 
 /* сама сторінка матеріалу */
 .nart { max-width: 68ch; }
+.nart__cover { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--r); margin: 1rem 0 0; display: block; }
 .nart h1 { font-size: var(--s2); margin: 0.8rem 0 0; }
 .nmeta { color: var(--dim); font-size: var(--s-1); font-family: var(--mono); margin: 0.5rem 0 1.6rem; }
 .nold {
