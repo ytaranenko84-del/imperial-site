@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react'
 
 import { trackLead } from '@/lib/analytics.ts'
+import { compressImage } from '@/lib/compress-image.ts'
 
 const CONDITIONS: Record<'uk' | 'ru', string[]> = {
   uk: ['Не знаю', 'Як новий', 'Відмінний', 'Добрий', 'Робочий, зі слідами використання', 'Потребує ремонту'],
@@ -21,7 +22,7 @@ const EF = {
       + 'дефектів, які не потрапили в кадр. Достатньо телефона: денне світло, без спалаху.',
     comment: 'Що ще варто знати', commentPh: 'Ремонти, комплект, потрібна сума — якщо є побажання',
     agree: 'Погоджуюсь на обробку персональних даних. Оцінка за фото попередня; остаточну суму визначає оцінювач після огляду речі.',
-    sending: 'Надсилаємо…', send: 'Надіслати на оцінку',
+    sending: 'Надсилаємо…', send: 'Надіслати на оцінку', compressing: 'Обробляємо фото…',
     fine: 'Відповідь протягом робочого дня. Нічого везти не треба — спершу фото.',
     errFallback: 'Не вдалося надіслати заявку',
     doneTitle: 'Заявку прийнято',
@@ -42,7 +43,7 @@ const EF = {
       + 'дефектов, не попавших в кадр. Достаточно телефона: дневной свет, без вспышки.',
     comment: 'Что ещё стоит знать', commentPh: 'Ремонты, комплект, нужная сумма — если есть пожелания',
     agree: 'Соглашаюсь на обработку персональных данных. Оценка по фото предварительная; окончательную сумму определяет оценщик после осмотра вещи.',
-    sending: 'Отправляем…', send: 'Отправить на оценку',
+    sending: 'Отправляем…', send: 'Отправить на оценку', compressing: 'Обрабатываем фото…',
     fine: 'Ответ в течение рабочего дня. Ничего везти не нужно — сначала фото.',
     errFallback: 'Не удалось отправить заявку',
     doneTitle: 'Заявка принята',
@@ -71,10 +72,28 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
   const conditions = CONDITIONS[locale]
   const formRef = useRef<HTMLFormElement>(null)
   const [filled, setFilled] = useState<Record<number, string>>({})
+  const [photoFiles, setPhotoFiles] = useState<Record<number, File>>({})
+  const [compressing, setCompressing] = useState(0)
   const [state, setState] = useState<State>('form')
   const [error, setError] = useState<string | null>(null)
   // посилання на бота з міткою саме цієї заявки
   const [botLink, setBotLink] = useState<string | null>(null)
+
+  async function pickPhoto(i: number, f: File | undefined) {
+    if (!f) {
+      setFilled((s) => { const n = { ...s }; delete n[i]; return n })
+      setPhotoFiles((s) => { const n = { ...s }; delete n[i]; return n })
+      return
+    }
+    setFilled((s) => ({ ...s, [i]: `✓ ${f.name}` }))
+    setCompressing((c) => c + 1)
+    try {
+      const compressed = await compressImage(f)
+      setPhotoFiles((s) => ({ ...s, [i]: compressed }))
+    } finally {
+      setCompressing((c) => c - 1)
+    }
+  }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -84,7 +103,12 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
 
     setState('sending')
     try {
-      const res = await fetch('/api/eval-request', { method: 'POST', body: new FormData(form) })
+      // фото беремо зі стану: там уже стиснені файли, а не оригінали з інпута
+      const data = new FormData(form)
+      data.delete('photos')
+      Object.values(photoFiles).forEach((f) => data.append('photos', f))
+
+      const res = await fetch('/api/eval-request', { method: 'POST', body: data })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || ef.errFallback)
       setBotLink(json.botLink || null)
@@ -92,6 +116,7 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
       setState('sent')
       form.reset()
       setFilled({})
+      setPhotoFiles({})
     } catch (err) {
       setState('form')
       setError((err as Error).message)
@@ -183,10 +208,7 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
               <b>{title}</b>
               <span>{filled[i] || hint}</span>
               <input type="file" name="photos" accept="image/*"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  setFilled((s) => ({ ...s, [i]: f ? `✓ ${f.name}` : '' }))
-                }}
+                onChange={(e) => { void pickPhoto(i, e.target.files?.[0]) }}
               />
             </label>
           ))}
@@ -209,8 +231,8 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
 
       {error && <p className="eerr">{error}</p>}
 
-      <button className="pill esend" type="submit" disabled={state === 'sending'}>
-        {state === 'sending' ? ef.sending : ef.send}
+      <button className="pill esend" type="submit" disabled={state === 'sending' || compressing > 0}>
+        {compressing > 0 ? ef.compressing : (state === 'sending' ? ef.sending : ef.send)}
       </button>
       <p className="efine">{ef.fine}</p>
     </form>

@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react'
 
 import { trackLead } from '@/lib/analytics.ts'
+import { compressImage } from '@/lib/compress-image.ts'
 
 /** Три перші знімки обов'язкові: без них оцінити модель неможливо. */
 export const SHOTS: Record<'uk' | 'ru', [string, string, boolean][]> = {
@@ -41,7 +42,7 @@ const WT = {
       + 'сфотографуйте окремо. Ми не публікуємо ваші знімки й не передаємо третім особам.',
     comment: 'Що ще варто знати', commentPh: 'Обслуговування, заміна деталей, потрібна сума — якщо є побажання',
     agree: 'Погоджуюсь на обробку персональних даних для оцінки. Оцінка за фото попередня; остаточна сума визначається після огляду фахівцем у відділенні.',
-    sending: 'Надсилаємо…', send: 'Надіслати на оцінку',
+    sending: 'Надсилаємо…', send: 'Надіслати на оцінку', compressing: 'Обробляємо фото…',
     errNoPhotos: 'Додайте хоча б одне фото годинника', errFallback: 'Не вдалося надіслати заявку',
     doneTitle: 'Заявку прийнято',
     doneText: 'Фахівець відповість протягом робочого дня на вказаний номер. Якщо питання термінове — телефонуйте на гарячу лінію.',
@@ -60,7 +61,7 @@ const WT = {
       + 'сфотографируйте отдельно. Мы не публикуем ваши снимки и не передаём третьим лицам.',
     comment: 'Что ещё стоит знать', commentPh: 'Обслуживание, замена деталей, нужная сумма — если есть пожелания',
     agree: 'Соглашаюсь на обработку персональных данных для оценки. Оценка по фото предварительная; окончательная сумма определяется после осмотра специалистом в отделении.',
-    sending: 'Отправляем…', send: 'Отправить на оценку',
+    sending: 'Отправляем…', send: 'Отправить на оценку', compressing: 'Обрабатываем фото…',
     errNoPhotos: 'Добавьте хотя бы одно фото часов', errFallback: 'Не удалось отправить заявку',
     doneTitle: 'Заявка принята',
     doneText: 'Специалист ответит в течение рабочего дня на указанный номер. Если вопрос срочный — звоните на горячую линию.',
@@ -77,9 +78,27 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
   const conditions = CONDITIONS[locale]
   const formRef = useRef<HTMLFormElement>(null)
   const [filled, setFilled] = useState<Record<number, string>>({})
+  const [photoFiles, setPhotoFiles] = useState<Record<number, File>>({})
+  const [compressing, setCompressing] = useState(0)
   const [state, setState] = useState<State>('idle')
   const [error, setError] = useState<string | null>(null)
   const [botLink, setBotLink] = useState<string | null>(null)
+
+  async function pickPhoto(i: number, f: File | undefined) {
+    if (!f) {
+      setFilled((s) => { const n = { ...s }; delete n[i]; return n })
+      setPhotoFiles((s) => { const n = { ...s }; delete n[i]; return n })
+      return
+    }
+    setFilled((s) => ({ ...s, [i]: `✓ ${f.name}` }))
+    setCompressing((c) => c + 1)
+    try {
+      const compressed = await compressImage(f)
+      setPhotoFiles((s) => ({ ...s, [i]: compressed }))
+    } finally {
+      setCompressing((c) => c - 1)
+    }
+  }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -87,15 +106,18 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
 
     const form = formRef.current
     if (!form) return
-    const data = new FormData(form)
 
-    if (!data.getAll('photos').some((f) => f instanceof File && f.size > 0)) {
+    if (Object.keys(photoFiles).length === 0) {
       setError(wt.errNoPhotos)
       return
     }
 
     setState('sending')
     try {
+      // фото беремо зі стану: там уже стиснені файли, а не оригінали з інпута
+      const data = new FormData(form)
+      data.delete('photos')
+      Object.values(photoFiles).forEach((f) => data.append('photos', f))
       // спільний роут на всі напрямки; годинники позначені окремим ключем
       data.set('category', 'watches')
       const res = await fetch('/api/eval-request', { method: 'POST', body: data })
@@ -106,6 +128,7 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
       setState('sent')
       form.reset()
       setFilled({})
+      setPhotoFiles({})
     } catch (err) {
       setState('idle')
       setError((err as Error).message)
@@ -193,10 +216,7 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
               <span>{filled[i] || hint}</span>
               <input
                 type="file" name="photos" accept="image/*"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  setFilled((s) => ({ ...s, [i]: f ? `✓ ${f.name}` : '' }))
-                }}
+                onChange={(e) => { void pickPhoto(i, e.target.files?.[0]) }}
               />
             </label>
           ))}
@@ -220,8 +240,8 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
 
       {error && <p className="werr">{error}</p>}
 
-      <button className="wbtn wbtn--send" type="submit" disabled={state === 'sending'}>
-        {state === 'sending' ? wt.sending : wt.send}
+      <button className="wbtn wbtn--send" type="submit" disabled={state === 'sending' || compressing > 0}>
+        {compressing > 0 ? wt.compressing : (state === 'sending' ? wt.sending : wt.send)}
       </button>
     </form>
   )
