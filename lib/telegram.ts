@@ -68,6 +68,47 @@ export async function sendPhotos(chat: string, urls: string[]) {
   if (!json.ok) throw new Error(`фото: ${json.description || res.status}`)
 }
 
+/**
+ * Одне фото за file_id — для живої пересилки в гарячій лінії, без збереження
+ * в медіатеці сайту (на відміну від фото оцінки, які лишаються назавжди).
+ */
+export async function sendPhoto(chat: string, fileId: string, caption?: string) {
+  const t = token()
+  if (!t) return
+  const [chatId, threadId] = String(chat).split(':')
+  const res = await fetch(`${API}${t}/sendPhoto`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo: fileId,
+      ...(caption ? { caption, parse_mode: 'HTML' } : {}),
+      ...(threadId ? { message_thread_id: Number(threadId) } : {}),
+    }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!json.ok) throw new Error(`фото: ${json.description || res.status}`)
+}
+
+/** Завантажує байти фото з Telegram за file_id — щоб покласти в медіатеку сайту. */
+export async function downloadTelegramFile(fileId: string): Promise<{ data: Buffer; name: string } | null> {
+  const t = token()
+  if (!t) return null
+  try {
+    const infoRes = await fetch(`${API}${t}/getFile?file_id=${encodeURIComponent(fileId)}`)
+    const info = await infoRes.json().catch(() => null)
+    const path = info?.result?.file_path as string | undefined
+    if (!path) return null
+    const fileRes = await fetch(`https://api.telegram.org/file/bot${t}/${path}`)
+    if (!fileRes.ok) return null
+    const data = Buffer.from(await fileRes.arrayBuffer())
+    const name = path.split('/').pop() || `telegram-${Date.now()}.jpg`
+    return { data, name }
+  } catch {
+    return null
+  }
+}
+
 /** Екранування для parse_mode=HTML: текст людей не має ставати розміткою. */
 export const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string))
@@ -78,6 +119,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   home: 'Побутова техніка',
   tools: 'Інструмент',
   sport: 'Спорт і відпочинок',
+  other: 'Інше (з бота)',
 }
 
 /** Картка заявки на оцінку — те, що бачить оцінювач у чаті. */
@@ -95,6 +137,16 @@ export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: bool
       : 'Клієнт у боті: ❌ відповідь лише дзвінком або SMS',
   ]
   return lines.filter(Boolean).join('\n')
+}
+
+/** Картка звернення на гарячу лінію — те, що бачить оператор у чаті. */
+export function hotlineCard(doc: Record<string, unknown>, text: string) {
+  return [
+    `<b>Гаряча лінія №${doc.id}</b>`,
+    `Клієнт: ${esc(doc.name)}, ${esc(doc.phone)}`,
+    text ? `\n${esc(text)}` : '',
+    '\nЩоб відповісти — натисніть на це повідомлення → Reply',
+  ].filter(Boolean).join('\n')
 }
 
 /** Дата й час словами: «4 вересня, 12:40». */
@@ -182,6 +234,9 @@ export function bookingCard(doc: Record<string, unknown>, branchName: string, ti
 /**
  * Кому надсилати заявку напрямку: профільні оцінювачі плюс усі адміністратори.
  * Один і той самий чат не отримає заявку двічі.
+ *
+ * «Гаряча лінія» — окрема черга (див. hotlineRecipients): без явного винятку
+ * такий отримувач із порожніми напрямками потрапив би сюди як «хоче все».
  */
 export async function recipientsFor(payload: Payload, category: string) {
   const { docs } = await payload.find({
@@ -198,8 +253,25 @@ export async function recipientsFor(payload: Payload, category: string) {
     if (!chat) continue
     const kind = String((r as { kind?: string }).kind)
     const cats = ((r as { categories?: string[] }).categories || []) as string[]
-    const wanted = kind === 'admin' || !cats.length || cats.includes(category)
+    const wanted = kind === 'admin' || (kind === 'expert' && (!cats.length || cats.includes(category)))
     if (wanted) chats.set(chat, String((r as { title?: string }).title || ''))
+  }
+  return chats
+}
+
+/** Хто отримує звернення на гарячу лінію — окрема від оцінки черга. */
+export async function hotlineRecipients(payload: Payload) {
+  const { docs } = await payload.find({
+    collection: 'recipients',
+    limit: 100,
+    depth: 0,
+    overrideAccess: true,
+    where: { active: { equals: true }, kind: { equals: 'hotline' } },
+  })
+  const chats = new Map<string, string>()
+  for (const r of docs) {
+    const chat = String((r as { chatId?: string }).chatId || '')
+    if (chat) chats.set(chat, String((r as { title?: string }).title || ''))
   }
   return chats
 }

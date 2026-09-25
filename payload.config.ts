@@ -17,6 +17,8 @@ import { Branches } from './collections/Branches.ts'
 import { EvalRequests } from './collections/EvalRequests.ts'
 import { Bookings } from './collections/Bookings.ts'
 import { Recipients } from './collections/Recipients.ts'
+import { HotlineChats } from './collections/HotlineChats.ts'
+import { TelegramClients } from './collections/TelegramClients.ts'
 import { News } from './collections/News.ts'
 import { Media } from './collections/Media.ts'
 import { Users } from './collections/Users.ts'
@@ -65,7 +67,10 @@ export default buildConfig({
       afterNavLinks: ['/components/admin/AccountLink#default'],
     },
   },
-  collections: [Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, EvalRequests, Recipients, News, Media, Users],
+  collections: [
+    Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, EvalRequests, Recipients,
+    HotlineChats, TelegramClients, News, Media, Users,
+  ],
   globals: [Settings],
   // GraphQL сайт не використовує, а відкритий /api/graphql видає стороннім
   // повну схему даних. Вимикаємо разом з нею.

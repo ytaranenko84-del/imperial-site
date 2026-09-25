@@ -7,6 +7,8 @@ export const EVAL_CATEGORIES = [
   { label: 'Побутова техніка', value: 'home' },
   { label: 'Інструмент', value: 'tools' },
   { label: 'Спорт і відпочинок', value: 'sport' },
+  // Вільний опис із бота: клієнт пише реч своїми словами, без вибору категорії
+  { label: 'Інше (з бота)', value: 'other' },
 ] as const
 
 /**
@@ -22,16 +24,21 @@ export const EvalRequests: CollectionConfig = {
   admin: {
     group: 'Заявки',
     useAsTitle: 'title',
-    defaultColumns: ['title', 'category', 'phone', 'status', 'createdAt'],
+    defaultColumns: ['title', 'category', 'source', 'phone', 'status', 'createdAt'],
   },
   hooks: {
     beforeChange: [
       ({ data, originalDoc }) => {
         const sum = Number(data.estimate ?? originalDoc?.estimate ?? 0)
         const alreadySent = Boolean(originalDoc?.groupSentAt)
+        // Для заявок з бота марки й моделі часто немає — річ описана вільним
+        // текстом у коментарі, тож для назви беремо початок цього тексту.
+        const title = [data.brand, data.model].filter(Boolean).join(' ')
+          || String(data.comment || '').slice(0, 60)
+          || 'Без назви'
         return {
           ...data,
-          title: [data.brand, data.model].filter(Boolean).join(' ') || 'Без назви',
+          title,
           // Позначку про спільну групу ставимо тут, у тому самому збереженні.
           // Окремим записом із afterChange не виходить: він потрапляє в ту саму
           // транзакцію й перезаписує заявку недописаними даними.
@@ -102,6 +109,9 @@ export const EvalRequests: CollectionConfig = {
   },
   fields: [
     { name: 'title', type: 'text', label: 'Річ', admin: { readOnly: true } },
+    { name: 'source', type: 'select', label: 'Джерело', defaultValue: 'site',
+      options: [{ label: 'Сайт', value: 'site' }, { label: 'Telegram-бот', value: 'bot' }],
+      admin: { position: 'sidebar', readOnly: true } },
     {
       type: 'row',
       fields: [

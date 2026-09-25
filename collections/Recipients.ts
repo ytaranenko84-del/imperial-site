@@ -33,6 +33,7 @@ export const Recipients: CollectionConfig = {
           options: [
             { label: 'Оцінювач напрямку', value: 'expert' },
             { label: 'Адміністратор — копії всіх заявок', value: 'admin' },
+            { label: 'Гаряча лінія', value: 'hotline' },
           ] },
         { name: 'phone', type: 'text', label: 'Робочий номер', required: true,
           admin: { description: 'Будь-який формат: звіряємо за останніми дев’ятьма цифрами' } },
