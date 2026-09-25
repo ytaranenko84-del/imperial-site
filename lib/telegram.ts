@@ -142,7 +142,11 @@ export function groupCard(doc: Record<string, unknown>) {
  * і тільки якщо воно не зустрічається в самій заявці: інакше відповідь
  * «Rolex Datejust 126334 — гарний стан» дала б оцінку 126 334 грн.
  */
-export function sumFromText(text: string, ownNumbers = ''): number | null {
+export function sumFromText(
+  text: string,
+  ownNumbers = '',
+  opts: { requireCurrency?: boolean } = {},
+): number | null {
   const t = String(text || '').replace(/\u00a0/g, ' ')
   const pick = (raw: string) => {
     const n = Number(raw.replace(/\s/g, ''))
@@ -150,6 +154,9 @@ export function sumFromText(text: string, ownNumbers = ''): number | null {
   }
   const withCurrency = t.match(/(\d[\d\s]{2,})\s*(?:грн|₴|гривень|грв)/i)
   if (withCurrency) return pick(withCurrency[1])
+  // Виправлення суми ловимо лише з явною валютою: без цього одне випадкове
+  // число в подальшій переписці (серійник, дата) тихо переписало б оцінку.
+  if (opts.requireCurrency) return null
 
   const own = new Set((String(ownNumbers).match(/\d+/g) || []))
   const numbers = (t.match(/\d[\d\s]*\d|\d+/g) || []).filter((n) => !own.has(n.replace(/\s/g, '')))

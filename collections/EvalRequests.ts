@@ -43,14 +43,17 @@ export const EvalRequests: CollectionConfig = {
     /**
      * Копія оціненої заявки у спільну групу відділень.
      *
-     * Йде один раз — коли в заявці вперше зʼявилась сума. Без телефона й імені:
-     * групу бачать усі відділення, а імʼя разом із фото речі вже дозволяє
-     * впізнати людину. Для звʼязку лишається номер заявки.
+     * Гейт — не «groupSentAt», а сама зміна суми: спрацьовує і коли сума
+     * зʼявилась вперше (повна картка й фото), і коли оцінювач пізніше в
+     * переписці чи прямо в адмінці її виправив (коротке уточнення, без
+     * повторних фото). Без телефона й імені: групу бачать усі відділення,
+     * а імʼя разом із фото речі вже дозволяє впізнати людину.
      */
     afterChange: [
       async ({ doc, previousDoc, req }) => {
-        if (!doc?.groupSentAt || previousDoc?.groupSentAt) return doc
-        if (!(Number(doc.estimate || 0) > 0)) return doc
+        const estimate = Number(doc.estimate || 0)
+        const prevEstimate = Number(previousDoc?.estimate || 0)
+        if (estimate <= 0 || estimate === prevEstimate) return doc
 
         try {
           const { groupCard, mediaUrl, send, sendPhotos, token } = await import('../lib/telegram.ts')
@@ -59,6 +62,15 @@ export const EvalRequests: CollectionConfig = {
           const settings = await req.payload.findGlobal({ slug: 'settings', overrideAccess: true }) as Record<string, unknown>
           const chat = String(settings.reviewChat || '')
           if (!chat) return doc
+
+          if (prevEstimate > 0) {
+            await send({
+              chat,
+              text: `<b>Заявка №${doc.id}</b> · сума уточнена: ${prevEstimate.toLocaleString('uk-UA')} → `
+                + `<b>${estimate.toLocaleString('uk-UA')} грн</b>`,
+            })
+            return doc
+          }
 
           await send({ chat, text: groupCard(doc as Record<string, unknown>) })
 

@@ -343,11 +343,17 @@ async function relayAnswer(
 
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
 
-  // Сума з відповіді — щоб не вписувати її ще раз руками в адмінці.
-  // Числа самої заявки не рахуємо: модель годинника теж складається з цифр.
+  /*
+   * Сума з відповіді — щоб не вписувати її ще раз руками в адмінці. Числа
+   * самої заявки не рахуємо: модель годинника теж складається з цифр.
+   * Коли сума вже була, виправлення ловимо лише з явною валютою («12000
+   * грн») — інакше випадкове число в подальшій переписці тихо переписало б
+   * правильну оцінку.
+   */
   const already = Number((doc as { estimate?: number }).estimate || 0)
   const own = [doc.brand, doc.model, doc.year].filter(Boolean).join(' ')
-  const sum = already > 0 ? null : sumFromText(text, own)
+  const sum = sumFromText(text, own, { requireCurrency: already > 0 })
+  const changed = sum != null && sum !== already
 
   await payload.update({
     collection: 'eval-requests', id, overrideAccess: true,
@@ -355,12 +361,15 @@ async function relayAnswer(
       status: 'work',
       answeredBy: who,
       answeredAt: new Date().toISOString(),
-      ...(sum ? { estimate: sum } : {}),
+      ...(changed ? { estimate: sum } : {}),
       thread: [...thread, { from: who, text, at: new Date().toISOString() }],
     },
   })
 
-  if (sum) await send({ chat, text: `Записав оцінку: <b>${sum.toLocaleString('uk-UA')} грн</b>` })
+  if (changed) {
+    const label = already > 0 ? 'Виправив оцінку' : 'Записав оцінку'
+    await send({ chat, text: `${label}: <b>${sum.toLocaleString('uk-UA')} грн</b>` })
+  }
 }
 
 /** Повідомлення клієнта повертаємо в чат оцінювача й пишемо в заявку. */
