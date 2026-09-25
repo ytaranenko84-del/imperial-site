@@ -326,6 +326,21 @@ async function relayAnswer(
     })
   }
 
+  /*
+   * Копія відповіді решті отримувачів заявки: адміну й оцінювачу напрямку.
+   * Без цього кожен відповідає наосліп і не бачить, що заявку вже взяли —
+   * звідси дублі й суперечливі відповіді клієнту.
+   */
+  const { recipientsFor } = await import('@/lib/telegram.ts')
+  const others = await recipientsFor(payload, String((doc as { category?: string }).category || ''))
+  for (const target of others.keys()) {
+    if (target === chat) continue
+    await send({
+      chat: target,
+      text: `<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(text)}`,
+    }).catch(() => {})
+  }
+
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
 
   // Сума з відповіді — щоб не вписувати її ще раз руками в адмінці.
