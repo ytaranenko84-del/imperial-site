@@ -60,17 +60,27 @@ const BTN = {
   bron: '📋 Мої броні',
   viddilennya: '📍 Найближче відділення',
   umovy: '💰 Умови',
+  review: '💬 Відгуки та побажання',
 } as const
 type Intent = keyof typeof BTN
 
 const MENU_KEYBOARD = {
   keyboard: [
-    [{ text: BTN.hotline }],
+    [{ text: BTN.hotline }, { text: BTN.review }],
     [{ text: BTN.otsinka }, { text: BTN.bron }],
     [{ text: BTN.viddilennya }, { text: BTN.umovy }],
   ],
   resize_keyboard: true,
 }
+
+const REVIEW_GREETING = [
+  'Дякуємо, що хочете поділитися враженням!',
+  '',
+  'Напишіть відгук, побажання або скаргу — усе, що вважаєте за потрібне нам сказати. '
+    + 'Байдуже, гарний був досвід чи ні: нам важливо знати і те, і інше.',
+  '',
+  'Кожне повідомлення читає особисто керівництво мережі — жодне не залишиться непоміченим.',
+].join('\n')
 
 const OTSINKA_GUIDE = [
   'Ви звернулися для оцінки товару.',
@@ -131,6 +141,7 @@ function matchIntent(text?: string): Intent | null {
   if (cmd === 'otsinka') return 'otsinka'
   if (cmd === 'umovy') return 'umovy'
   if (cmd === 'liniya' || cmd === 'operator' || cmd === 'hotline') return 'hotline'
+  if (cmd === 'vidhuky' || cmd === 'review') return 'review'
   return null
 }
 
@@ -140,10 +151,19 @@ function requestIdFrom(text?: string) {
   return m ? Number(m[1]) : null
 }
 
-/** Номер звернення з картки гарячої лінії: «Гаряча лінія №42». */
+/** Номер звернення з картки гарячої лінії чи відгуку: «Гаряча лінія №42» / «Відгук №42». */
 function hotlineIdFrom(text?: string) {
-  const m = /Гаряча лінія\s*№(\d+)/i.exec(text || '')
+  const m = /(?:Гаряча лінія|Відгук)\s*№(\d+)/i.exec(text || '')
   return m ? Number(m[1]) : null
+}
+
+function hotlineLabel(kind?: string) {
+  return kind === 'review' ? 'Відгук' : 'Гаряча лінія'
+}
+
+async function hotlineRecipientsFor(payload: Awaited<ReturnType<typeof getPayload>>, kind?: string) {
+  const { hotlineRecipients, reviewRecipients } = await import('@/lib/telegram.ts')
+  return kind === 'review' ? reviewRecipients(payload) : hotlineRecipients(payload)
 }
 
 /**
@@ -347,6 +367,7 @@ const PHONE_PROMPT: Record<Intent, string> = {
     + 'поділіться, будь ласка, номером телефону:',
   otsinka: 'Щоб оформити заявку на оцінку, спершу поділіться, будь ласка, номером телефону:',
   bron: 'Щоб показати ваші активні брони, поділіться, будь ласка, номером телефону:',
+  review: 'Щоб ми могли зв’язатися з вами за потреби, поділіться, будь ласка, номером телефону:',
   viddilennya: '', // геолокація, телефон не потрібен
   umovy: '', // без телефону
 }
@@ -399,9 +420,17 @@ async function startIntent(
   if (intent === 'hotline') {
     await payload.create({
       collection: 'hotline-chats', overrideAccess: true,
-      data: { clientChat: chat, name: displayName(from), phone, status: 'new' },
+      data: { clientChat: chat, name: displayName(from), phone, status: 'new', kind: 'hotline' },
     })
     await send({ chat, text: 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?', replyMarkup: MENU_KEYBOARD })
+    return
+  }
+  if (intent === 'review') {
+    await payload.create({
+      collection: 'hotline-chats', overrideAccess: true,
+      data: { clientChat: chat, name: displayName(from), phone, status: 'new', kind: 'review' },
+    })
+    await send({ chat, text: REVIEW_GREETING, replyMarkup: MENU_KEYBOARD })
     return
   }
   if (intent === 'otsinka') {
@@ -705,6 +734,8 @@ async function relayHotlineAnswer(
   const photo = pickPhoto(msg)
   const clientChat = String((doc as { clientChat?: string }).clientChat || '')
   const answeredBy = String((doc as { answeredBy?: string }).answeredBy || '')
+  const kind = String((doc as { kind?: string }).kind || 'hotline')
+  const label = hotlineLabel(kind)
 
   if (answeredBy && answeredBy !== who) {
     await send({ chat, text: `На це звернення вже відповів ${esc(answeredBy)}. Ваше повідомлення теж надіслано.` })
@@ -722,13 +753,12 @@ async function relayHotlineAnswer(
     })
   }
 
-  const { hotlineRecipients } = await import('@/lib/telegram.ts')
-  const others = await hotlineRecipients(payload)
+  const others = await hotlineRecipientsFor(payload, kind)
   for (const target of others.keys()) {
     if (target === chat) continue
     await send({
       chat: target,
-      text: `<b>Гаряча лінія №${id}</b> · ${esc(who)} відповів:\n${esc(text || '[фото]')}`,
+      text: `<b>${esc(label)} №${id}</b> · ${esc(who)} відповів:\n${esc(text || '[фото]')}`,
     }).catch(() => {})
   }
 
@@ -792,9 +822,14 @@ async function dispatchClientMessage(
 }
 
 type HotlineDoc = { id: string | number; clientChat?: string; name?: string; phone?: string
-  status?: string; thread?: { from: string; text: string; at: string }[] }
+  status?: string; kind?: string; thread?: { from: string; text: string; at: string }[] }
 
-/** Додає повідомлення клієнта у відкрите звернення на гарячу лінію. */
+const FIRST_ACK: Record<string, string> = {
+  hotline: 'Дякуємо за звернення! Передаю оператору — він ознайомиться і незабаром напише вам особисто.',
+  review: 'Дякуємо! Ваше повідомлення передано і обов’язково буде розглянуте.',
+}
+
+/** Додає повідомлення клієнта у відкрите звернення (гаряча лінія або відгук). */
 async function appendHotline(
   payload: Awaited<ReturnType<typeof getPayload>>,
   doc: HotlineDoc,
@@ -804,17 +839,19 @@ async function appendHotline(
   const photo = pickPhoto(msg)
   const entryText = photo ? (text ? `${text} [фото]` : '[фото]') : text
   const isFirst = !(doc.thread || []).length
+  const kind = doc.kind || 'hotline'
+  const label = hotlineLabel(kind)
 
   const thread = [...(doc.thread || []), { from: 'клієнт', text: entryText, at: new Date().toISOString() }]
   await payload.update({ collection: 'hotline-chats', id: doc.id, overrideAccess: true, data: { thread } })
 
-  const { hotlineRecipients, hotlineCard, sendPhoto } = await import('@/lib/telegram.ts')
-  const chats = await hotlineRecipients(payload)
+  const { hotlineCard, sendPhoto } = await import('@/lib/telegram.ts')
+  const chats = await hotlineRecipientsFor(payload, kind)
 
   for (const target of chats.keys()) {
     const text2 = isFirst
-      ? hotlineCard({ id: doc.id, name: doc.name, phone: doc.phone }, text)
-      : `<b>Гаряча лінія №${doc.id}</b> · клієнт додав:\n${esc(entryText)}`
+      ? hotlineCard({ id: doc.id, name: doc.name, phone: doc.phone }, text, label)
+      : `<b>${esc(label)} №${doc.id}</b> · клієнт додав:\n${esc(entryText)}`
     await send({ chat: target, text: text2 }).catch(() => {})
     if (photo) await sendPhoto(target, photo).catch(() => {})
   }
@@ -822,7 +859,7 @@ async function appendHotline(
   if ((doc.status || 'new') === 'new') {
     await send({
       chat: String(doc.clientChat),
-      text: 'Дякуємо за звернення! Передаю оператору — він ознайомиться і незабаром напише вам особисто.',
+      text: FIRST_ACK[kind] || FIRST_ACK.hotline,
       replyMarkup: MENU_KEYBOARD,
     })
   }

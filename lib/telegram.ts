@@ -139,10 +139,10 @@ export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: bool
   return lines.filter(Boolean).join('\n')
 }
 
-/** Картка звернення на гарячу лінію — те, що бачить оператор у чаті. */
-export function hotlineCard(doc: Record<string, unknown>, text: string) {
+/** Картка звернення (гаряча лінія чи відгук) — те, що бачить отримувач у чаті. */
+export function hotlineCard(doc: Record<string, unknown>, text: string, label = 'Гаряча лінія') {
   return [
-    `<b>Гаряча лінія №${doc.id}</b>`,
+    `<b>${esc(label)} №${doc.id}</b>`,
     `Клієнт: ${esc(doc.name)}, ${esc(doc.phone)}`,
     text ? `\n${esc(text)}` : '',
     '\nЩоб відповісти — натисніть на це повідомлення → Reply',
@@ -272,6 +272,24 @@ export async function hotlineRecipients(payload: Payload) {
   for (const r of docs) {
     const chat = String((r as { chatId?: string }).chatId || '')
     if (chat) chats.set(chat, String((r as { title?: string }).title || ''))
+  }
+  return chats
+}
+
+/** Хто отримує відгуки й скарги: гаряча лінія плюс адміністратори — керівництво має бачити кожен. */
+export async function reviewRecipients(payload: Payload) {
+  const { docs } = await payload.find({
+    collection: 'recipients',
+    limit: 100,
+    depth: 0,
+    overrideAccess: true,
+    where: { active: { equals: true } },
+  })
+  const chats = new Map<string, string>()
+  for (const r of docs) {
+    const chat = String((r as { chatId?: string }).chatId || '')
+    const kind = String((r as { kind?: string }).kind)
+    if (chat && (kind === 'admin' || kind === 'hotline')) chats.set(chat, String((r as { title?: string }).title || ''))
   }
   return chats
 }

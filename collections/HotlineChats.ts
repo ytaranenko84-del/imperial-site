@@ -1,16 +1,19 @@
 import type { CollectionConfig } from 'payload'
 
 /**
- * Звернення на гарячу лінію через бота. Окремо від «Заявки: оцінка» —
- * це не оцінка речі, а будь-яке інше питання клієнта до оператора.
+ * Звернення через бота, окремо від «Заявки: оцінка» — не оцінка речі,
+ * а розмова з людиною. Два різновиди в одній сутності, бо структура
+ * однакова (переписка, Reply-відповідь), різниться лише хто отримує
+ * і як бот вітається: гаряча лінія (свій оператор) чи відгук/скарга
+ * (гаряча лінія + адміністратор — керівництво має бачити кожен).
  */
 export const HotlineChats: CollectionConfig = {
   slug: 'hotline-chats',
-  labels: { singular: 'Звернення на гарячу лінію', plural: 'Гаряча лінія' },
+  labels: { singular: 'Звернення', plural: 'Гаряча лінія та відгуки' },
   admin: {
     group: 'Заявки',
     useAsTitle: 'title',
-    defaultColumns: ['title', 'phone', 'status', 'createdAt'],
+    defaultColumns: ['title', 'kind', 'phone', 'status', 'createdAt'],
   },
   access: {
     create: () => false,
@@ -20,7 +23,7 @@ export const HotlineChats: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      ({ data }) => ({ ...data, title: data.name ? String(data.name) : 'Гаряча лінія' }),
+      ({ data }) => ({ ...data, title: data.name ? String(data.name) : 'Звернення' }),
     ],
   },
   fields: [
@@ -28,6 +31,11 @@ export const HotlineChats: CollectionConfig = {
     {
       type: 'row',
       fields: [
+        { name: 'kind', type: 'select', label: 'Тип', defaultValue: 'hotline',
+          options: [
+            { label: 'Гаряча лінія', value: 'hotline' },
+            { label: 'Відгук / скарга', value: 'review' },
+          ], admin: { readOnly: true } },
         { name: 'status', type: 'select', label: 'Стан', defaultValue: 'new',
           options: [
             { label: 'Нове', value: 'new' },
