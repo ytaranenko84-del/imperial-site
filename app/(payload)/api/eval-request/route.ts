@@ -2,7 +2,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
 import { randomBytes } from 'node:crypto'
-import { evalCard, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
+import { evalCard, mediaUrl, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
 import { tooManyRequests } from '@/lib/ratelimit.ts'
 
 /**
@@ -17,18 +17,6 @@ const KEYS = EVAL_CATEGORIES.map((c) => c.value) as string[]
 
 const text = (v: FormDataEntryValue | null, max = 200) =>
   typeof v === 'string' ? v.trim().slice(0, max) : ''
-
-/**
- * Публічна адреса світлини — Telegram забирає файл сам.
- *
- * Будуємо її з імені файлу одразу після завантаження. Брати адресу
- * з відповіді бази не можна: там повертаються лише номери записів,
- * і альбом ішов порожнім.
- */
-function photoUrl(filename: string) {
-  const base = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/$/, '')
-  return `${base}/api/media/file/${encodeURIComponent(filename)}`
-}
 
 export async function POST(req: Request) {
   let form: FormData
@@ -93,7 +81,7 @@ export async function POST(req: Request) {
         },
       })
       photos.push(doc.id)
-      if (doc.filename) urls.push(photoUrl(String(doc.filename)))
+      if (doc.filename) urls.push(mediaUrl(String(doc.filename)))
     }
 
     const doc = await payload.create({
