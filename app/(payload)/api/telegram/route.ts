@@ -2,6 +2,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { timingSafeEqual } from 'node:crypto'
 import { esc, normalizePhone, send, sumFromText, token } from '@/lib/telegram.ts'
+import { distanceKm } from '@/lib/geo.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -31,6 +32,7 @@ type TgMessage = {
   from?: TgUser
   text?: string
   contact?: { phone_number: string; user_id?: number }
+  location?: { latitude: number; longitude: number }
   migrate_to_chat_id?: number
   reply_to_message?: { message_id: number; text?: string }
   message_thread_id?: number
@@ -40,6 +42,18 @@ const CONTACT_KEYBOARD = {
   keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]],
   resize_keyboard: true,
   one_time_keyboard: true,
+}
+
+const LOCATION_KEYBOARD = {
+  keyboard: [[{ text: '📍 Надіслати геолокацію', request_location: true }]],
+  resize_keyboard: true,
+  one_time_keyboard: true,
+}
+
+/** Команда з тексту: у групах Telegram дописує «@ім'я_бота». */
+function commandFrom(text?: string): string | null {
+  const m = /^\/([a-z_]+)(?:@\w+)?(?:\s|$)/i.exec(text || '')
+  return m ? m[1].toLowerCase() : null
 }
 
 const HELLO = [
@@ -124,6 +138,32 @@ export async function POST(req: Request) {
     // ── поділився номером: шукаємо, хто це ──
     if (msg.contact) {
       await linkByPhone(payload, chatKey, msg.contact.phone_number, msg.from)
+      return Response.json({ ok: true })
+    }
+
+    // ── поділився геолокацією: підказуємо найближче відділення ──
+    if (msg.location) {
+      await nearestBranch(payload, msg.location, chatKey)
+      return Response.json({ ok: true })
+    }
+
+    // ── /bron: активні брони клієнта за номером телефону ──
+    if (commandFrom(msg.text) === 'bron') {
+      await send({
+        chat: chatKey,
+        text: 'Щоб показати ваші активні брони, поділіться номером, яким бронювали суму:',
+        replyMarkup: CONTACT_KEYBOARD,
+      })
+      return Response.json({ ok: true })
+    }
+
+    // ── /viddilennya: найближче відділення за геолокацією ──
+    if (commandFrom(msg.text) === 'viddilennya') {
+      await send({
+        chat: chatKey,
+        text: 'Надішліть геолокацію — підкажу найближче відділення й маршрут до нього:',
+        replyMarkup: LOCATION_KEYBOARD,
+      })
       return Response.json({ ok: true })
     }
 
@@ -229,10 +269,85 @@ async function linkByPhone(
     return
   }
 
+  /*
+   * Не робочий номер — можливо, клієнт натиснув /bron. Дивимось активні
+   * брони на цей телефон: без окремого поля привʼязки, тож звіряємо як і
+   * відділення вище — вибіркою й порівнянням нормалізованого номера.
+   */
+  const { docs: bookings } = await payload.find({
+    collection: 'bookings', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt',
+  })
+  const now = Date.now()
+  const mine = bookings.filter((b) => {
+    const bb = b as { phone?: string; expiresAt?: string }
+    return normalizePhone(bb.phone) === digits && new Date(String(bb.expiresAt || 0)).getTime() > now
+  })
+
+  if (mine.length) {
+    const lines = mine.slice(0, 5).map((b) => {
+      const bb = b as { amount?: number; expiresAt?: string; branch?: unknown }
+      const br = bb.branch as { displayAddress?: string; address?: string } | null
+      const addr = br?.displayAddress || br?.address || ''
+      const till = bb.expiresAt
+        ? new Date(bb.expiresAt).toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+        : ''
+      return `• <b>${Number(bb.amount || 0).toLocaleString('uk-UA')} грн</b>${addr ? ` · ${esc(addr)}` : ''}`
+        + `${till ? `\n  діє до ${till}` : ''}`
+    })
+    await send({ chat, text: `<b>Ваші активні брони:</b>\n\n${lines.join('\n\n')}` })
+    return
+  }
+
   await send({
     chat,
-    text: 'Цього номера немає серед робочих. Якщо ви клієнт — просто напишіть нам, '
-      + 'і оцінювач відповість тут.',
+    text: 'Активних бронь на цей номер не знайшли. Якщо ви клієнт і питання інше — просто '
+      + 'напишіть нам, і оцінювач відповість тут.',
+  })
+}
+
+/** Найближче активне відділення за геолокацією клієнта, з маршрутом. */
+async function nearestBranch(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  loc: { latitude: number; longitude: number },
+  chat: string,
+) {
+  const { docs } = await payload.find({
+    collection: 'branches', limit: 300, depth: 0, overrideAccess: true,
+    where: { active: { equals: true } },
+  })
+  type B = { id: string; address: string; displayAddress?: string; phone?: string; paused?: boolean
+    pauseReason?: string; coords?: { lat?: number; lng?: number }
+    schedule?: { roundClock?: boolean; openTime?: string; closeTime?: string } }
+  const withCoords = (docs as B[]).filter(
+    (b) => typeof b.coords?.lat === 'number' && typeof b.coords?.lng === 'number',
+  )
+
+  if (!withCoords.length) {
+    await send({ chat, text: 'Не вдалось підібрати відділення. Зателефонуйте нам, будь ласка.' })
+    return
+  }
+
+  let best = withCoords[0]
+  let min = Infinity
+  for (const b of withCoords) {
+    const d = distanceKm({ lat: loc.latitude, lng: loc.longitude }, { lat: b.coords!.lat as number, lng: b.coords!.lng as number })
+    if (d < min) { min = d; best = b }
+  }
+
+  const hours = best.schedule?.roundClock
+    ? 'цілодобово'
+    : `${best.schedule?.openTime || '09:00'}–${best.schedule?.closeTime || '20:00'}`
+  const pausedNote = best.paused
+    ? `\n⚠️ Тимчасово не працює${best.pauseReason ? `: ${esc(best.pauseReason)}` : ''}`
+    : ''
+  const route = `https://www.google.com/maps/dir/?api=1&destination=${best.coords!.lat},${best.coords!.lng}`
+
+  await send({
+    chat,
+    text: `Найближче відділення (${min < 1 ? Math.round(min * 1000) + ' м' : min.toFixed(1) + ' км'}):\n`
+      + `<b>${esc(best.displayAddress || best.address)}</b>\n`
+      + `Графік: ${esc(hours)}${best.phone ? `\nТелефон: ${esc(best.phone)}` : ''}${pausedNote}\n\n`
+      + `<a href="${route}">Маршрут →</a>`,
   })
 }
 

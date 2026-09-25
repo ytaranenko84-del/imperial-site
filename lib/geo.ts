@@ -72,6 +72,16 @@ async function expand(url: string): Promise<string | null> {
   }
 }
 
+/** Відстань між двома точками по прямій, км (формула гаверсину). */
+export function distanceKm(a: LatLng, b: LatLng): number {
+  const R = 6371
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const s = Math.sin(dLat / 2) ** 2
+    + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
+}
+
 /** Координати з того, що вставили в поле: посилання, коротке посилання або самі числа. */
 export async function resolveCoords(input: string): Promise<LatLng | null> {
   const raw = (input || '').trim()
