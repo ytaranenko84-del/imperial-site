@@ -78,7 +78,7 @@ const OTSINKA_GUIDE = [
   'Напишіть, будь ласка:',
   '• предмет застави (наприклад: мобільний телефон, ноутбук, планшет, годинник, перфоратор, пральна машина, велосипед тощо)',
   '• повну модель',
-  '• стан речі',
+  '• стан речі, комплектація (коробка, зарядка, документи — якщо є)',
   '',
   'Також надішліть фото самого предмета та фото дефектів, якщо вони є.',
   '',
@@ -248,9 +248,10 @@ export async function POST(req: Request) {
           await send({
             chat: chatKey,
             text: `Ваша заявка №${id} прийнята. Відповідь оцінювача прийде сюди.`,
+            replyMarkup: MENU_KEYBOARD,
           })
         } else {
-          await send({ chat: chatKey, text: 'Посилання застаріло. Зателефонуйте нам, будь ласка.' })
+          await send({ chat: chatKey, text: 'Посилання застаріло. Зателефонуйте нам, будь ласка.', replyMarkup: MENU_KEYBOARD })
         }
         return Response.json({ ok: true })
       }
@@ -369,6 +370,7 @@ async function handleIntent(
     await send({
       chat,
       text: 'Ця функція ще готується. Актуальні умови — на сайті або запитайте на гарячій лінії ☎️',
+      replyMarkup: MENU_KEYBOARD,
     })
     return
   }
@@ -399,7 +401,7 @@ async function startIntent(
       collection: 'hotline-chats', overrideAccess: true,
       data: { clientChat: chat, name: displayName(from), phone, status: 'new' },
     })
-    await send({ chat, text: 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?' })
+    await send({ chat, text: 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?', replyMarkup: MENU_KEYBOARD })
     return
   }
   if (intent === 'otsinka') {
@@ -410,7 +412,7 @@ async function startIntent(
         name: displayName(from), phone, status: 'new', comment: '', photos: [],
       },
     })
-    await send({ chat, text: OTSINKA_GUIDE })
+    await send({ chat, text: OTSINKA_GUIDE, replyMarkup: MENU_KEYBOARD })
   }
 }
 
@@ -426,7 +428,7 @@ async function showBookings(payload: Awaited<ReturnType<typeof getPayload>>, cha
   })
 
   if (!mine.length) {
-    await send({ chat, text: 'Активних бронь на цей номер не знайшли.' })
+    await send({ chat, text: 'Активних бронь на цей номер не знайшли.', replyMarkup: MENU_KEYBOARD })
     return
   }
 
@@ -440,7 +442,7 @@ async function showBookings(payload: Awaited<ReturnType<typeof getPayload>>, cha
     return `• <b>${Number(bb.amount || 0).toLocaleString('uk-UA')} грн</b>${addr ? ` · ${esc(addr)}` : ''}`
       + `${till ? `\n  діє до ${till}` : ''}`
   })
-  await send({ chat, text: `<b>Ваші активні брони:</b>\n\n${lines.join('\n\n')}` })
+  await send({ chat, text: `<b>Ваші активні брони:</b>\n\n${lines.join('\n\n')}`, replyMarkup: MENU_KEYBOARD })
 }
 
 /** Найближче активне відділення за геолокацією клієнта, з маршрутом. */
@@ -461,7 +463,7 @@ async function nearestBranch(
   )
 
   if (!withCoords.length) {
-    await send({ chat, text: 'Не вдалось підібрати відділення. Зателефонуйте нам, будь ласка.' })
+    await send({ chat, text: 'Не вдалось підібрати відділення. Зателефонуйте нам, будь ласка.', replyMarkup: MENU_KEYBOARD })
     return
   }
 
@@ -485,7 +487,8 @@ async function nearestBranch(
     text: `Найближче відділення (${min < 1 ? Math.round(min * 1000) + ' м' : min.toFixed(1) + ' км'}):\n`
       + `<b>${esc(best.displayAddress || best.address)}</b>\n`
       + `Графік: ${esc(hours)}${best.phone ? `\nТелефон: ${esc(best.phone)}` : ''}${pausedNote}\n\n`
-      + `<a href="${route}">Маршрут →</a>`,
+      + `<a href="${esc(route)}">Маршрут →</a>`,
+    replyMarkup: MENU_KEYBOARD,
   })
 }
 
@@ -628,7 +631,7 @@ async function relayAnswer(
   }
 
   if (clientChat) {
-    if (text) await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}` })
+    if (text) await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
     await send({ chat, text: '✓ Надіслано клієнту' })
   } else {
     await send({
@@ -709,7 +712,7 @@ async function relayHotlineAnswer(
 
   if (clientChat) {
     const { sendPhoto } = await import('@/lib/telegram.ts')
-    if (text) await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}` })
+    if (text) await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
     if (photo) await sendPhoto(clientChat, photo).catch(() => {})
     await send({ chat, text: '✓ Надіслано клієнту' })
   } else {
@@ -820,6 +823,7 @@ async function appendHotline(
     await send({
       chat: String(doc.clientChat),
       text: 'Дякуємо за звернення! Передаю оператору — він ознайомиться і незабаром напише вам особисто.',
+      replyMarkup: MENU_KEYBOARD,
     })
   }
 }
