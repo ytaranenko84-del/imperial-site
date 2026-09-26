@@ -841,9 +841,15 @@ async function dispatchClientMessage(
   msg: TgMessage,
   chat: string,
 ) {
+  /*
+   * Сортуємо за часом останньої активності, не створення: той самий клієнт
+   * міг за час тестів прив'язатися до кількох заявок — свіжіша за створенням
+   * не обов'язково та, яку зараз обговорює оцінювач. Відповідь чи будь-яка
+   * інша зміна оновлює updatedAt, тож саме вона й «спливає» нагору.
+   */
   const { docs: hotlineDocs } = await payload.find({
     collection: 'hotline-chats', limit: 1, depth: 0, overrideAccess: true,
-    sort: '-createdAt',
+    sort: '-updatedAt',
     where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
   })
   if (hotlineDocs[0]) {
@@ -853,7 +859,7 @@ async function dispatchClientMessage(
 
   const { docs: draftDocs } = await payload.find({
     collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
-    sort: '-createdAt',
+    sort: '-updatedAt',
     where: { clientChat: { equals: chat }, source: { equals: 'bot' }, status: { equals: 'new' } },
   })
   if (draftDocs[0]) {
@@ -863,7 +869,7 @@ async function dispatchClientMessage(
 
   const { docs: linkedDocs } = await payload.find({
     collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
-    sort: '-createdAt',
+    sort: '-updatedAt',
     where: { clientChat: { equals: chat } },
   })
   if (linkedDocs[0]) {
