@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import { trackLead } from '@/lib/analytics.ts'
 import { compressImage } from '@/lib/compress-image.ts'
@@ -77,6 +77,7 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
   const shots = SHOTS[locale]
   const conditions = CONDITIONS[locale]
   const formRef = useRef<HTMLFormElement>(null)
+  const doneRef = useRef<HTMLDivElement>(null)
   const [filled, setFilled] = useState<Record<number, string>>({})
   const [photoFiles, setPhotoFiles] = useState<Record<number, File>>({})
   const [compressing, setCompressing] = useState(0)
@@ -135,9 +136,15 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
     }
   }
 
+  useEffect(() => {
+    // Форма довга, а підтвердження коротке: сторінка різко «сплющується»,
+    // і клієнт, що дивився на кнопку внизу, лишається дивитись у порожнечу.
+    if (state === 'sent') doneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [state])
+
   if (state === 'sent') {
     return (
-      <div className="wform wform--done">
+      <div className="wform wform--done" ref={doneRef}>
         <b>{wt.doneTitle}</b>
         <p>{wt.doneText}</p>
         {botLink && (

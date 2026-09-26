@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import { trackLead } from '@/lib/analytics.ts'
 import { compressImage } from '@/lib/compress-image.ts'
@@ -71,6 +71,7 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
   const ef = EF[locale]
   const conditions = CONDITIONS[locale]
   const formRef = useRef<HTMLFormElement>(null)
+  const doneRef = useRef<HTMLDivElement>(null)
   const [filled, setFilled] = useState<Record<number, string>>({})
   const [photoFiles, setPhotoFiles] = useState<Record<number, File>>({})
   const [compressing, setCompressing] = useState(0)
@@ -123,9 +124,15 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
     }
   }
 
+  useEffect(() => {
+    // Форма довга, а підтвердження коротке: сторінка різко «сплющується»,
+    // і клієнт, що дивився на кнопку внизу, лишається дивитись у порожнечу.
+    if (state === 'sent') doneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [state])
+
   if (state === 'sent') {
     return (
-      <div className="eform eform--done">
+      <div className="eform eform--done" ref={doneRef}>
         <b>{ef.doneTitle}</b>
         <p>{ef.doneText}</p>
 
