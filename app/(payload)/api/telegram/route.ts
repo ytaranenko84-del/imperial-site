@@ -167,6 +167,32 @@ async function hotlineRecipientsFor(payload: Awaited<ReturnType<typeof getPayloa
 }
 
 /**
+ * Закриває чуже відкрите звернення (гаряча лінія чи відгук) того самого чату.
+ * Без цього стара розмова й далі «перехоплювала» б повідомлення клієнта,
+ * призначені вже для нового контексту (заявки на оцінку абощо).
+ */
+async function closeOpenHotline(payload: Awaited<ReturnType<typeof getPayload>>, chat: string) {
+  const { docs } = await payload.find({
+    collection: 'hotline-chats', limit: 5, depth: 0, overrideAccess: true,
+    where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
+  })
+  for (const d of docs) {
+    await payload.update({
+      collection: 'hotline-chats', id: d.id, overrideAccess: true, data: { status: 'done' },
+    }).catch(() => {})
+  }
+}
+
+/** Чи це чат зареєстрованого співробітника (адмін, оцінювач, гаряча лінія). */
+async function isRecipientChat(payload: Awaited<ReturnType<typeof getPayload>>, chat: string): Promise<boolean> {
+  const { docs } = await payload.find({
+    collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
+    where: { chatId: { equals: chat }, active: { equals: true } },
+  })
+  return docs.length > 0
+}
+
+/**
  * Порівняння без підказки за часом: інакше ключ можна підібрати,
  * вимірюючи, як швидко приходить відмова.
  */
@@ -264,6 +290,23 @@ export async function POST(req: Request) {
               collection: 'eval-requests', id, overrideAccess: true,
               data: { clientChat: String(msg.chat.id) },
             })
+            // Старе відкрите звернення того самого чату більше не актуальне:
+            // інакше воно й далі перехоплювало б повідомлення клієнта.
+            await closeOpenHotline(payload, chatKey)
+
+            /*
+             * Картка вже пішла оцінювачу зі значком «клієнт не в боті» — його
+             * не виправити заднім числом (Telegram не дає редагувати чужі
+             * повідомлення). Тому шлемо коротке окреме уточнення.
+             */
+            const { recipientsFor } = await import('@/lib/telegram.ts')
+            const chats = await recipientsFor(payload, String((doc as { category?: string }).category || ''))
+            for (const target of chats.keys()) {
+              await send({
+                chat: target,
+                text: `<b>Заявка №${id}</b> · клієнт приєднався до бота. Тепер можна відповідати тут напряму.`,
+              }).catch(() => {})
+            }
           }
           await send({
             chat: chatKey,
@@ -302,9 +345,21 @@ export async function POST(req: Request) {
       return Response.json({ ok: true })
     }
 
-    // ── звичайне повідомлення від клієнта: текст і/або фото, без Reply ──
+    // ── звичайне повідомлення без Reply: текст і/або фото ──
     if (msg.chat.type === 'private' && (msg.text || msg.caption || msg.photo)) {
-      await dispatchClientMessage(payload, msg, chatKey)
+      /*
+       * Співробітник написав напряму, не через Reply на конкретне повідомлення
+       * клієнта, — бот не вгадає, кому це адресовано. Раніше таке повідомлення
+       * мовчки йшло в обробку «від клієнта» і губилось.
+       */
+      if (await isRecipientChat(payload, chatKey)) {
+        await send({
+          chat: chatKey,
+          text: 'Повідомлення не надіслано клієнту. Щоб відповісти — натисніть на його повідомлення → Reply, і напишіть текст.',
+        })
+      } else {
+        await dispatchClientMessage(payload, msg, chatKey)
+      }
     }
   } catch (e) {
     payload.logger.error({ err: e }, 'telegram webhook')
@@ -434,6 +489,8 @@ async function startIntent(
     return
   }
   if (intent === 'otsinka') {
+    // Клієнт явно переходить в інший сценарій — старе звернення більше не має «перехоплювати» його повідомлення
+    await closeOpenHotline(payload, chat)
     await payload.create({
       collection: 'eval-requests', overrideAccess: true,
       data: {
