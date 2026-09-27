@@ -62,6 +62,11 @@ const BTN = {
   umovy: '💰 Умови',
   review: '💬 Відгуки та побажання',
   goldPrice: '🪙 Ціна на золото',
+  history: '📊 Історія',
+  historyEval: '📸 Історія оцінок',
+  historyReview: '💬 Історія відгуків',
+  historyBooking: '📋 Всі брони',
+  back: '⬅️ Назад',
 } as const
 type Intent = keyof typeof BTN
 
@@ -74,11 +79,23 @@ const MENU_KEYBOARD = {
   resize_keyboard: true,
 }
 
-/** Те саме меню, плюс службова кнопка — бачить лише зареєстрований адміністратор. */
+/** Те саме меню, плюс службові кнопки — бачить лише зареєстрований адміністратор. */
 const ADMIN_MENU_KEYBOARD = {
-  keyboard: [...MENU_KEYBOARD.keyboard, [{ text: BTN.goldPrice }]],
+  keyboard: [...MENU_KEYBOARD.keyboard, [{ text: BTN.goldPrice }, { text: BTN.history }]],
   resize_keyboard: true,
 }
+
+/** Підменю «Історія»: три звіти й повернення до основного меню. */
+const HISTORY_KEYBOARD = {
+  keyboard: [
+    [{ text: BTN.historyEval }, { text: BTN.historyReview }],
+    [{ text: BTN.historyBooking }],
+    [{ text: BTN.back }],
+  ],
+  resize_keyboard: true,
+}
+
+const HISTORY_LIMIT = 12
 
 /** Гранична вилка ціни за грам — щоб зайвий нуль у введенні не пройшов непоміченим. */
 const GOLD_PRICE_MIN = 500
@@ -366,6 +383,78 @@ async function confirmGoldPrice(
   })
 }
 
+// ────────────────────────── історія для адміна ──────────────────────────
+
+/** Дата й час коротко: «27.09 14:30». */
+function shortWhen(iso: unknown): string {
+  const d = new Date(String(iso || ''))
+  if (Number.isNaN(d.getTime())) return ''
+  const k = new Date(d.getTime() + 3 * 60 * 60 * 1000) // київський час
+  const dd = String(k.getUTCDate()).padStart(2, '0')
+  const mm = String(k.getUTCMonth() + 1).padStart(2, '0')
+  const hh = String(k.getUTCHours()).padStart(2, '0')
+  const mi = String(k.getUTCMinutes()).padStart(2, '0')
+  return `${dd}.${mm} ${hh}:${mi}`
+}
+
+const EVAL_CATEGORY_LABEL: Record<string, string> = {
+  watches: 'Годинники', digital: 'Цифрова техніка', home: 'Побутова техніка',
+  tools: 'Інструмент', sport: 'Спорт і відпочинок', other: 'Інше',
+}
+const EVAL_STATUS_LABEL: Record<string, string> = {
+  new: 'нова', work: 'в роботі', done: 'оцінено', reject: 'відмова',
+}
+const HOTLINE_STATUS_LABEL: Record<string, string> = {
+  new: 'нове', work: 'в роботі', done: 'закрито',
+}
+const BOOKING_STATUS_LABEL: Record<string, string> = {
+  new: 'нова', came: 'клієнт прийшов', done: 'оформлено', missed: 'не прийшов',
+}
+
+async function historyEvalText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+  const { docs } = await payload.find({
+    collection: 'eval-requests', limit: HISTORY_LIMIT, depth: 0, overrideAccess: true, sort: '-createdAt',
+  })
+  if (!docs.length) return 'Заявок на оцінку ще немає.'
+  const lines = docs.map((d) => {
+    const cat = EVAL_CATEGORY_LABEL[String(d.category)] || String(d.category || '')
+    const status = EVAL_STATUS_LABEL[String(d.status)] || String(d.status || '')
+    const sum = Number(d.estimate || 0)
+    return `№${d.id} · ${shortWhen(d.createdAt)} · ${esc(cat)} · ${esc(d.name || '')} · ${status}`
+      + (sum > 0 ? ` · ${sum.toLocaleString('uk-UA')} грн` : '')
+  })
+  return `<b>Останні заявки на оцінку:</b>\n\n${lines.join('\n')}`
+}
+
+async function historyReviewText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+  const { docs } = await payload.find({
+    collection: 'hotline-chats', limit: HISTORY_LIMIT, depth: 0, overrideAccess: true, sort: '-createdAt',
+    where: { kind: { equals: 'review' } },
+  })
+  if (!docs.length) return 'Відгуків і скарг ще немає.'
+  const lines = docs.map((d) => {
+    const status = HOTLINE_STATUS_LABEL[String(d.status)] || String(d.status || '')
+    return `№${d.id} · ${shortWhen(d.createdAt)} · ${esc(d.name || '')} · ${status}`
+  })
+  return `<b>Останні відгуки та скарги:</b>\n\n${lines.join('\n')}`
+}
+
+async function historyBookingText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+  const { docs } = await payload.find({
+    collection: 'bookings', limit: HISTORY_LIMIT, depth: 1, overrideAccess: true, sort: '-createdAt',
+  })
+  if (!docs.length) return 'Броней ще немає.'
+  const lines = docs.map((d) => {
+    const status = BOOKING_STATUS_LABEL[String(d.status)] || String(d.status || '')
+    const br = d.branch as { displayAddress?: string; address?: string } | null
+    const addr = br?.displayAddress || br?.address || ''
+    const sum = Number(d.amount || 0)
+    return `№${d.id} · ${shortWhen(d.createdAt)} · ${sum.toLocaleString('uk-UA')} грн`
+      + (addr ? ` · ${esc(addr)}` : '') + ` · ${status}`
+  })
+  return `<b>Останні брони:</b>\n\n${lines.join('\n')}`
+}
+
 /**
  * Порівняння без підказки за часом: інакше ключ можна підібрати,
  * вимірюючи, як швидко приходить відмова.
@@ -613,6 +702,11 @@ const PHONE_PROMPT: Record<Intent, string> = {
   viddilennya: '', // геолокація, телефон не потрібен
   umovy: '', // без телефону
   goldPrice: '', // лише для адміна, номер уже прив'язаний
+  history: '', // лише для адміна, без телефону
+  historyEval: '', // лише для адміна, без телефону
+  historyReview: '', // лише для адміна, без телефону
+  historyBooking: '', // лише для адміна, без телефону
+  back: '', // лише для адміна, без телефону
 }
 
 async function handleIntent(
@@ -647,6 +741,36 @@ async function handleIntent(
         + 'Решта проб золота перерахується автоматично, я покажу перелік на підтвердження перед тим, як застосувати.',
       replyMarkup: ADMIN_MENU_KEYBOARD,
     })
+    return
+  }
+
+  if (intent === 'history') {
+    if (!(await isAdminChat(payload, chat))) return
+    await send({ chat, text: 'Що показати?', replyMarkup: HISTORY_KEYBOARD })
+    return
+  }
+
+  if (intent === 'historyEval') {
+    if (!(await isAdminChat(payload, chat))) return
+    await send({ chat, text: await historyEvalText(payload), replyMarkup: HISTORY_KEYBOARD })
+    return
+  }
+
+  if (intent === 'historyReview') {
+    if (!(await isAdminChat(payload, chat))) return
+    await send({ chat, text: await historyReviewText(payload), replyMarkup: HISTORY_KEYBOARD })
+    return
+  }
+
+  if (intent === 'historyBooking') {
+    if (!(await isAdminChat(payload, chat))) return
+    await send({ chat, text: await historyBookingText(payload), replyMarkup: HISTORY_KEYBOARD })
+    return
+  }
+
+  if (intent === 'back') {
+    if (!(await isAdminChat(payload, chat))) return
+    await send({ chat, text: 'Головне меню:', replyMarkup: ADMIN_MENU_KEYBOARD })
     return
   }
 
