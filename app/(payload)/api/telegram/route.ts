@@ -61,6 +61,7 @@ const BTN = {
   viddilennya: '📍 Найближче відділення',
   umovy: '💰 Умови',
   review: '💬 Відгуки та побажання',
+  goldPrice: '🪙 Ціна на золото',
 } as const
 type Intent = keyof typeof BTN
 
@@ -72,6 +73,21 @@ const MENU_KEYBOARD = {
   ],
   resize_keyboard: true,
 }
+
+/** Те саме меню, плюс службова кнопка — бачить лише зареєстрований адміністратор. */
+const ADMIN_MENU_KEYBOARD = {
+  keyboard: [...MENU_KEYBOARD.keyboard, [{ text: BTN.goldPrice }]],
+  resize_keyboard: true,
+}
+
+/** Гранична вилка ціни за грам — щоб зайвий нуль у введенні не пройшов непоміченим. */
+const GOLD_PRICE_MIN = 500
+const GOLD_PRICE_MAX = 15000
+/** Проби, де скупка дорівнює заставі — без надбавки, на відміну від решти проб. */
+const NO_BUYOUT_MARKUP_PURITIES = [375, 333]
+/** Проба, від якої рахується решта прайсу золота. */
+const ANCHOR_PURITY = 585
+const ANCHOR_BUYOUT_MARKUP = 50
 
 const REVIEW_GREETING = [
   'Дякуємо, що хочете поділитися враженням!',
@@ -157,6 +173,29 @@ function hotlineIdFrom(text?: string) {
   return m ? Number(m[1]) : null
 }
 
+/** Проба й нова ціна з тексту адміна: «585 3200» або «585 3200,50». */
+function goldPriceInputFrom(text?: string): { purity: number; price: number } | null {
+  const m = /^(\d{3}(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)$/.exec((text || '').trim())
+  if (!m) return null
+  const purity = Number(m[1].replace(',', '.'))
+  const price = Number(m[2].replace(',', '.'))
+  if (!Number.isFinite(purity) || !Number.isFinite(price)) return null
+  return { purity, price }
+}
+
+/** Пропозиція зміни ціни з першого рядка картки-підтвердження: «Зміна ціни на золото 585° → 3200 грн». */
+function goldPriceProposalFrom(text?: string): number | null {
+  const m = /Зміна ціни на золото 585°\s*→\s*(\d+(?:[.,]\d+)?)\s*грн/.exec(text || '')
+  if (!m) return null
+  const price = Number(m[1].replace(',', '.'))
+  return Number.isFinite(price) ? price : null
+}
+
+/** Підтверджувальні слова в тексті — і «так», і випадкове «Так, підтверджую» підходять. */
+function isConfirmWord(text?: string): boolean {
+  return /^(так|да|ок|окей|підтвер|confirm|yes)/i.test((text || '').trim())
+}
+
 function hotlineLabel(kind?: string) {
   return kind === 'review' ? 'Відгук' : 'Гаряча лінія'
 }
@@ -190,6 +229,141 @@ async function isRecipientChat(payload: Awaited<ReturnType<typeof getPayload>>, 
     where: { chatId: { equals: chat }, active: { equals: true } },
   })
   return docs.length > 0
+}
+
+/** Чи це чат саме адміністратора — керування ціною на золото бачить лише він. */
+async function isAdminChat(payload: Awaited<ReturnType<typeof getPayload>>, chat: string): Promise<boolean> {
+  const { docs } = await payload.find({
+    collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
+    where: { chatId: { equals: chat }, active: { equals: true }, kind: { equals: 'admin' } },
+  })
+  return docs.length > 0
+}
+
+type GoldRow = {
+  id: string | number; purity: number; purityLabel: string
+  oldBase: number; newBase: number; oldBuyout: number; newBuyout: number
+}
+
+/**
+ * Прайс золота від однієї опорної проби (585): решта проб рахується за вмістом
+ * золота (лінійно від 585), скупка — так само, але від «585-скупки»
+ * (585-заства + 50 грн). 375 і 333 проба — виняток: скупка там дорівнює
+ * заставі, без додаткової націнки. Перевірено на бойовому прайсі — цифри
+ * збігаються день у день.
+ */
+async function computeGoldPrices(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  newAnchorBase: number,
+): Promise<GoldRow[] | null> {
+  const { docs } = await payload.find({
+    collection: 'tariffs', limit: 100, depth: 0, overrideAccess: true,
+    where: { metal: { equals: 'gold' } },
+  })
+  const anchor = docs.find((d) => Number(d.purity) === ANCHOR_PURITY)
+  if (!anchor) return null
+
+  const newAnchorBuyout = newAnchorBase + ANCHOR_BUYOUT_MARKUP
+  const rows: GoldRow[] = []
+  for (const d of docs) {
+    const purity = Number(d.purity)
+    if (!Number.isFinite(purity)) continue
+    const oldBase = Number(d.basePrice || 0)
+    const oldBuyout = Number(d.purchasePrice || oldBase)
+    const noMarkup = NO_BUYOUT_MARKUP_PURITIES.includes(purity)
+
+    const newBase = purity === ANCHOR_PURITY
+      ? newAnchorBase
+      : Math.round(newAnchorBase * (purity / ANCHOR_PURITY))
+    const newBuyout = purity === ANCHOR_PURITY
+      ? newAnchorBuyout
+      : noMarkup ? newBase : Math.round(newAnchorBuyout * (purity / ANCHOR_PURITY))
+
+    rows.push({
+      id: d.id, purity, purityLabel: String(d.purityLabel || purity),
+      oldBase, newBase, oldBuyout, newBuyout,
+    })
+  }
+  return rows.sort((a, b) => b.purity - a.purity)
+}
+
+function goldRowLine(r: GoldRow): string {
+  const buyout = r.oldBuyout === r.oldBase && r.newBuyout === r.newBase
+    ? 'скупка = застава'
+    : `скупка ${r.oldBuyout} → ${r.newBuyout}`
+  return `${esc(r.purityLabel)}°: ${r.oldBase} → <b>${r.newBase}</b> грн (${buyout})`
+}
+
+/** Адмін ввів пробу й ціну — рахуємо весь перерахунок і показуємо на підтвердження. */
+async function proposeGoldPrice(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  chat: string,
+  purity: number,
+  price: number,
+) {
+  if (purity !== ANCHOR_PURITY) {
+    await send({
+      chat,
+      text: `Наразі можна змінювати ціну лише через пробу ${ANCHOR_PURITY}° — решта проб перераховується від неї автоматично.`,
+    })
+    return
+  }
+  if (price < GOLD_PRICE_MIN || price > GOLD_PRICE_MAX) {
+    await send({
+      chat,
+      text: `Перевірте число — ${price} грн за грам виглядає як помилка (очікую від ${GOLD_PRICE_MIN} до ${GOLD_PRICE_MAX}).`,
+    })
+    return
+  }
+
+  const rows = await computeGoldPrices(payload, price)
+  if (!rows) {
+    await send({ chat, text: `У прайсі не знайшлась проба ${ANCHOR_PURITY}° — перевірте таблицю тарифів в адмінці.` })
+    return
+  }
+
+  const lines = rows.map(goldRowLine)
+  await send({
+    chat,
+    text: `Зміна ціни на золото 585° → ${price} грн (скупка ${price + ANCHOR_BUYOUT_MARKUP} грн)\n\n`
+      + `Буде перераховано:\n${lines.join('\n')}\n\n`
+      + 'Підтвердіть — Reply "так" на це повідомлення, щоб застосувати.',
+  })
+}
+
+/** Підтвердження отримано (Reply на пропозицію) — застосовуємо перерахунок насправді. */
+async function confirmGoldPrice(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  msg: TgMessage,
+  chat: string,
+  newAnchorBase: number,
+) {
+  if (!(await isAdminChat(payload, chat))) return
+
+  if (!isConfirmWord(textOf(msg))) {
+    await send({ chat, text: 'Скасовано, нічого не змінено. Напишіть пробу і ціну ще раз, якщо потрібно.' })
+    return
+  }
+
+  const rows = await computeGoldPrices(payload, newAnchorBase)
+  if (!rows) {
+    await send({ chat, text: `У прайсі не знайшлась проба ${ANCHOR_PURITY}° — перевірте таблицю тарифів в адмінці.` })
+    return
+  }
+
+  for (const r of rows) {
+    await payload.update({
+      collection: 'tariffs', id: r.id, overrideAccess: true,
+      data: { basePrice: r.newBase, purchasePrice: r.newBuyout },
+    }).catch(() => {})
+  }
+
+  const lines = rows.map((r) => `${esc(r.purityLabel)}°: <b>${r.newBase}</b> грн (скупка ${r.newBuyout})`)
+  await send({
+    chat,
+    text: `Готово, прайс на золото оновлено:\n\n${lines.join('\n')}`,
+    replyMarkup: ADMIN_MENU_KEYBOARD,
+  })
 }
 
 /**
@@ -268,6 +442,15 @@ export async function POST(req: Request) {
       return Response.json({ ok: true })
     }
 
+    // ── адмін ввів пробу і ціну на золото («585 3200») ──
+    if (msg.chat.type === 'private' && msg.text) {
+      const priceInput = goldPriceInputFrom(msg.text)
+      if (priceInput && (await isAdminChat(payload, chatKey))) {
+        await proposeGoldPrice(payload, chatKey, priceInput.purity, priceInput.price)
+        return Response.json({ ok: true })
+      }
+    }
+
     // ── «Почати», можливо з міткою заявки ──
     if (msg.text?.startsWith('/start')) {
       const arg = msg.text.split(' ')[1] || ''
@@ -320,8 +503,9 @@ export async function POST(req: Request) {
       }
 
       const known = await getKnownPhone(payload, chatKey)
+      const menu = (await isAdminChat(payload, chatKey)) ? ADMIN_MENU_KEYBOARD : MENU_KEYBOARD
       if (known) {
-        await send({ chat: chatKey, text: HELLO_KNOWN, replyMarkup: MENU_KEYBOARD })
+        await send({ chat: chatKey, text: HELLO_KNOWN, replyMarkup: menu })
       } else {
         await send({ chat: chatKey, text: HELLO_NEW, replyMarkup: CONTACT_KEYBOARD })
       }
@@ -337,7 +521,10 @@ export async function POST(req: Request) {
 
     // ── відповідь на картку (Reply) → клієнтові ──
     if (msg.reply_to_message && (msg.text || msg.caption || msg.photo)) {
-      if (hotlineIdFrom(msg.reply_to_message.text) != null) {
+      const goldProposal = goldPriceProposalFrom(msg.reply_to_message.text)
+      if (goldProposal != null) {
+        await confirmGoldPrice(payload, msg, chatKey, goldProposal)
+      } else if (hotlineIdFrom(msg.reply_to_message.text) != null) {
         await relayHotlineAnswer(payload, msg, chatKey)
       } else {
         await relayAnswer(payload, msg, chatKey)
@@ -425,6 +612,7 @@ const PHONE_PROMPT: Record<Intent, string> = {
   review: 'Щоб ми могли зв’язатися з вами за потреби, поділіться, будь ласка, номером телефону:',
   viddilennya: '', // геолокація, телефон не потрібен
   umovy: '', // без телефону
+  goldPrice: '', // лише для адміна, номер уже прив'язаний
 }
 
 async function handleIntent(
@@ -447,6 +635,17 @@ async function handleIntent(
       chat,
       text: 'Ця функція ще готується. Актуальні умови — на сайті або запитайте на гарячій лінії ☎️',
       replyMarkup: MENU_KEYBOARD,
+    })
+    return
+  }
+
+  if (intent === 'goldPrice') {
+    if (!(await isAdminChat(payload, chat))) return
+    await send({
+      chat,
+      text: `Напишіть пробу і нову базову ціну через пробіл, наприклад: «${ANCHOR_PURITY} 3200». `
+        + 'Решта проб золота перерахується автоматично, я покажу перелік на підтвердження перед тим, як застосувати.',
+      replyMarkup: ADMIN_MENU_KEYBOARD,
     })
     return
   }
