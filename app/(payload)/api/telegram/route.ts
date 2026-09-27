@@ -842,38 +842,46 @@ async function dispatchClientMessage(
   chat: string,
 ) {
   /*
-   * Сортуємо за часом останньої активності, не створення: той самий клієнт
-   * міг за час тестів прив'язатися до кількох заявок — свіжіша за створенням
-   * не обов'язково та, яку зараз обговорює оцінювач. Відповідь чи будь-яка
-   * інша зміна оновлює updatedAt, тож саме вона й «спливає» нагору.
+   * Той самий клієнт міг за час тестів лишити відкритими одразу кілька
+   * «гілок» — чернетку оцінки з бота, звернення на гарячу лінію, заявку
+   * з сайту. Раніше кожен варіант перевірявся окремо й безумовно (перший-
+   * знайдений вигравав), тому давно покинута чернетка назавжди «забирала
+   * собі» повідомлення клієнта, навіть коли реальна розмова точилась зовсім
+   * в іншій заявці. Тепер порівнюємо всі відкриті варіанти за часом
+   * останньої активності — хто оновлювався останнім (відповідь оцінювача,
+   * будь-яка зміна), той і виграє.
    */
-  const { docs: hotlineDocs } = await payload.find({
-    collection: 'hotline-chats', limit: 1, depth: 0, overrideAccess: true,
-    sort: '-updatedAt',
-    where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
-  })
-  if (hotlineDocs[0]) {
-    await appendHotline(payload, hotlineDocs[0] as HotlineDoc, msg)
-    return
+  const [hotlineRes, draftRes, linkedRes] = await Promise.all([
+    payload.find({
+      collection: 'hotline-chats', limit: 1, depth: 0, overrideAccess: true,
+      sort: '-updatedAt', where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
+    }),
+    payload.find({
+      collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
+      sort: '-updatedAt', where: { clientChat: { equals: chat }, source: { equals: 'bot' }, status: { equals: 'new' } },
+    }),
+    payload.find({
+      collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
+      sort: '-updatedAt', where: { clientChat: { equals: chat } },
+    }),
+  ])
+
+  type Candidate = { updatedAt?: string } & Record<string, unknown>
+  const at = (d?: Candidate) => (d?.updatedAt ? new Date(d.updatedAt).getTime() : -1)
+  const candidates: { doc: Candidate; run: () => Promise<void> }[] = []
+  if (hotlineRes.docs[0]) {
+    candidates.push({ doc: hotlineRes.docs[0], run: () => appendHotline(payload, hotlineRes.docs[0] as HotlineDoc, msg) })
+  }
+  if (draftRes.docs[0]) {
+    candidates.push({ doc: draftRes.docs[0], run: () => appendOtsinka(payload, draftRes.docs[0] as EvalDraft, msg) })
+  }
+  if (linkedRes.docs[0]) {
+    candidates.push({ doc: linkedRes.docs[0], run: () => noteClientMessage(payload, msg, linkedRes.docs[0] as EvalDraft) })
   }
 
-  const { docs: draftDocs } = await payload.find({
-    collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
-    sort: '-updatedAt',
-    where: { clientChat: { equals: chat }, source: { equals: 'bot' }, status: { equals: 'new' } },
-  })
-  if (draftDocs[0]) {
-    await appendOtsinka(payload, draftDocs[0] as EvalDraft, msg)
-    return
-  }
-
-  const { docs: linkedDocs } = await payload.find({
-    collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
-    sort: '-updatedAt',
-    where: { clientChat: { equals: chat } },
-  })
-  if (linkedDocs[0]) {
-    await noteClientMessage(payload, msg, linkedDocs[0] as EvalDraft)
+  if (candidates.length) {
+    candidates.sort((a, b) => at(b.doc) - at(a.doc))
+    await candidates[0].run()
     return
   }
 

@@ -253,7 +253,14 @@ export async function recipientsFor(payload: Payload, category: string) {
     if (!chat) continue
     const kind = String((r as { kind?: string }).kind)
     const cats = ((r as { categories?: string[] }).categories || []) as string[]
-    const wanted = kind === 'admin' || (kind === 'expert' && (!cats.length || cats.includes(category)))
+    /*
+     * «Інше» — синтетична категорія вільних заявок із бота (клієнт описує
+     * річ текстом, без вибору напрямку): жоден оцінювач її свідомо не обирав
+     * у своєму профілі, тож без явного винятку такі заявки бачив би лише
+     * адміністратор — жоден профільний оцінювач не отримав би їх узагалі.
+     */
+    const wanted = kind === 'admin'
+      || (kind === 'expert' && (category === 'other' || !cats.length || cats.includes(category)))
     if (wanted) chats.set(chat, String((r as { title?: string }).title || ''))
   }
   return chats
