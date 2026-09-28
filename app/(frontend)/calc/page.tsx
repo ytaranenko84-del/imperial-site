@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 
 import { getSiteData } from '@/lib/data.ts'
 import { withLocale } from '@/lib/locale-utils.ts'
+import { CATEGORIES } from '@/lib/categories.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import Calculator from '@/components/Calculator'
@@ -94,6 +95,12 @@ const T = {
     lede: 'Вкажіть пробу й вагу — сума на руки й ставка на день з’являться миттєво, без телефону і реєстрації.',
     stepsTag: '5 кроків', stepsH2: 'Як проходить оцінка',
     stepsLead: 'Від розрахунку на сайті до готівки на руках — без черг і зайвих дзвінків.',
+    techTag: 'Оцінка за фото',
+    techH2: 'Техніка, годинники та інше',
+    techLead: 'Золото й срібло калькулятор рахує миттєво. Для решти — надішліть фото, '
+      + 'фахівець відповість протягом робочого дня.',
+    watchesName: 'Годинники', watchesSub: 'Швейцарська механіка, вінтаж',
+    techAct: 'Оцінити за фото',
     faqH2: 'Питання про онлайн-оцінку',
   },
   ru: {
@@ -105,6 +112,12 @@ const T = {
     lede: 'Укажите пробу и вес — сумма на руки и ставка в день появятся мгновенно, без телефона и регистрации.',
     stepsTag: '5 шагов', stepsH2: 'Как проходит оценка',
     stepsLead: 'От расчёта на сайте до наличных на руках — без очередей и лишних звонков.',
+    techTag: 'Оценка по фото',
+    techH2: 'Техника, часы и другое',
+    techLead: 'Золото и серебро калькулятор считает мгновенно. Для остального — пришлите фото, '
+      + 'специалист ответит в течение рабочего дня.',
+    watchesName: 'Часы', watchesSub: 'Швейцарская механика, винтаж',
+    techAct: 'Оценить по фото',
     faqH2: 'Вопросы об онлайн-оценке',
   },
 } satisfies Record<L, unknown>
@@ -166,6 +179,28 @@ export async function CalcContent({ locale }: { locale: L }) {
             bonusWeightPurity={Number(s.bonusWeightPurity ?? 585)}
             locale={locale}
           />
+        </section>
+
+        <section className="sec sec--gray">
+          <div className="wrap">
+            <span className="tag">{t.techTag}</span>
+            <h2>{t.techH2}</h2>
+            <p className="lead">{t.techLead}</p>
+            <div className="grid grid--4" data-reveal-group>
+              <a className="card card--link" href={withLocale('/zastava/hodynnyky', locale)}>
+                <h3 style={{ fontSize: 'var(--s1)' }}>{t.watchesName}</h3>
+                <p>{t.watchesSub}</p>
+                <span className="card__act">{t.techAct}<i>→</i></span>
+              </a>
+              {CATEGORIES[locale].map((c) => (
+                <a className="card card--link" key={c.slug} href={withLocale(`/zastava/${c.slug}`, locale)}>
+                  <h3 style={{ fontSize: 'var(--s1)' }}>{c.name}</h3>
+                  <p>{c.take[0]}</p>
+                  <span className="card__act">{t.techAct}<i>→</i></span>
+                </a>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="sec">
