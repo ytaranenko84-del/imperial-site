@@ -266,25 +266,11 @@ export async function recipientsFor(payload: Payload, category: string) {
   return chats
 }
 
-/** Хто отримує звернення на гарячу лінію — окрема від оцінки черга. */
+/**
+ * Хто отримує звернення на гарячу лінію й відгуки — окрема від оцінки черга:
+ * оператор гарячої лінії плюс адміністратори, керівництво має бачити кожне.
+ */
 export async function hotlineRecipients(payload: Payload) {
-  const { docs } = await payload.find({
-    collection: 'recipients',
-    limit: 100,
-    depth: 0,
-    overrideAccess: true,
-    where: { active: { equals: true }, kind: { equals: 'hotline' } },
-  })
-  const chats = new Map<string, string>()
-  for (const r of docs) {
-    const chat = String((r as { chatId?: string }).chatId || '')
-    if (chat) chats.set(chat, String((r as { title?: string }).title || ''))
-  }
-  return chats
-}
-
-/** Хто отримує відгуки й скарги: гаряча лінія плюс адміністратори — керівництво має бачити кожен. */
-export async function reviewRecipients(payload: Payload) {
   const { docs } = await payload.find({
     collection: 'recipients',
     limit: 100,

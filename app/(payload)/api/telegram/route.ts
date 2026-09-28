@@ -218,9 +218,9 @@ function hotlineLabel(kind?: string) {
   return kind === 'review' ? 'Відгук' : 'Гаряча лінія'
 }
 
-async function hotlineRecipientsFor(payload: Awaited<ReturnType<typeof getPayload>>, kind?: string) {
-  const { hotlineRecipients, reviewRecipients } = await import('@/lib/telegram.ts')
-  return kind === 'review' ? reviewRecipients(payload) : hotlineRecipients(payload)
+async function hotlineRecipientsFor(payload: Awaited<ReturnType<typeof getPayload>>) {
+  const { hotlineRecipients } = await import('@/lib/telegram.ts')
+  return hotlineRecipients(payload)
 }
 
 /**
@@ -1164,7 +1164,7 @@ async function relayHotlineAnswer(
     })
   }
 
-  const others = await hotlineRecipientsFor(payload, kind)
+  const others = await hotlineRecipientsFor(payload)
   for (const target of others.keys()) {
     if (target === chat) continue
     await send({
@@ -1271,7 +1271,7 @@ async function appendHotline(
   await payload.update({ collection: 'hotline-chats', id: doc.id, overrideAccess: true, data: { thread } })
 
   const { hotlineCard, sendPhoto } = await import('@/lib/telegram.ts')
-  const chats = await hotlineRecipientsFor(payload, kind)
+  const chats = await hotlineRecipientsFor(payload)
 
   for (const target of chats.keys()) {
     const text2 = isFirst
