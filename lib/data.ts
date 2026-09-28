@@ -130,11 +130,13 @@ export async function getSiteData(locale: 'uk' | 'ru' = 'uk'): Promise<SiteData>
   }
 }
 
-export type ActivePromo = { slug: string; title: string }
+export type ActivePromo = { slug: string; text: string }
 
 /**
  * Акція для стрічки над шапкою. Керується прапорцем «Показувати стрічкою» —
  * знявши його чи заархівувавши новину, стрічка зникає сама, без правок коду.
+ * Текст стрічки — поле «Короткий опис» (lead), не заголовок: заголовок
+ * лишається окремим, довшим, для сторінки самої новини.
  */
 export async function getActivePromo(locale: 'uk' | 'ru' = 'uk'): Promise<ActivePromo | null> {
   try {
@@ -145,7 +147,8 @@ export async function getActivePromo(locale: 'uk' | 'ru' = 'uk'): Promise<Active
       where: { kind: { equals: 'promo' }, pinnedOnHome: { equals: true }, archived: { equals: false } },
     })
     const d = docs[0]
-    return d ? { slug: String(d.slug), title: String(d.title) } : null
+    const text = d ? String(d.lead || d.title || '') : ''
+    return d && text ? { slug: String(d.slug), text } : null
   } catch {
     return null
   }

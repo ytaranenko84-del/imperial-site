@@ -56,7 +56,9 @@ export const News: CollectionConfig = {
     },
     {
       name: 'lead', type: 'textarea', label: 'Короткий опис', localized: true,
-      admin: { description: 'Один-два рядки. Показується в переліку й у пошуковій видачі' },
+      admin: { description: 'Один-два рядки. Показується в переліку й у пошуковій видачі. '
+        + 'Для акції з позначкою «Показувати стрічкою на сайті» цей самий текст іде в стрічку над шапкою — '
+        + 'пишіть як окреме коротке рекламне гасло, а не як опис статті' },
     },
     {
       name: 'body', type: 'textarea', label: 'Текст', required: true, localized: true,

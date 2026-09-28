@@ -16,7 +16,7 @@ export default async function PromoRibbon({ locale = 'uk' }: { locale?: 'uk' | '
   return (
     <PromoRibbonClient
       dismissKey={promo.slug}
-      title={promo.title}
+      text={promo.text}
       href={withLocale(`/novyny/${promo.slug}`, locale)}
       cta={CTA[locale]}
     />

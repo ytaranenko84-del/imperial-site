@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
  * (інший slug) клієнт, який колись закрив стару, знову побачить.
  */
 export default function PromoRibbonClient(
-  { dismissKey, title, href, cta }: { dismissKey: string; title: string; href: string; cta: string },
+  { dismissKey, text, href, cta }: { dismissKey: string; text: string; href: string; cta: string },
 ) {
   const storageKey = `promoDismissed:${dismissKey}`
   const [hidden, setHidden] = useState(false)
@@ -24,7 +24,7 @@ export default function PromoRibbonClient(
 
   return (
     <div className="promo-ribbon">
-      <span>🎁 <b>{title}</b></span>
+      <span><b>{text}</b></span>
       <a href={href}>{cta} →</a>
       <button
         type="button"
