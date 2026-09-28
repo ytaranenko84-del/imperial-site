@@ -922,6 +922,15 @@ async function nearestBranch(
   })
 }
 
+/** Рядок «яка роль» — щоб співробітник одразу бачив, у якій якості прив'язався. */
+function recipientRoleLine(person: { kind?: string; categories?: string[] }): string {
+  if (person.kind === 'admin') return 'Роль: <b>адміністратор</b> — бачите копії всіх заявок і звернень.'
+  if (person.kind === 'hotline') return 'Роль: <b>оператор гарячої лінії</b>.'
+  const cats = person.categories || []
+  const catsLabel = cats.length ? cats.map((c) => EVAL_CATEGORY_LABEL[c] || c).join(', ') : 'усі напрямки'
+  return `Роль: <b>оцінювач</b> (${esc(catsLabel)}).`
+}
+
 /** Поділився номером: спершу перевіряємо, чи це співробітник, потім — намір клієнта. */
 async function handleContact(
   payload: Awaited<ReturnType<typeof getPayload>>,
@@ -967,7 +976,8 @@ async function handleContact(
     })
     await send({
       chat,
-      text: `Готово, <b>${esc((person as { title?: string }).title)}</b>. Заявки надходитимуть сюди.`,
+      text: `Готово, <b>${esc((person as { title?: string }).title)}</b>. Заявки надходитимуть сюди.\n`
+        + recipientRoleLine(person as { kind?: string; categories?: string[] }),
     })
     return
   }
