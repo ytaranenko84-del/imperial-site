@@ -64,6 +64,7 @@ const BTN = {
   goldPrice: '🪙 Ціна на золото',
   history: '📊 Історія',
   historyEval: '📸 Історія оцінок',
+  historyHotline: '☎️ Історія гарячої лінії',
   historyReview: '💬 Історія відгуків',
   historyBooking: '📋 Всі брони',
   back: '⬅️ Назад',
@@ -85,11 +86,11 @@ const ADMIN_MENU_KEYBOARD = {
   resize_keyboard: true,
 }
 
-/** Підменю «Історія»: три звіти й повернення до основного меню. */
+/** Підменю «Історія»: чотири звіти й повернення до основного меню. */
 const HISTORY_KEYBOARD = {
   keyboard: [
-    [{ text: BTN.historyEval }, { text: BTN.historyReview }],
-    [{ text: BTN.historyBooking }],
+    [{ text: BTN.historyEval }, { text: BTN.historyHotline }],
+    [{ text: BTN.historyReview }, { text: BTN.historyBooking }],
     [{ text: BTN.back }],
   ],
   resize_keyboard: true,
@@ -426,17 +427,30 @@ async function historyEvalText(payload: Awaited<ReturnType<typeof getPayload>>):
   return `<b>Останні заявки на оцінку:</b>\n\n${lines.join('\n')}`
 }
 
-async function historyReviewText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+async function hotlineHistoryText(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  kind: 'hotline' | 'review',
+  title: string,
+  emptyText: string,
+): Promise<string> {
   const { docs } = await payload.find({
     collection: 'hotline-chats', limit: HISTORY_LIMIT, depth: 0, overrideAccess: true, sort: '-createdAt',
-    where: { kind: { equals: 'review' } },
+    where: { kind: { equals: kind } },
   })
-  if (!docs.length) return 'Відгуків і скарг ще немає.'
+  if (!docs.length) return emptyText
   const lines = docs.map((d) => {
     const status = HOTLINE_STATUS_LABEL[String(d.status)] || String(d.status || '')
     return `№${d.id} · ${shortWhen(d.createdAt)} · ${esc(d.name || '')} · ${status}`
   })
-  return `<b>Останні відгуки та скарги:</b>\n\n${lines.join('\n')}`
+  return `<b>${esc(title)}:</b>\n\n${lines.join('\n')}`
+}
+
+async function historyHotlineText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+  return hotlineHistoryText(payload, 'hotline', 'Останні звернення на гарячу лінію', 'Звернень на гарячу лінію ще немає.')
+}
+
+async function historyReviewText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+  return hotlineHistoryText(payload, 'review', 'Останні відгуки та скарги', 'Відгуків і скарг ще немає.')
 }
 
 async function historyBookingText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
@@ -704,6 +718,7 @@ const PHONE_PROMPT: Record<Intent, string> = {
   goldPrice: '', // лише для адміна, номер уже прив'язаний
   history: '', // лише для адміна, без телефону
   historyEval: '', // лише для адміна, без телефону
+  historyHotline: '', // лише для адміна, без телефону
   historyReview: '', // лише для адміна, без телефону
   historyBooking: '', // лише для адміна, без телефону
   back: '', // лише для адміна, без телефону
@@ -753,6 +768,12 @@ async function handleIntent(
   if (intent === 'historyEval') {
     if (!(await isAdminChat(payload, chat))) return
     await send({ chat, text: await historyEvalText(payload), replyMarkup: HISTORY_KEYBOARD })
+    return
+  }
+
+  if (intent === 'historyHotline') {
+    if (!(await isAdminChat(payload, chat))) return
+    await send({ chat, text: await historyHotlineText(payload), replyMarkup: HISTORY_KEYBOARD })
     return
   }
 
