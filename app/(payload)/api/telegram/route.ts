@@ -1,7 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { timingSafeEqual } from 'node:crypto'
-import { esc, normalizePhone, send, sumFromText, token } from '@/lib/telegram.ts'
+import { answerCallback, esc, normalizePhone, send, sumFromText, token } from '@/lib/telegram.ts'
 import { distanceKm } from '@/lib/geo.ts'
 
 /**
@@ -39,6 +39,19 @@ type TgMessage = {
   migrate_to_chat_id?: number
   reply_to_message?: { message_id: number; text?: string }
   message_thread_id?: number
+}
+
+/** Натискання інлайн-кнопки під повідомленням (наприклад, у «Історії»). */
+type TgCallbackQuery = {
+  id: string
+  from?: TgUser
+  message?: TgMessage
+  data?: string
+}
+
+/** «-1001234:12» — чат і гілка теми, якщо чат є форумом. Той самий формат, що й в `send()`. */
+function chatKeyOf(msg: Pick<TgMessage, 'chat' | 'message_thread_id'>): string {
+  return msg.message_thread_id ? `${msg.chat.id}:${msg.message_thread_id}` : String(msg.chat.id)
 }
 
 const CONTACT_KEYBOARD = {
@@ -412,11 +425,24 @@ const BOOKING_STATUS_LABEL: Record<string, string> = {
   new: 'нова', came: 'клієнт прийшов', done: 'оформлено', missed: 'не прийшов',
 }
 
-async function historyEvalText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+/** Список + кнопки під ним («№148», «№149» …) — по одній на кожен рядок списку. */
+type HistoryReport = { text: string; buttons: { id: string | number; label: string }[] }
+
+/** Інлайн-кнопки під списком «Історії»: по три в ряд, callback_data виду «hev:148». */
+function historyInlineKeyboard(prefix: string, buttons: HistoryReport['buttons']) {
+  if (!buttons.length) return undefined
+  const rows: { text: string; callback_data: string }[][] = []
+  for (let i = 0; i < buttons.length; i += 3) {
+    rows.push(buttons.slice(i, i + 3).map((b) => ({ text: b.label, callback_data: `${prefix}:${b.id}` })))
+  }
+  return { inline_keyboard: rows }
+}
+
+async function historyEvalText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<HistoryReport> {
   const { docs } = await payload.find({
     collection: 'eval-requests', limit: HISTORY_LIMIT, depth: 0, overrideAccess: true, sort: '-createdAt',
   })
-  if (!docs.length) return 'Заявок на оцінку ще немає.'
+  if (!docs.length) return { text: 'Заявок на оцінку ще немає.', buttons: [] }
   const lines = docs.map((d) => {
     const cat = EVAL_CATEGORY_LABEL[String(d.category)] || String(d.category || '')
     const status = EVAL_STATUS_LABEL[String(d.status)] || String(d.status || '')
@@ -424,7 +450,10 @@ async function historyEvalText(payload: Awaited<ReturnType<typeof getPayload>>):
     return `№${d.id} · ${shortWhen(d.createdAt)} · ${esc(cat)} · ${esc(d.name || '')} · ${status}`
       + (sum > 0 ? ` · ${sum.toLocaleString('uk-UA')} грн` : '')
   })
-  return `<b>Останні заявки на оцінку:</b>\n\n${lines.join('\n')}`
+  return {
+    text: `<b>Останні заявки на оцінку:</b>\n\n${lines.join('\n')}\n\nПовна переписка — за кнопкою нижче:`,
+    buttons: docs.map((d) => ({ id: d.id, label: `№${d.id}` })),
+  }
 }
 
 async function hotlineHistoryText(
@@ -432,25 +461,106 @@ async function hotlineHistoryText(
   kind: 'hotline' | 'review',
   title: string,
   emptyText: string,
-): Promise<string> {
+): Promise<HistoryReport> {
   const { docs } = await payload.find({
     collection: 'hotline-chats', limit: HISTORY_LIMIT, depth: 0, overrideAccess: true, sort: '-createdAt',
     where: { kind: { equals: kind } },
   })
-  if (!docs.length) return emptyText
+  if (!docs.length) return { text: emptyText, buttons: [] }
   const lines = docs.map((d) => {
     const status = HOTLINE_STATUS_LABEL[String(d.status)] || String(d.status || '')
     return `№${d.id} · ${shortWhen(d.createdAt)} · ${esc(d.name || '')} · ${status}`
   })
-  return `<b>${esc(title)}:</b>\n\n${lines.join('\n')}`
+  return {
+    text: `<b>${esc(title)}:</b>\n\n${lines.join('\n')}\n\nПовна переписка — за кнопкою нижче:`,
+    buttons: docs.map((d) => ({ id: d.id, label: `№${d.id}` })),
+  }
 }
 
-async function historyHotlineText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+async function historyHotlineText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<HistoryReport> {
   return hotlineHistoryText(payload, 'hotline', 'Останні звернення на гарячу лінію', 'Звернень на гарячу лінію ще немає.')
 }
 
-async function historyReviewText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
+async function historyReviewText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<HistoryReport> {
   return hotlineHistoryText(payload, 'review', 'Останні відгуки та скарги', 'Відгуків і скарг ще немає.')
+}
+
+/** Повний текст, урізаний до безпечної довжини для одного повідомлення Telegram (ліміт — 4096). */
+function trimThread(text: string): string {
+  const LIMIT = 3500
+  if (text.length <= LIMIT) return text
+  return `…показано останні повідомлення…\n${text.slice(text.length - LIMIT)}`
+}
+
+/** Повна переписка по заявці на оцінку: опис клієнта (до першої відповіді) + вся гілка після. */
+function evalThreadText(doc: Record<string, unknown>): string {
+  const cat = EVAL_CATEGORY_LABEL[String(doc.category)] || String(doc.category || '')
+  const status = EVAL_STATUS_LABEL[String(doc.status)] || String(doc.status || '')
+  const sum = Number(doc.estimate || 0)
+  const parts = [
+    `<b>Заявка №${doc.id}</b> · ${esc(cat)} · ${esc(doc.name || '')}, ${esc(doc.phone || '')} · ${status}`
+      + (sum > 0 ? ` · ${sum.toLocaleString('uk-UA')} грн` : ''),
+  ]
+  if (doc.comment) parts.push('', `<b>Клієнт (опис)</b>:\n${esc(String(doc.comment))}`)
+  const thread = (doc.thread || []) as { from: string; text: string; at: string }[]
+  if (thread.length) {
+    parts.push('')
+    for (const t of thread) parts.push(`<b>${esc(t.from)}</b> (${shortWhen(t.at)}): ${esc(t.text)}`)
+  }
+  if (!doc.comment && !thread.length) parts.push('', '(переписки ще немає)')
+  return trimThread(parts.join('\n'))
+}
+
+/** Повна переписка по зверненню на гарячу лінію чи відгуку: вся гілка від першого повідомлення. */
+function hotlineThreadText(doc: Record<string, unknown>): string {
+  const label = hotlineLabel(String(doc.kind))
+  const status = HOTLINE_STATUS_LABEL[String(doc.status)] || String(doc.status || '')
+  const parts = [`<b>${esc(label)} №${doc.id}</b> · ${esc(doc.name || '')}, ${esc(doc.phone || '')} · ${status}`, '']
+  const thread = (doc.thread || []) as { from: string; text: string; at: string }[]
+  if (thread.length) {
+    for (const t of thread) parts.push(`<b>${esc(t.from)}</b> (${shortWhen(t.at)}): ${esc(t.text)}`)
+  } else {
+    parts.push('(переписки ще немає)')
+  }
+  return trimThread(parts.join('\n'))
+}
+
+/** Натиснута кнопка «№…» під списком «Історії» — показує повну переписку саме цієї заявки. */
+async function handleHistoryCallback(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  cq: TgCallbackQuery,
+) {
+  const msg = cq.message
+  if (!msg) return
+  const chat = chatKeyOf(msg)
+
+  if (!(await isAdminChat(payload, chat))) {
+    await answerCallback(cq.id, 'Лише для адміністратора')
+    return
+  }
+
+  const [kind, idStr] = (cq.data || '').split(':')
+  const id = Number(idStr)
+  if (!id) {
+    await answerCallback(cq.id)
+    return
+  }
+
+  if (kind === 'hev') {
+    const doc = await payload.findByID({ collection: 'eval-requests', id, depth: 0, overrideAccess: true }).catch(() => null)
+    await answerCallback(cq.id)
+    await send({ chat, text: doc ? evalThreadText(doc) : `Заявку №${id} не знайдено — можливо, видалена.` })
+    return
+  }
+
+  if (kind === 'hho') {
+    const doc = await payload.findByID({ collection: 'hotline-chats', id, depth: 0, overrideAccess: true }).catch(() => null)
+    await answerCallback(cq.id)
+    await send({ chat, text: doc ? hotlineThreadText(doc) : `Звернення №${id} не знайдено — можливо, видалене.` })
+    return
+  }
+
+  await answerCallback(cq.id)
 }
 
 async function historyBookingText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
@@ -493,7 +603,7 @@ export async function POST(req: Request) {
     return Response.json({ ok: false }, { status: 401 })
   }
 
-  let update: { message?: TgMessage; my_chat_member?: TgChatMember }
+  let update: { message?: TgMessage; my_chat_member?: TgChatMember; callback_query?: TgCallbackQuery }
   try {
     update = await req.json()
   } catch {
@@ -512,9 +622,19 @@ export async function POST(req: Request) {
     return Response.json({ ok: true })
   }
 
+  // ── натиснута інлайн-кнопка (наприклад, у «Історії») ──
+  if (update.callback_query) {
+    try {
+      await handleHistoryCallback(payload, update.callback_query)
+    } catch (e) {
+      console.error('callback_query', e)
+    }
+    return Response.json({ ok: true })
+  }
+
   const msg = update.message
   if (!msg) return Response.json({ ok: true })
-  const chatKey = msg.message_thread_id ? `${msg.chat.id}:${msg.message_thread_id}` : String(msg.chat.id)
+  const chatKey = chatKeyOf(msg)
 
   try {
     /*
@@ -767,19 +887,22 @@ async function handleIntent(
 
   if (intent === 'historyEval') {
     if (!(await isAdminChat(payload, chat))) return
-    await send({ chat, text: await historyEvalText(payload), replyMarkup: HISTORY_KEYBOARD })
+    const { text, buttons } = await historyEvalText(payload)
+    await send({ chat, text, replyMarkup: historyInlineKeyboard('hev', buttons) })
     return
   }
 
   if (intent === 'historyHotline') {
     if (!(await isAdminChat(payload, chat))) return
-    await send({ chat, text: await historyHotlineText(payload), replyMarkup: HISTORY_KEYBOARD })
+    const { text, buttons } = await historyHotlineText(payload)
+    await send({ chat, text, replyMarkup: historyInlineKeyboard('hho', buttons) })
     return
   }
 
   if (intent === 'historyReview') {
     if (!(await isAdminChat(payload, chat))) return
-    await send({ chat, text: await historyReviewText(payload), replyMarkup: HISTORY_KEYBOARD })
+    const { text, buttons } = await historyReviewText(payload)
+    await send({ chat, text, replyMarkup: historyInlineKeyboard('hho', buttons) })
     return
   }
 

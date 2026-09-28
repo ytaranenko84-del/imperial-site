@@ -45,6 +45,21 @@ export async function send({ chat, text, replyMarkup }: SendOptions) {
 }
 
 /**
+ * Прибирає «годинник завантаження» з інлайн-кнопки. Без цього виклику
+ * Telegram сам зніме його за кілька секунд, але кнопка виглядає завислою.
+ * Best-effort: неполадка тут не має ламати основну дію кнопки.
+ */
+export async function answerCallback(callbackQueryId: string, text?: string) {
+  const t = token()
+  if (!t) return
+  await fetch(`${API}${t}/answerCallbackQuery`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ callback_query_id: callbackQueryId, ...(text ? { text } : {}) }),
+  }).catch(() => {})
+}
+
+/**
  * Світлини йдуть альбомом: Telegram забирає їх за посиланням сам.
  * Помилку не глушимо — інакше «фото не прийшли» неможливо пояснити.
  */
