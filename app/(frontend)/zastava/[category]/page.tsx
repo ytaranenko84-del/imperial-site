@@ -7,6 +7,7 @@ import { CATEGORIES, byCategorySlug } from '@/lib/categories'
 import EvalForm from '@/components/EvalForm'
 import Nav from '@/components/Nav'
 import LangSwitch from '@/components/LangSwitch'
+import PromoRibbon from '@/components/PromoRibbon'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
 import '@/components/EvalForm.css'
 
@@ -93,6 +94,7 @@ export async function CategoryContent({ category, locale }: { category: string; 
         { name: t.home, href: withLocale('/', locale) },
         { name: c.name, href: withLocale(`/zastava/${c.slug}`, locale) },
       ]} />
+      <PromoRibbon locale={locale} />
       <header className="wrap top">
         <a className="brand" href={withLocale('/', locale)}>
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />

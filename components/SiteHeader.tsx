@@ -2,6 +2,7 @@ import Image from 'next/image'
 
 import Nav from '@/components/Nav'
 import LangSwitch from '@/components/LangSwitch'
+import PromoRibbon from '@/components/PromoRibbon'
 
 const NAV_LABELS = {
   uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини та акції', branches: 'Відділення', roundClock: 'Цілодобово · безкоштовно' },
@@ -12,6 +13,8 @@ const NAV_LABELS = {
 export default function SiteHeader({ hotline, locale = 'uk' }: { hotline: string; locale?: 'uk' | 'ru' }) {
   const n = NAV_LABELS[locale]
   return (
+    <>
+    <PromoRibbon locale={locale} />
     <header className="wrap top">
       <a className="brand" href="/">
         <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />
@@ -33,5 +36,6 @@ export default function SiteHeader({ hotline, locale = 'uk' }: { hotline: string
         <b>{hotline}</b><span>{n.roundClock}</span>
       </a>
     </header>
+    </>
   )
 }

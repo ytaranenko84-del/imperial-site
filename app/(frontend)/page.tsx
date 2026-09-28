@@ -8,6 +8,7 @@ import LangSwitch from '@/components/LangSwitch'
 import { FaqSchema, OrganizationSchema } from '@/components/Schema.tsx'
 import Branches from '@/components/Branches'
 import Social from '@/components/Social'
+import PromoRibbon from '@/components/PromoRibbon'
 import '@/components/Calculator.css'
 import '@/components/Branches.css'
 import '@/components/Booking.css'
@@ -238,6 +239,7 @@ export async function HomePage({ locale }: { locale: L }) {
     <>
       <OrganizationSchema branches={branches} hotline={hotline} minRate={bestRate} locale={locale} />
       <FaqSchema items={HOME_FAQ[locale]} />
+      <PromoRibbon locale={locale} />
       <header className="wrap top">
         <a className="brand" href={withLocale('/', locale)}>
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />

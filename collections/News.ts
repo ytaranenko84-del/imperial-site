@@ -69,6 +69,14 @@ export const News: CollectionConfig = {
         + 'але йде в кінець переліку, окремим блоком' },
     },
     {
+      name: 'pinnedOnHome', type: 'checkbox', label: 'Показувати стрічкою на сайті', defaultValue: false,
+      admin: {
+        condition: (_, sibling) => sibling?.kind === 'promo',
+        description: 'Вузька стрічка з’явиться над шапкою на кожній сторінці сайту, поки акція не в архіві. '
+          + 'Якщо позначено кілька акцій — показується найновіша з них.',
+      },
+    },
+    {
       name: 'oldPath', type: 'text', label: 'Адреса на старому сайті',
       admin: { readOnly: true, position: 'sidebar', description: 'Для довідки: звідки перенесено' },
     },

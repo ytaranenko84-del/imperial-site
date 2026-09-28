@@ -4,6 +4,7 @@ import { getSettings } from '@/lib/data'
 import { withLocale } from '@/lib/locale-utils.ts'
 import WatchForm from '@/components/WatchForm'
 import LangSwitch from '@/components/LangSwitch'
+import PromoRibbon from '@/components/PromoRibbon'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
 import '@/components/Watches.css'
 
@@ -151,6 +152,7 @@ export async function HodynnykyContent({ locale }: { locale: L }) {
         { name: t.home, href: withLocale('/', locale) },
         { name: t.crumb, href: withLocale('/zastava/hodynnyky', locale) },
       ]} />
+      <PromoRibbon locale={locale} />
       <header className="wwrap wtop">
         <a className="brand" href={withLocale('/', locale)}>
           <Image className="brand__mark" src="/logo.png" alt="" width={36} height={36} priority />

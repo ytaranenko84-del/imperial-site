@@ -379,6 +379,31 @@ a.soc__i:hover { color: var(--brand); border-color: var(--brand); transform: tra
 .sec--dark .goldline { margin-top: 1.1rem; }
 @media (prefers-color-scheme: dark) { .sec--dark { background: #1f232b; } }
 
+/* Стрічка активної акції над шапкою — та сама темна барва, що й .sec--dark. */
+.promo-ribbon {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  gap: 0.9rem; min-height: 2.6rem; padding: 0.5rem 2.6rem;
+  background: #101116; color: #f0eee9; font-size: 0.86rem; text-align: center; overflow: hidden;
+}
+@media (prefers-color-scheme: dark) { .promo-ribbon { background: #1f232b; } }
+.promo-ribbon b { color: var(--gold); font-weight: 700; }
+.promo-ribbon a { color: var(--gold); text-decoration: underline; white-space: nowrap; }
+.promo-ribbon a:hover { color: #fff; }
+.promo-ribbon__x {
+  position: absolute; right: 0.9rem; top: 50%; transform: translateY(-50%);
+  background: none; border: 0; color: inherit; opacity: 0.55; cursor: pointer;
+  font-size: 0.95rem; padding: 0.4rem; line-height: 1;
+}
+.promo-ribbon__x:hover { opacity: 1; }
+.promo-ribbon::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: -160px; width: 160px; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(217, 180, 95, 0.3), transparent);
+  animation: promo-ribbon-shimmer 3.4s ease-in-out infinite;
+}
+@keyframes promo-ribbon-shimmer { 0% { left: -160px; } 55% { left: 110%; } 100% { left: 110%; } }
+@media (prefers-reduced-motion: reduce) { .promo-ribbon::after { animation: none; } }
+@media (max-width: 640px) { .promo-ribbon { font-size: 0.78rem; padding: 0.5rem 2.4rem; gap: 0.5rem; } }
+
 .dcard {
   border: 1px solid rgba(217, 180, 95, 0.22); border-radius: var(--r);
   background: rgba(255, 255, 255, 0.02); padding: 1.6rem 1.5rem;

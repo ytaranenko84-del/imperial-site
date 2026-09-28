@@ -129,3 +129,24 @@ export async function getSiteData(locale: 'uk' | 'ru' = 'uk'): Promise<SiteData>
     return EMPTY
   }
 }
+
+export type ActivePromo = { slug: string; title: string }
+
+/**
+ * Акція для стрічки над шапкою. Керується прапорцем «Показувати стрічкою» —
+ * знявши його чи заархівувавши новину, стрічка зникає сама, без правок коду.
+ */
+export async function getActivePromo(locale: 'uk' | 'ru' = 'uk'): Promise<ActivePromo | null> {
+  try {
+    const payload = await getPayload({ config })
+    const { docs } = await payload.find({
+      collection: 'news', limit: 1, depth: 0, locale, overrideAccess: true,
+      sort: '-publishedAt',
+      where: { kind: { equals: 'promo' }, pinnedOnHome: { equals: true }, archived: { equals: false } },
+    })
+    const d = docs[0]
+    return d ? { slug: String(d.slug), title: String(d.title) } : null
+  } catch {
+    return null
+  }
+}
