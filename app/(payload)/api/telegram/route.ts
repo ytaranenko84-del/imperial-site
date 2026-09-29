@@ -1347,10 +1347,22 @@ async function relayAnswer(
       : undefined
     await send({ chat, text: '✓ Надіслано клієнту', replyMarkup: delKeyboard })
   } else {
-    await send({
-      chat,
-      text: `Клієнт не підключений до бота. Телефон: ${esc((doc as { phone?: string }).phone)}`,
-    })
+    const phone = String((doc as { phone?: string }).phone || '')
+    if (text) {
+      try {
+        const { sendSms } = await import('@/lib/sms.ts')
+        await sendSms(phone, text)
+        await send({ chat, text: `✓ Клієнт не в боті — надіслано SMS на ${esc(phone)}` })
+      } catch (e) {
+        payload.logger.error({ err: e, phone }, 'sms fallback failed')
+        await send({
+          chat,
+          text: `Клієнт не підключений до бота, і SMS не надіслалось. Зателефонуйте: ${esc(phone)}`,
+        })
+      }
+    } else {
+      await send({ chat, text: `Клієнт не підключений до бота. Телефон: ${esc(phone)}` })
+    }
   }
 
   /*
