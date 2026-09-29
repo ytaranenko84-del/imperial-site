@@ -59,6 +59,8 @@ export const Bookings: CollectionConfig = {
     },
     { name: 'sent', type: 'text', label: 'Надіслано в чат', admin: { readOnly: true } },
     { name: 'note', type: 'textarea', label: 'Нотатка' },
+    { name: 'assignedTo', type: 'relationship', relationTo: 'recipients', label: 'Призначено',
+      admin: { position: 'sidebar' } },
   ],
   hooks: {
     beforeChange: [

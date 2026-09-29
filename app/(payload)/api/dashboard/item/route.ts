@@ -14,8 +14,35 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const kind = text(url.searchParams.get('kind'), 20)
   const id = text(url.searchParams.get('id'), 40)
-  if (!id || (kind !== 'eval' && kind !== 'hotline')) {
+  if (!id || !['eval', 'hotline', 'booking'].includes(kind)) {
     return Response.json({ error: 'Некоректні дані' }, { status: 422 })
+  }
+
+  if (kind === 'booking') {
+    const doc = await payload.findByID({ collection: 'bookings', id, depth: 1, overrideAccess: true }).catch(() => null)
+    if (!doc) return Response.json({ error: 'Не знайдено' }, { status: 404 })
+    const d = doc as Record<string, unknown>
+    const assigned = d.assignedTo as { id?: unknown; title?: string } | null | undefined
+    const branch = d.branch as { address?: string } | null | undefined
+    return Response.json({
+      key: `booking:${id}`,
+      kind: 'booking',
+      id,
+      title: String(d.title || d.name || ''),
+      name: String(d.name || ''),
+      phone: String(d.phone || ''),
+      status: String(d.status || 'new'),
+      amount: Number(d.amount || 0),
+      purity: String(d.purity || ''),
+      weight: Number(d.weight || 0),
+      days: Number(d.days || 0),
+      tier: String(d.tier || ''),
+      branchName: branch?.address || '',
+      expiresAt: String(d.expiresAt || ''),
+      note: String(d.note || ''),
+      assignedTo: (assigned?.id as string | number | undefined) ?? null,
+      assignedToName: assigned?.title || '',
+    })
   }
 
   const collection = kind === 'eval' ? 'eval-requests' : 'hotline-chats'

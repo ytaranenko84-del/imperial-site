@@ -5,8 +5,12 @@ import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 
 const text = (v: unknown, max = 40) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
-const EVAL_STATUSES = new Set(['new', 'work', 'done', 'reject'])
-const HOTLINE_STATUSES = new Set(['new', 'work', 'done'])
+const STATUSES: Record<string, Set<string>> = {
+  eval: new Set(['new', 'work', 'done', 'reject']),
+  hotline: new Set(['new', 'work', 'done']),
+  booking: new Set(['new', 'came', 'done', 'missed']),
+}
+const COLLECTION: Record<string, string> = { eval: 'eval-requests', hotline: 'hotline-chats', booking: 'bookings' }
 
 /** Призначення «на себе» / зняття призначення і зміна статусу — без відповіді клієнту. */
 export async function POST(req: Request) {
@@ -23,10 +27,10 @@ export async function POST(req: Request) {
 
   const kind = text(body.kind, 20)
   const id = text(body.id, 40)
-  if (!id || (kind !== 'eval' && kind !== 'hotline')) {
+  if (!id || !COLLECTION[kind]) {
     return Response.json({ error: 'Некоректні дані' }, { status: 422 })
   }
-  const collection = kind === 'eval' ? 'eval-requests' : 'hotline-chats'
+  const collection = COLLECTION[kind]
 
   const data: Record<string, unknown> = {}
 
@@ -34,8 +38,7 @@ export async function POST(req: Request) {
   else if (body.assignedTo === 'none') data.assignedTo = null
 
   if (typeof body.status === 'string') {
-    const allowed = kind === 'eval' ? EVAL_STATUSES : HOTLINE_STATUSES
-    if (!allowed.has(body.status)) return Response.json({ error: 'Невірний статус' }, { status: 422 })
+    if (!STATUSES[kind].has(body.status)) return Response.json({ error: 'Невірний статус' }, { status: 422 })
     data.status = body.status
   }
 

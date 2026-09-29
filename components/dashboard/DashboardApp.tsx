@@ -3,15 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './dashboard.css'
 
+type Channel = 'eval' | 'hotline' | 'review' | 'booking'
+
 type Item = {
   key: string
-  kind: 'eval' | 'hotline'
+  kind: 'eval' | 'hotline' | 'booking'
+  channel: Channel
   id: string | number
   title: string
   phone: string
   status: string
   statusLabel: string
   snippet: string
+  unread: boolean
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -19,23 +23,32 @@ type Item = {
 
 type Detail = {
   key: string
-  kind: 'eval' | 'hotline'
+  kind: 'eval' | 'hotline' | 'booking'
   id: string | number
   title: string
   name: string
   phone: string
   status: string
-  clientChat: string
+  clientChat?: string
   category?: string
   brand?: string
   model?: string
   comment?: string
   estimate?: number
-  photos: string[]
+  photos?: string[]
   assignedTo: string | number | null
   assignedToName: string
-  answeredBy: string
-  thread: { from?: string; text?: string; at?: string }[]
+  answeredBy?: string
+  thread?: { from?: string; text?: string; at?: string }[]
+  // лише для брони
+  amount?: number
+  purity?: string
+  weight?: number
+  days?: number
+  tier?: string
+  branchName?: string
+  expiresAt?: string
+  note?: string
 }
 
 type Template = { code: string; title: string; text: string }
@@ -53,12 +66,16 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)} дн`
 }
 
-const KIND_ICON: Record<string, string> = { eval: '💍', hotline: '☎️' }
+const CHANNEL_ICON: Record<Channel, string> = { eval: '💍', hotline: '☎️', review: '⭐', booking: '📅' }
+const CHANNEL_LABEL: Record<Channel, string> = {
+  eval: 'Оцінка', hotline: 'Гаряча лінія', review: 'Відгуки', booking: 'Бронь',
+}
+const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking']
 
 export default function DashboardApp({ me }: { me: { id: string; title: string } }) {
   const [items, setItems] = useState<Item[] | null>(null)
   const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
-  const [channel, setChannel] = useState<'all' | 'eval' | 'hotline'>('all')
+  const [channel, setChannel] = useState<'all' | Channel>('all')
   const [q, setQ] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
@@ -104,7 +121,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
     else setDetail(null)
   }, [selectedKey, loadDetail])
 
-  const byChannel = (items || []).filter((it) => channel === 'all' || it.kind === channel)
+  const byChannel = (items || []).filter((it) => channel === 'all' || it.channel === channel)
 
   const filtered = byChannel.filter((it) => {
     if (filter === 'mine') return String(it.assignedTo) === String(me.id)
@@ -114,8 +131,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
 
   const mineCount = byChannel.filter((it) => String(it.assignedTo) === String(me.id)).length
   const unassignedCount = byChannel.filter((it) => !it.assignedTo).length
-  const evalCount = (items || []).filter((it) => it.kind === 'eval').length
-  const hotlineCount = (items || []).filter((it) => it.kind === 'hotline').length
+  const channelCount = (c: Channel) => (items || []).filter((it) => it.channel === c).length
 
   async function update(body: Record<string, unknown>) {
     if (!detail) return
@@ -181,9 +197,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+
+          <div className="dw-section-label">Мої списки</div>
           <div className="dw-views">
             <button type="button" className={`dw-view ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
-              <span>Усі активні</span><span className="dw-n">{items?.length ?? '—'}</span>
+              <span>Усі активні</span><span className="dw-n">{byChannel.length}</span>
             </button>
             <button type="button" className={`dw-view ${filter === 'mine' ? 'on' : ''}`} onClick={() => setFilter('mine')}>
               <span>На мені</span><span className="dw-n">{mineCount}</span>
@@ -192,6 +210,19 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
               <span>Непризначені</span><span className="dw-n">{unassignedCount}</span>
             </button>
           </div>
+
+          <div className="dw-section-label">Канал</div>
+          <div className="dw-views">
+            <button type="button" className={`dw-view ${channel === 'all' ? 'on' : ''}`} onClick={() => setChannel('all')}>
+              <span>💬 Усі канали</span><span className="dw-n">{items?.length ?? '—'}</span>
+            </button>
+            {CHANNELS.map((c) => (
+              <button type="button" key={c} className={`dw-view ${channel === c ? 'on' : ''}`} onClick={() => setChannel(c)}>
+                <span>{CHANNEL_ICON[c]} {CHANNEL_LABEL[c]}</span><span className="dw-n">{channelCount(c)}</span>
+              </button>
+            ))}
+          </div>
+
           <div className="dw-rail-bottom">
             <div className="dw-avatar">{me.title.slice(0, 1) || '?'}</div>
             <div className="dw-me"><b>{me.title}</b></div>
@@ -200,41 +231,66 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
         </aside>
 
         <section className="dw-list">
-          <div className="dw-tabs">
-            <button type="button" className={`dw-tab ${channel === 'all' ? 'on' : ''}`} onClick={() => setChannel('all')}>
-              Усі <span className="dw-n">{items?.length ?? '—'}</span>
-            </button>
-            <button type="button" className={`dw-tab ${channel === 'eval' ? 'on' : ''}`} onClick={() => setChannel('eval')}>
-              Оцінка <span className="dw-n">{evalCount}</span>
-            </button>
-            <button type="button" className={`dw-tab ${channel === 'hotline' ? 'on' : ''}`} onClick={() => setChannel('hotline')}>
-              Гаряча лінія <span className="dw-n">{hotlineCount}</span>
-            </button>
+          <div className="dw-list-head">
+            <h2>{channel === 'all' ? 'Усі канали' : `${CHANNEL_ICON[channel]} ${CHANNEL_LABEL[channel]}`}</h2>
+            <span className="dw-n">{filtered.length}</span>
           </div>
-          {(filtered).map((it) => (
-            <button
-              type="button"
-              key={it.key}
-              className={`dw-item ${selectedKey === it.key ? 'sel' : ''}`}
-              onClick={() => setSelectedKey(it.key)}
-            >
-              <div className={`dw-ico dw-ico--${it.kind}`}>{KIND_ICON[it.kind]}</div>
-              <div className="dw-item-body">
-                <div className="dw-item-top"><b>{it.title}</b><time>{timeAgo(it.updatedAt)}</time></div>
-                <div className="dw-snippet">{it.snippet}</div>
-                <div className="dw-tags">
-                  <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
-                  {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
+          <div className="dw-items">
+            {filtered.map((it) => (
+              <button
+                type="button"
+                key={it.key}
+                className={`dw-item ${selectedKey === it.key ? 'sel' : ''} ${it.unread ? 'unread' : ''}`}
+                onClick={() => setSelectedKey(it.key)}
+              >
+                <div className={`dw-ico dw-ico--${it.channel}`}>{CHANNEL_ICON[it.channel]}</div>
+                {it.unread && <div className="dw-unread-dot" />}
+                <div className="dw-item-body">
+                  <div className="dw-item-top"><b>{it.title}</b><time>{timeAgo(it.updatedAt)}</time></div>
+                  <div className="dw-snippet">{it.snippet}</div>
+                  <div className="dw-tags">
+                    <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
+                    {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
-          {items && !filtered.length && <p className="dw-empty">Немає заявок за цим фільтром</p>}
+              </button>
+            ))}
+            {items && !filtered.length && <p className="dw-empty">Немає заявок за цим фільтром</p>}
+          </div>
         </section>
 
         <section className="dw-detail">
           {!detail && <div className="dw-placeholder">Оберіть заявку зі списку</div>}
-          {detail && (
+          {detail && detail.kind === 'booking' && (
+            <>
+              <div className="dw-d-head">
+                <div>
+                  <h3>{detail.name}{detail.phone ? ` · ${detail.phone}` : ''}</h3>
+                  <p>Бронь суми{detail.branchName ? ` · ${detail.branchName}` : ''} · №{detail.id}</p>
+                </div>
+                <div className="dw-actions">
+                  <button type="button" className="dw-btn" disabled={detail.status === 'came'} onClick={() => update({ status: 'came' })}>Клієнт прийшов</button>
+                  <button type="button" className="dw-btn dw-btn--ok" disabled={detail.status === 'done'} onClick={() => update({ status: 'done' })}>Оформлено</button>
+                  <button type="button" className="dw-btn" disabled={detail.status === 'missed'} onClick={() => update({ status: 'missed' })}>Не прийшов</button>
+                </div>
+              </div>
+              <div className="dw-d-body">
+                <div className="dw-booking-card">
+                  <div className="dw-booking-sum">{(detail.amount || 0).toLocaleString('uk-UA')} ₴</div>
+                  <div className="dw-booking-row"><span>Проба / вага</span><b>{[detail.purity, detail.weight ? `${detail.weight} г` : ''].filter(Boolean).join(', ') || '—'}</b></div>
+                  <div className="dw-booking-row"><span>Термін</span><b>{detail.days ? `${detail.days} днів` : '—'}</b></div>
+                  <div className="dw-booking-row"><span>Відділення</span><b>{detail.branchName || '—'}</b></div>
+                  <div className="dw-booking-row"><span>Діє до</span><b>{detail.expiresAt ? new Date(detail.expiresAt).toLocaleString('uk-UA') : '—'}</b></div>
+                  {detail.tier && <div className="dw-booking-row"><span>Статус лояльності</span><b>{detail.tier}</b></div>}
+                  {detail.note && <div className="dw-booking-row"><span>Нотатка</span><b>{detail.note}</b></div>}
+                </div>
+                <p className="dw-hint">
+                  Бронь — не переписка з клієнтом, а разова заявка на утримання суми, тому тут немає поля відповіді.
+                </p>
+              </div>
+            </>
+          )}
+          {detail && detail.kind !== 'booking' && (
             <>
               <div className="dw-d-head">
                 <div>
@@ -262,18 +318,18 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
                   {detail.comment && (
                     <div className="dw-ctx"><b>{[detail.brand, detail.model].filter(Boolean).join(' ') || 'Опис від клієнта'}</b><span>{detail.comment}</span></div>
                   )}
-                  {detail.photos.map((url) => (
+                  {(detail.photos || []).map((url) => (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img key={url} src={url} alt="" className="dw-photo" />
                   ))}
-                  {detail.thread.map((m, i) => (
+                  {(detail.thread || []).map((m, i) => (
                     <div key={i} className={`dw-bubble ${m.from === detail.answeredBy || (m.from || '').includes('робочого столу') || (m.from || '').includes(me.title) ? 'out' : 'in'}`}>
                       {!((m.from || '').includes('робочого столу')) && m.from ? <span className="dw-who">{m.from}</span> : null}
                       {m.text}
                       {m.at && <time>{new Date(m.at).toLocaleString('uk-UA')}</time>}
                     </div>
                   ))}
-                  {!detail.thread.length && !detail.comment && <p className="dw-empty">Ще немає переписки</p>}
+                  {!(detail.thread || []).length && !detail.comment && <p className="dw-empty">Ще немає переписки</p>}
                 </div>
               </div>
 

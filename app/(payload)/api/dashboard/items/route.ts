@@ -3,20 +3,27 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 
-/** Єдина стрічка для робочого столу: заявки на оцінку + гаряча лінія в одному списку. */
+/** Єдина стрічка для робочого столу: оцінка + гаряча лінія + відгуки + бронь. */
 
 const EVAL_STATUS: Record<string, string> = { new: 'Новий', work: 'В роботі', done: 'Оцінено', reject: 'Відмова' }
 const HOTLINE_STATUS: Record<string, string> = { new: 'Нове', work: 'В роботі', done: 'Закрито' }
+const BOOKING_STATUS: Record<string, string> = {
+  new: 'Новий', came: 'Клієнт прийшов', done: 'Оформлено', missed: 'Не прийшов',
+}
+
+type Channel = 'eval' | 'hotline' | 'review' | 'booking'
 
 type Item = {
   key: string
-  kind: 'eval' | 'hotline'
+  kind: 'eval' | 'hotline' | 'booking'
+  channel: Channel
   id: string | number
   title: string
   phone: string
   status: string
   statusLabel: string
   snippet: string
+  unread: boolean
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -27,6 +34,19 @@ function lastThreadText(thread: unknown): string {
   const arr = Array.isArray(thread) ? thread : []
   const last = arr[arr.length - 1] as { text?: string } | undefined
   return String(last?.text || '').slice(0, 160)
+}
+
+/*
+ * Непрочитане — без нового поля в базі: дивимось, чи останній запис у
+ * переписці належить тому самому, хто востаннє відповідав. Щойно клієнт
+ * пише знову, останній запис уже не збігається з answeredBy — і так до
+ * наступної відповіді, яка знову зрівнює їх.
+ */
+function isUnread(thread: unknown, answeredBy: unknown): boolean {
+  const arr = Array.isArray(thread) ? thread : []
+  if (!arr.length) return true
+  const last = arr[arr.length - 1] as { from?: string }
+  return String(last?.from || '') !== String(answeredBy || '')
 }
 
 function assignedFields(d: Record<string, unknown>): { assignedTo: string | number | null; assignedToName: string } {
@@ -43,9 +63,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const q = (url.searchParams.get('q') || '').trim().toLowerCase()
 
-  const [evalRes, hotlineRes] = await Promise.all([
+  const [evalRes, hotlineRes, bookingRes] = await Promise.all([
     payload.find({ collection: 'eval-requests', limit: 200, depth: 1, overrideAccess: true, sort: '-updatedAt' }),
     payload.find({ collection: 'hotline-chats', limit: 200, depth: 1, overrideAccess: true, sort: '-updatedAt' }),
+    payload.find({ collection: 'bookings', limit: 200, depth: 1, overrideAccess: true, sort: '-updatedAt' }),
   ])
 
   const items: Item[] = []
@@ -55,12 +76,14 @@ export async function GET(req: Request) {
     items.push({
       key: `eval:${d.id}`,
       kind: 'eval',
+      channel: 'eval',
       id: d.id as string | number,
       title: String(d.title || d.name || 'Заявка'),
       phone: String(d.phone || ''),
       status: String(d.status || 'new'),
       statusLabel: EVAL_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
+      unread: isUnread(d.thread, d.answeredBy),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
@@ -69,15 +92,40 @@ export async function GET(req: Request) {
 
   for (const raw of hotlineRes.docs) {
     const d = raw as Record<string, unknown>
+    const isReview = d.kind === 'review'
     items.push({
       key: `hotline:${d.id}`,
       kind: 'hotline',
+      channel: isReview ? 'review' : 'hotline',
       id: d.id as string | number,
-      title: String(d.name || (d.kind === 'review' ? 'Відгук' : 'Гаряча лінія')),
+      title: String(d.name || (isReview ? 'Відгук' : 'Гаряча лінія')),
       phone: String(d.phone || ''),
       status: String(d.status || 'new'),
       statusLabel: HOTLINE_STATUS[String(d.status)] || String(d.status || ''),
-      snippet: lastThreadText(d.thread) || (d.kind === 'review' ? 'Відгук / скарга' : 'Гаряча лінія'),
+      snippet: lastThreadText(d.thread) || (isReview ? 'Відгук / скарга' : 'Гаряча лінія'),
+      unread: isUnread(d.thread, d.answeredBy),
+      updatedAt: String(d.updatedAt || d.createdAt || ''),
+      createdAt: String(d.createdAt || ''),
+      ...assignedFields(d),
+    })
+  }
+
+  for (const raw of bookingRes.docs) {
+    const d = raw as Record<string, unknown>
+    const branch = d.branch as { address?: string } | null
+    const amount = Number(d.amount || 0).toLocaleString('uk-UA')
+    items.push({
+      key: `booking:${d.id}`,
+      kind: 'booking',
+      channel: 'booking',
+      id: d.id as string | number,
+      title: String(d.name || 'Бронь'),
+      phone: String(d.phone || ''),
+      status: String(d.status || 'new'),
+      statusLabel: BOOKING_STATUS[String(d.status)] || String(d.status || ''),
+      snippet: `Бронь ${amount} ₴${branch?.address ? ` · ${branch.address}` : ''}`,
+      // Бронь — не переписка: немає answeredBy/thread, тож «непрочитаних» тут немає.
+      unread: false,
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
