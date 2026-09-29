@@ -29,8 +29,15 @@ export type LoyaltyTier = {
   amountTo?: number | null
 }
 
+export type City = {
+  slug: string
+  name: string
+  order: number
+}
+
 export type Branch = {
   id: string
+  city: City
   address: string
   displayAddress?: string | null
   formerName?: string | null
@@ -76,7 +83,9 @@ export async function getSiteData(locale: 'uk' | 'ru' = 'uk'): Promise<SiteData>
       payload.find({ collection: 'tariffs', limit: 100, sort: 'order', where: { active: { equals: true } }, ...opts }),
       payload.find({ collection: 'rate-tiers', limit: 50, sort: 'order', ...opts }),
       payload.find({ collection: 'loyalty-tiers', limit: 50, sort: 'order', ...opts }),
-      payload.find({ collection: 'branches', limit: 200, sort: 'slug', where: { active: { equals: true } }, ...opts }),
+      payload.find({
+        collection: 'branches', limit: 200, sort: 'slug', where: { active: { equals: true } }, ...opts, depth: 1,
+      }),
       payload.findGlobal({ slug: 'settings', ...opts }),
     ])
 
@@ -108,8 +117,14 @@ export async function getSiteData(locale: 'uk' | 'ru' = 'uk'): Promise<SiteData>
       branches: branches.docs.map((d) => {
         const s = (d.schedule || {}) as Record<string, unknown>
         const c = (d.coords || {}) as Record<string, unknown>
+        const cityDoc = (typeof d.city === 'object' ? d.city : null) as Record<string, unknown> | null
         return {
           id: String(d.id),
+          city: {
+            slug: String(cityDoc?.slug || ''),
+            name: String(cityDoc?.name || ''),
+            order: Number(cityDoc?.order ?? 0),
+          },
           address: String(d.address),
           displayAddress: (d.displayAddress as string) ?? null,
           formerName: (d.formerName as string) ?? null,

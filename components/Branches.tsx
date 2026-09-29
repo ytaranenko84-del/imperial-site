@@ -18,7 +18,7 @@ const TILES = {
 const routeUrl = (b: Branch) =>
   b.lat != null
     ? `https://www.google.com/maps/dir/?api=1&destination=${b.lat},${b.lng}`
-    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(b.address + ', Дніпро')}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(b.address + ', ' + b.city.name)}`
 
 const hours = (b: Branch, locale: 'uk' | 'ru') =>
   b.roundClock ? (locale === 'ru' ? 'круглосуточно' : 'цілодобово') : `${b.openTime || '09:00'}–${b.closeTime || '20:00'}`
@@ -39,7 +39,7 @@ const T = {
     nearest: 'Найближче до мене',
     showAll: 'Показати всі',
     geoDeny: 'Місце не визначилось — оберіть відділення зі списку',
-    city: (n: number) => <>У місті <b>Дніпро</b> — <b>{n}</b> відділень.</>,
+    city: (name: string, n: number) => <>У місті <b>{name}</b> — <b>{n}</b> відділень.</>,
   },
   ru: {
     heading: 'Найдите ближайшее',
@@ -54,7 +54,7 @@ const T = {
     nearest: 'Ближайшее ко мне',
     showAll: 'Показать все',
     geoDeny: 'Место не определилось — выберите отделение из списка',
-    city: (n: number) => <>В городе <b>Днепр</b> — <b>{n}</b> отделений.</>,
+    city: (name: string, n: number) => <>В городе <b>{name}</b> — <b>{n}</b> отделений.</>,
   },
 } satisfies Record<'uk' | 'ru', unknown>
 
@@ -87,9 +87,30 @@ export default function Branches(
   const t = T[locale]
   const shownHeading = heading === null ? null : (heading ?? t.heading)
   const shownLead = lead === null ? null : (lead ?? t.lead)
+
+  /** Міста, де є хоч одне відділення, відсортовані так само, як в адмінці. */
+  const cities = useMemo(() => {
+    const bySlug = new Map<string, { slug: string; name: string; order: number; count: number }>()
+    for (const b of branches) {
+      if (!b.city?.slug) continue
+      const cur = bySlug.get(b.city.slug)
+      if (cur) cur.count += 1
+      else bySlug.set(b.city.slug, { slug: b.city.slug, name: b.city.name, order: b.city.order, count: 1 })
+    }
+    return [...bySlug.values()].sort((a, b) => a.order - b.order)
+  }, [branches])
+
+  const [selectedCity, setSelectedCity] = useState(() => cities[0]?.slug ?? '')
+  const selectedCityInfo = cities.find((c) => c.slug === selectedCity)
+
+  const cityBranches = useMemo(
+    () => branches.filter((b) => b.city?.slug === selectedCity),
+    [branches, selectedCity],
+  )
+
   const mapped = useMemo(() => {
     const seen = new Map<string, number>()
-    return branches
+    return cityBranches
       .map((b, i) => ({ b, i }))
       .filter(({ b }) => b.lat != null && b.lng != null)
       .map(({ b, i }) => {
@@ -108,7 +129,7 @@ export default function Branches(
         ]
         return { b, i, pos }
       })
-  }, [branches])
+  }, [cityBranches])
   const firstOnMap = mapped.length ? mapped[0].i : 0
 
 
@@ -123,11 +144,11 @@ export default function Branches(
    */
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const all = branches.map((b, i) => ({ b, i }))
+    const all = cityBranches.map((b, i) => ({ b, i }))
     if (!q) return all
     return all.filter(({ b }) => [b.displayAddress, b.address, b.formerName, b.transport]
       .filter(Boolean).join(' ').toLowerCase().includes(q))
-  }, [branches, query])
+  }, [cityBranches, query])
   const activeRef = useRef(active)
   activeRef.current = active
 
@@ -143,6 +164,23 @@ export default function Branches(
     map.fitBounds(mapped.map(({ pos }) => pos), { padding: [36, 36] })
   }, [mapped])
 
+  const selectCity = useCallback((slug: string) => {
+    setSelectedCity((cur) => {
+      if (slug === cur) return cur
+      // місто змінюється — карта сама стане на нові межі (fitBounds нижче),
+      // тож не треба ще й летіти до першого відділення поверх цього
+      first.current = true
+      setQuery('')
+      return slug
+    })
+  }, [])
+
+  // ─── при зміні міста список починається з його першого відділення ───
+  useEffect(() => {
+    setActive(firstOnMap)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCity])
+
   // ─── карта вантажиться, лише коли блок наближається до екрана ───
   // Leaflet і тайли важать помітно: на головній цей блок — шостий за
   // порядком, і немає сенсу качати карту тим, хто його ще не прогорнув.
@@ -157,16 +195,39 @@ export default function Branches(
     return () => io.disconnect()
   }, [])
 
-  // ─── створення карти ───
+  // ─── створення самої карти: один раз, коли блок став видимим ───
+  const [mapReady, setMapReady] = useState(false)
   useEffect(() => {
-    if (!boxRef.current || !mapped.length || mapRef.current || !mapVisible) return
+    if (!boxRef.current || mapRef.current || !mapVisible) return
     let cancelled = false
 
     import('leaflet').then((L) => {
       if (cancelled || !boxRef.current) return
-
       const map = L.map(boxRef.current, { scrollWheelZoom: true, zoomControl: true })
       L.tileLayer(TILES.url, { attribution: TILES.attribution, maxZoom: TILES.maxZoom }).addTo(map)
+      mapRef.current = map
+      setMapReady(true)
+    })
+
+    return () => {
+      cancelled = true
+      mapRef.current?.remove()
+      mapRef.current = null
+      setMapReady(false)
+    }
+  }, [mapVisible])
+
+  // ─── мітки: перебудовуються щоразу, як міняється місто (інший набір відділень) ───
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    let cancelled = false
+
+    import('leaflet').then((L) => {
+      if (cancelled) return
+
+      markersRef.current.forEach((m) => m.remove())
+      markersRef.current.clear()
 
       // власна мітка замість стандартної: картинки Leaflet ламаються збіркою,
       // та й вигляд має збігатися з рештою сайту
@@ -180,18 +241,16 @@ export default function Branches(
         markersRef.current.set(i, m)
       })
 
-      map.fitBounds(mapped.map(({ pos }) => pos), { padding: [36, 36] })
+      if (mapped.length) map.fitBounds(mapped.map(({ pos }) => pos), { padding: [36, 36] })
       markersRef.current.get(activeRef.current)?.getElement()?.classList.add('pinwrap--on')
-      mapRef.current = map
     })
 
     return () => {
       cancelled = true
-      mapRef.current?.remove()
-      mapRef.current = null
+      markersRef.current.forEach((m) => m.remove())
       markersRef.current.clear()
     }
-  }, [mapped, mapVisible])
+  }, [mapped, mapReady, locale])
 
   // ─── вибране відділення: підсвітити мітку, підвести карту, догорнути список ───
   useEffect(() => {
@@ -241,8 +300,10 @@ export default function Branches(
     )
   }, [mapped])
 
-  if (!branches.length) return null
-  const cur = branches[active]
+  if (!cityBranches.length) return null
+  // На один кадр між зміною міста й спрацюванням ефекту нижче active ще
+  // вказує на індекс у попередньому місті — тут це підстраховка від виходу за межі.
+  const cur = cityBranches[active] ?? cityBranches[0]
 
   return (
     <section className={`sec${shownHeading ? '' : ' sec--tight'}`} id="branches">
@@ -251,6 +312,21 @@ export default function Branches(
           <div className="shead center" data-reveal>
             <h2>{shownHeading}</h2>
             {shownLead && <p>{shownLead}</p>}
+          </div>
+        )}
+
+        {cities.length > 1 && (
+          <div className="cities">
+            {cities.map((c) => (
+              <button
+                key={c.slug}
+                type="button"
+                className={`city-tab${c.slug === selectedCity ? ' city-tab--on' : ''}`}
+                onClick={() => selectCity(c.slug)}
+              >
+                {c.name} <span className="city-tab__n">{c.count}</span>
+              </button>
+            ))}
           </div>
         )}
 
@@ -264,7 +340,7 @@ export default function Branches(
             placeholder={t.searchPh}
             autoComplete="off"
           />
-          {query && <span className="brfind__n">{shown.length} {t.of} {branches.length}</span>}
+          {query && <span className="brfind__n">{shown.length} {t.of} {cityBranches.length}</span>}
         </label>
 
         <div className="brwrap">
@@ -326,7 +402,7 @@ export default function Branches(
         </div>
 
         <p className="brm">
-          {t.city(branches.length)}
+          {t.city(selectedCityInfo?.name || cur.city.name, cityBranches.length)}
         </p>
       </div>
     </section>

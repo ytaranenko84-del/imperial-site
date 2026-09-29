@@ -35,7 +35,7 @@ function branchNode(b: Branch, hotline: string, base: string, locale: 'uk' | 'ru
     address: {
       '@type': 'PostalAddress',
       streetAddress: b.address,
-      addressLocality: locale === 'ru' ? 'Днепр' : 'Дніпро',
+      addressLocality: b.city.name,
       addressCountry: 'UA',
     },
     ...(b.lat != null && b.lng != null
@@ -56,6 +56,10 @@ export function OrganizationSchema({
   includeBranches?: boolean
 }) {
   const base = siteUrl()
+  const cityNames = [...new Set(branches.map((b) => b.city?.name).filter(Boolean))] as string[]
+  const citiesLabel = cityNames.length > 1
+    ? (locale === 'ru' ? `${cityNames.length} городах` : `${cityNames.length} містах`)
+    : (cityNames[0] || (locale === 'ru' ? 'Днепре' : 'Дніпрі'))
 
   const graph = [
     {
@@ -66,12 +70,14 @@ export function OrganizationSchema({
       logo: `${base}/logo.png`,
       telephone: hotline,
       foundingDate: '2008',
-      areaServed: { '@type': 'City', name: locale === 'ru' ? 'Днепр' : 'Дніпро' },
+      areaServed: cityNames.length
+        ? cityNames.map((name) => ({ '@type': 'City', name }))
+        : { '@type': 'City', name: locale === 'ru' ? 'Днепр' : 'Дніпро' },
       sameAs: ['https://www.instagram.com/imperial_lomb'],
       description: locale === 'ru'
-        ? `Сеть ломбардов «Империал» в Днепре: ${branches.length} отделений, `
+        ? `Сеть ломбардов «Империал» в ${citiesLabel}: ${branches.length} отделений, `
           + `оценка золота, серебра и техники, ставка от ${minRate}% в день.`
-        : `Мережа ломбардів «Імперіал» у Дніпрі: ${branches.length} відділень, `
+        : `Мережа ломбардів «Імперіал» у ${citiesLabel}: ${branches.length} відділень, `
           + `оцінка золота, срібла й техніки, ставка від ${minRate}% на день.`,
     },
     ...(includeBranches ? branches.map((b) => branchNode(b, hotline, base, locale)) : []),
