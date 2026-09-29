@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   // приманка для роботів: лишаємо слід у логах, щоб не сплутати з тихо
   // втраченою справжньою заявкою (автозаповнення браузера теж сюди пише)
   if (text(body.company)) {
-    console.warn('booking honeypot triggered', { name: text(body.name, 120), phone: text(body.phone, 40) })
+    console.warn('booking honeypot triggered', { hasName: Boolean(body.name), hasPhone: Boolean(body.phone) })
     return Response.json({ ok: true })
   }
 

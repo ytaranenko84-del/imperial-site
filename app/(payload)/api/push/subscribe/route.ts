@@ -32,6 +32,12 @@ export async function POST(req: Request) {
   const ip = clientIp(req)
   const tooMany = await tooManyRequests(payload, 'push-subscribe', { ip }, { perIp: 10, perSite: 50 })
   if (tooMany) return Response.json({ error: tooMany }, { status: 429 })
+  /*
+   * Рахуємо спробу одразу, ще до пошуку одержувача — інакше невдалі підбори
+   * токена (яких за 128-бітного токена й так безнадійно багато) взагалі не
+   * рахувались би в ліміт, і перевірка вище не мала б сенсу для цього шляху.
+   */
+  await recordHit(payload, 'push-subscribe', { ip })
 
   try {
     const { docs } = await payload.find({
@@ -40,8 +46,6 @@ export async function POST(req: Request) {
     })
     const recipient = docs[0]
     if (!recipient) return Response.json({ error: 'Посилання недійсне' }, { status: 404 })
-
-    await recordHit(payload, 'push-subscribe', { ip })
 
     const data = { recipient: recipient.id, endpoint, p256dh, auth, userAgent }
 

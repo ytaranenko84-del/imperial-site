@@ -5,7 +5,9 @@ export const Users: CollectionConfig = {
   slug: 'users',
   labels: { singular: 'Користувач', plural: 'Користувачі' },
   admin: { group: 'Система', useAsTitle: 'email', defaultColumns: ['email', 'name', 'role'] },
-  auth: true,
+  // secure лише в проді: бойовий сайт завжди на HTTPS, а локальний `npm run dev`
+  // піднімається на звичайному http://localhost — Secure-кука туди просто не долетить.
+  auth: { cookies: { secure: process.env.NODE_ENV === 'production' } },
   fields: [
     { name: 'name', type: 'text', label: 'Ім’я' },
     {

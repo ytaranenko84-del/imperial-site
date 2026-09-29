@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   // інакше живий клієнт, якому автозаповнення браузера випадково підставило
   // сюди щось, отримає "успіх", а заявка мовчки зникне без жодного сліду.
   if (text(form.get('company'))) {
-    console.warn('eval-request honeypot triggered', { name: text(form.get('name'), 120), phone: text(form.get('phone'), 40) })
+    console.warn('eval-request honeypot triggered', { hasName: Boolean(form.get('name')), hasPhone: Boolean(form.get('phone')) })
     return Response.json({ ok: true })
   }
 
