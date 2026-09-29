@@ -58,6 +58,7 @@ const KIND_ICON: Record<string, string> = { eval: '💍', hotline: '☎️' }
 export default function DashboardApp({ me }: { me: { id: string; title: string } }) {
   const [items, setItems] = useState<Item[] | null>(null)
   const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
+  const [channel, setChannel] = useState<'all' | 'eval' | 'hotline'>('all')
   const [q, setQ] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
@@ -103,14 +104,18 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
     else setDetail(null)
   }, [selectedKey, loadDetail])
 
-  const filtered = (items || []).filter((it) => {
+  const byChannel = (items || []).filter((it) => channel === 'all' || it.kind === channel)
+
+  const filtered = byChannel.filter((it) => {
     if (filter === 'mine') return String(it.assignedTo) === String(me.id)
     if (filter === 'unassigned') return !it.assignedTo
     return true
   })
 
-  const mineCount = (items || []).filter((it) => String(it.assignedTo) === String(me.id)).length
-  const unassignedCount = (items || []).filter((it) => !it.assignedTo).length
+  const mineCount = byChannel.filter((it) => String(it.assignedTo) === String(me.id)).length
+  const unassignedCount = byChannel.filter((it) => !it.assignedTo).length
+  const evalCount = (items || []).filter((it) => it.kind === 'eval').length
+  const hotlineCount = (items || []).filter((it) => it.kind === 'hotline').length
 
   async function update(body: Record<string, unknown>) {
     if (!detail) return
@@ -195,6 +200,17 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
         </aside>
 
         <section className="dw-list">
+          <div className="dw-tabs">
+            <button type="button" className={`dw-tab ${channel === 'all' ? 'on' : ''}`} onClick={() => setChannel('all')}>
+              Усі <span className="dw-n">{items?.length ?? '—'}</span>
+            </button>
+            <button type="button" className={`dw-tab ${channel === 'eval' ? 'on' : ''}`} onClick={() => setChannel('eval')}>
+              Оцінка <span className="dw-n">{evalCount}</span>
+            </button>
+            <button type="button" className={`dw-tab ${channel === 'hotline' ? 'on' : ''}`} onClick={() => setChannel('hotline')}>
+              Гаряча лінія <span className="dw-n">{hotlineCount}</span>
+            </button>
+          </div>
           {(filtered).map((it) => (
             <button
               type="button"

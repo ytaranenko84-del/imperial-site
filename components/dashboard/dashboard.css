@@ -40,6 +40,18 @@
 .dw-logout { background: none; border: 0; cursor: pointer; font-size: 15px; color: var(--dim); }
 
 .dw-list { width: 340px; flex: none; border-right: 1px solid var(--line); overflow-y: auto; }
+.dw-tabs {
+  position: sticky; top: 0; z-index: 1; display: flex; gap: 4px; padding: 10px 10px 8px;
+  background: #fff; border-bottom: 1px solid var(--line);
+}
+.dw-tab {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap;
+  font-size: 12px; font-weight: 600; color: #5a5a60; background: var(--surface2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 8px; cursor: pointer; font-family: inherit;
+}
+.dw-tab.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.dw-tab .dw-n { background: rgba(0,0,0,.08); font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 6px; }
+.dw-tab.on .dw-n { background: rgba(255,255,255,.25); }
 .dw-item {
   display: flex; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); width: 100%;
   text-align: left; background: none; border-left: 3px solid transparent; cursor: pointer; font-family: inherit;
