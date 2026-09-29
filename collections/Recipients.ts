@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { randomBytes } from 'crypto'
 import { EVAL_CATEGORIES } from './EvalRequests.ts'
 
 /**
@@ -22,6 +23,17 @@ export const Recipients: CollectionConfig = {
     create: ({ req }) => Boolean(req.user),
     update: ({ req }) => Boolean(req.user),
     delete: ({ req }) => Boolean(req.user),
+  },
+  hooks: {
+    /** Токен для лінка /notify/<токен> — щоб увімкнути push-сповіщення на телефоні. */
+    beforeChange: [
+      ({ data, operation }) => {
+        if (operation === 'create' && !data.notifyToken) {
+          data.notifyToken = randomBytes(16).toString('hex')
+        }
+        return data
+      },
+    ],
   },
   fields: [
     { name: 'title', type: 'text', label: 'Хто це', required: true,
@@ -60,6 +72,14 @@ export const Recipients: CollectionConfig = {
           date: { pickerAppearance: 'dayAndTime' } } },
         { name: 'tgName', type: 'text', label: 'Обліковий запис', admin: { readOnly: true } },
       ],
+    },
+    {
+      name: 'notifyToken', type: 'text', label: 'Токен push-сповіщень',
+      admin: {
+        readOnly: true, position: 'sidebar',
+        description: 'Особисте посилання для push-сповіщень на телефон: /notify/<це значення>. '
+          + 'Відкрити на телефоні співробітника й натиснути «Увімкнути сповіщення»',
+      },
     },
   ],
 }

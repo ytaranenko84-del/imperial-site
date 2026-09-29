@@ -4,6 +4,7 @@ import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
 import { randomBytes } from 'node:crypto'
 import { evalCard, mediaUrl, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
 import { tooManyRequests } from '@/lib/ratelimit.ts'
+import { notifyRecipients } from '@/lib/push.ts'
 
 /**
  * Заявка на оцінку за фото: POST multipart/form-data зі сторінок категорій
@@ -110,13 +111,13 @@ export async function POST(req: Request) {
         const card = evalCard({ ...doc, id: doc.id }, { clientInBot: false })
         const okTo: string[] = []
         const problems: string[] = []
-        for (const [chat, title] of chats) {
+        for (const [chat, info] of chats) {
           try {
             await send({ chat, text: card })
-            okTo.push(title || chat)
+            okTo.push(info.title || chat)
           } catch (e) {
             payload.logger.error({ err: e, chat }, 'eval-request telegram')
-            problems.push(`${title || chat}: ${(e as Error).message}`)
+            problems.push(`${info.title || chat}: ${(e as Error).message}`)
             continue
           }
           // світлини окремо: якщо альбом не пройшов, картка все одно дійшла
@@ -124,13 +125,17 @@ export async function POST(req: Request) {
             await sendPhotos(chat, urls)
           } catch (e) {
             payload.logger.error({ err: e, chat }, 'eval-request photos')
-            problems.push(`${title || chat}: ${(e as Error).message}`)
+            problems.push(`${info.title || chat}: ${(e as Error).message}`)
           }
         }
         sent = [
           okTo.length ? `надіслано: ${okTo.join(', ')}` : 'не вдалося надіслати, заявка збережена',
           problems.length ? `· проблеми — ${problems.join('; ')}` : '',
         ].filter(Boolean).join(' ')
+        await notifyRecipients(payload, chats, {
+          title: 'Нова заявка на оцінку',
+          body: [brand, model].filter(Boolean).join(' ') || 'Заявка з сайту',
+        })
       }
       await payload.update({ collection: 'eval-requests', id: doc.id, data: { sent }, overrideAccess: true })
     }

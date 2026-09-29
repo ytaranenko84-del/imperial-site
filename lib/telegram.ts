@@ -262,7 +262,7 @@ export async function recipientsFor(payload: Payload, category: string) {
     where: { active: { equals: true } },
   })
 
-  const chats = new Map<string, string>()
+  const chats = new Map<string, { title: string; id: string }>()
   for (const r of docs) {
     const chat = String((r as { chatId?: string }).chatId || '')
     if (!chat) continue
@@ -276,7 +276,7 @@ export async function recipientsFor(payload: Payload, category: string) {
      */
     const wanted = kind === 'admin'
       || (kind === 'expert' && (category === 'other' || !cats.length || cats.includes(category)))
-    if (wanted) chats.set(chat, String((r as { title?: string }).title || ''))
+    if (wanted) chats.set(chat, { title: String((r as { title?: string }).title || ''), id: String(r.id) })
   }
   return chats
 }
@@ -293,11 +293,13 @@ export async function hotlineRecipients(payload: Payload) {
     overrideAccess: true,
     where: { active: { equals: true } },
   })
-  const chats = new Map<string, string>()
+  const chats = new Map<string, { title: string; id: string }>()
   for (const r of docs) {
     const chat = String((r as { chatId?: string }).chatId || '')
     const kind = String((r as { kind?: string }).kind)
-    if (chat && (kind === 'admin' || kind === 'hotline')) chats.set(chat, String((r as { title?: string }).title || ''))
+    if (chat && (kind === 'admin' || kind === 'hotline')) {
+      chats.set(chat, { title: String((r as { title?: string }).title || ''), id: String(r.id) })
+    }
   }
   return chats
 }

@@ -3,6 +3,7 @@ import config from '@payload-config'
 import { timingSafeEqual } from 'node:crypto'
 import { answerCallback, esc, normalizePhone, send, sumFromText, token } from '@/lib/telegram.ts'
 import { distanceKm } from '@/lib/geo.ts'
+import { notifyRecipients } from '@/lib/push.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -1403,6 +1404,9 @@ async function appendHotline(
     await send({ chat: target, text: text2 }).catch(() => {})
     if (photo) await sendPhoto(target, photo).catch(() => {})
   }
+  if (isFirst) {
+    await notifyRecipients(payload, chats, { title: `Нове звернення: ${label}`, body: entryText || doc.name || '' })
+  }
 
   if ((doc.status || 'new') === 'new') {
     await send({
@@ -1457,6 +1461,9 @@ async function appendOtsinka(
       ? evalCard({ ...doc, comment, photos }, { clientInBot: true })
       : `<b>Заявка №${doc.id}</b> · клієнт додав:\n${esc(text || '[фото]')}`
     await send({ chat: target, text: cardText }).catch(() => {})
+  }
+  if (isFirst) {
+    await notifyRecipients(payload, chats, { title: 'Нова заявка на оцінку', body: comment || 'Заявка з бота' })
   }
 
   if (mediaId != null) {
