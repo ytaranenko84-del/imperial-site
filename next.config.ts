@@ -94,6 +94,15 @@ const nextConfig: NextConfig = {
       // Старий лінк іде у два переходи, і це нормально.
     ]
   },
+
+  /*
+   * Лендинг Полтави — окрема статична сторінка з рекламних кампаній (Meta,
+   * Google), лежить у public/poltava/. Next віддає public-файли лише за повним
+   * іменем, тож /poltava (куди Next переводить /poltava/) веде на index.html.
+   */
+  async rewrites() {
+    return [{ source: '/poltava', destination: '/poltava/index.html' }]
+  },
 }
 
 export default withPayload(nextConfig)
