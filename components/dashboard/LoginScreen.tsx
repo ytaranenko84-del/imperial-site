@@ -1,19 +1,85 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 type Status = 'loading' | 'ready' | 'confirmed' | 'expired' | 'error'
+type Pending = { token: string; code: string; botLink: string; startedAt: number }
+
+const STORAGE_KEY = 'imperial_staff_login'
+const PENDING_TTL_MS = 9 * 60 * 1000 // трохи менше за 10-хвилинний строк токена на сервері
+
+function loadPending(): Pending | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as Pending
+    if (!p.token || Date.now() - p.startedAt > PENDING_TTL_MS) return null
+    return p
+  } catch {
+    return null
+  }
+}
+
+function savePending(p: Pending) {
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(p)) } catch { /* приватний режим тощо */ }
+}
+
+function clearPending() {
+  try { sessionStorage.removeItem(STORAGE_KEY) } catch { /* приватний режим тощо */ }
+}
 
 export default function LoginScreen() {
   const [status, setStatus] = useState<Status>('loading')
   const [botLink, setBotLink] = useState('')
   const [code, setCode] = useState('')
+  const tokenRef = useRef<string>('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const checkStatus = useCallback(async () => {
+    if (!tokenRef.current) return
+    try {
+      const r = await fetch('/api/staff-auth/status', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: tokenRef.current }),
+      })
+      if (r.status === 410 || r.status === 403) {
+        if (pollRef.current) clearInterval(pollRef.current)
+        clearPending()
+        setStatus('expired')
+        return
+      }
+      const j = await r.json().catch(() => ({}))
+      if (j.ok) {
+        if (pollRef.current) clearInterval(pollRef.current)
+        clearPending()
+        setStatus('confirmed')
+        window.location.reload()
+      }
+    } catch {
+      // мережа на секунду пропала — просто спробуємо ще раз наступним тіком
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
 
-    async function start() {
+    async function begin() {
+      /*
+       * На телефоні натискання посилання на бота відкриває Telegram, а
+       * вкладку браузера залишає у фоні — iOS часто перезавантажує таку
+       * вкладку, коли ви повертаєтесь. Без цього кожне повернення починало б
+       * новий вхід з нуля, хоча в боті вже все підтверджено.
+       */
+      const pending = loadPending()
+      if (pending) {
+        tokenRef.current = pending.token
+        setCode(pending.code)
+        setBotLink(pending.botLink)
+        setStatus('ready')
+        return
+      }
+
       try {
         const res = await fetch('/api/staff-auth/start', { method: 'POST' })
         const json = await res.json()
@@ -22,39 +88,40 @@ export default function LoginScreen() {
           setStatus('error')
           return
         }
+        tokenRef.current = json.token
         setBotLink(json.botLink || '')
         setCode(json.code || '')
+        savePending({ token: json.token, code: json.code || '', botLink: json.botLink || '', startedAt: Date.now() })
         setStatus('ready')
-
-        pollRef.current = setInterval(async () => {
-          const r = await fetch('/api/staff-auth/status', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ token: json.token }),
-          })
-          if (r.status === 410 || r.status === 403) {
-            if (pollRef.current) clearInterval(pollRef.current)
-            setStatus('expired')
-            return
-          }
-          const j = await r.json().catch(() => ({}))
-          if (j.ok) {
-            if (pollRef.current) clearInterval(pollRef.current)
-            setStatus('confirmed')
-            window.location.reload()
-          }
-        }, 2000)
       } catch {
         if (!cancelled) setStatus('error')
       }
     }
 
-    start()
-    return () => {
-      cancelled = true
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
+    begin()
+    return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    if (status !== 'ready') return
+
+    pollRef.current = setInterval(checkStatus, 2500)
+    // Повернулись із бота — перевіряємо одразу, а не чекаємо до наступного тіка.
+    const onVisible = () => { if (document.visibilityState === 'visible') checkStatus() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [status, checkStatus])
+
+  function restart() {
+    clearPending()
+    window.location.reload()
+  }
 
   return (
     <main style={S.main}>
@@ -69,7 +136,7 @@ export default function LoginScreen() {
         )}
 
         {status === 'expired' && (
-          <p style={S.dim}>Час на вхід вийшов. <a href="/dashboard" style={S.link}>Спробувати ще раз</a>.</p>
+          <p style={S.dim}>Час на вхід вийшов. <a href="#" onClick={(e) => { e.preventDefault(); restart() }} style={S.link}>Спробувати ще раз</a>.</p>
         )}
 
         {(status === 'ready' || status === 'confirmed') && (
@@ -88,6 +155,13 @@ export default function LoginScreen() {
               </p>
             )}
             <p style={S.wait}>{status === 'confirmed' ? '✓ Підтверджено, заходимо…' : 'Очікуємо підтвердження…'}</p>
+            {status === 'ready' && (
+              <p style={S.retry}>
+                <a href="#" onClick={(e) => { e.preventDefault(); checkStatus() }} style={S.link}>Перевірити зараз</a>
+                {' · '}
+                <a href="#" onClick={(e) => { e.preventDefault(); restart() }} style={S.link}>Почати заново</a>
+              </p>
+            )}
           </>
         )}
       </div>
@@ -121,5 +195,6 @@ const S: Record<string, React.CSSProperties> = {
   },
   codeNum: { color: '#e7b34a', fontSize: 22, letterSpacing: '0.12em' },
   link: { color: '#e7b34a' },
-  wait: { color: '#8a8a92', fontSize: 12.5, margin: 0 },
+  wait: { color: '#8a8a92', fontSize: 12.5, margin: '0 0 10px' },
+  retry: { fontSize: 12, margin: 0 },
 }
