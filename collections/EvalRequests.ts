@@ -151,6 +151,8 @@ export const EvalRequests: CollectionConfig = {
     { name: 'comment', type: 'textarea', label: 'Що ще варто знати' },
     { name: 'photos', type: 'upload', relationTo: 'media', hasMany: true, label: 'Фотографії' },
     { name: 'sent', type: 'text', label: 'Надіслано в чат', admin: { readOnly: true } },
+    { name: 'assignedTo', type: 'relationship', relationTo: 'recipients', label: 'Призначено',
+      admin: { position: 'sidebar' } },
     {
       type: 'row',
       fields: [

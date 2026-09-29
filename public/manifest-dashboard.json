@@ -1,0 +1,11 @@
+{
+  "name": "Імперіал — робочий стіл",
+  "short_name": "Робочий стіл",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#ffffff",
+  "theme_color": "#b90f0d",
+  "icons": [
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

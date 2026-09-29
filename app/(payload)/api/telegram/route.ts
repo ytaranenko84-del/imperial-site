@@ -1,7 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
-import { answerCallback, esc, normalizePhone, send, sumFromText, token } from '@/lib/telegram.ts'
+import { answerCallback, esc, normalizePhone, resolveTemplate, send, sumFromText, token } from '@/lib/telegram.ts'
 import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 
@@ -237,56 +237,7 @@ async function hotlineRecipientsFor(payload: Awaited<ReturnType<typeof getPayloa
   return hotlineRecipients(payload)
 }
 
-/**
- * «2. 1200-1400грн» → бере шаблон з кодом «2», підставляє «1200-1400грн»
- * замість {сума}. Код без крапки (гола цифра, що збігається з реальним
- * шаблоном) — попередження співробітнику замість тексту клієнту: інакше
- * недописане повідомлення («2», ще не встиг дописати суму) пішло б як є.
- */
-async function resolveTemplate(
-  payload: Awaited<ReturnType<typeof getPayload>>,
-  raw: string,
-): Promise<{ text: string; amount?: string } | { warn: string }> {
-  const trimmed = (raw || '').trim()
-
-  const withDot = trimmed.match(/^(\d+)\.\s*([\s\S]*)$/)
-  if (withDot) {
-    const [, code, rest] = withDot
-    const { docs } = await payload.find({
-      collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
-      where: { code: { equals: code } },
-    })
-    const tpl = docs[0] as { text?: string } | undefined
-    if (tpl?.text) {
-      /*
-       * Без «грн» сума в готовому тексті («…становитиме 1200-1500. Чекаємо…
-       * imperial24.com.ua») губиться серед інших цифр повідомлення (домен
-       * теж містить «24») — розбір суми з відповіді її просто не знаходить.
-       * Дописуємо валюту тут, а не покладаємось, що оцінювач сам її набере.
-       */
-      const rawRest = rest.trim()
-      const amount = rawRest && !/грн|₴|гривень|грв/i.test(rawRest) ? `${rawRest} грн` : rawRest
-      const text = tpl.text.includes('{сума}') ? tpl.text.split('{сума}').join(amount) : tpl.text
-      // amount лише для шаблону з сумою: підтвердження оцінювачу показує те,
-      // що написано («2000-2500 грн»), а не звужене до однієї цифри число.
-      return { text, ...(tpl.text.includes('{сума}') ? { amount } : {}) }
-    }
-    return { text: trimmed }
-  }
-
-  if (/^\d+$/.test(trimmed)) {
-    const { docs } = await payload.find({
-      collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
-      where: { code: { equals: trimmed } },
-    })
-    if (docs.length) {
-      return { warn: `Здається, ви хочете використати шаблон — не забудьте крапку після номера, `
-        + `наприклад «${esc(trimmed)}. текст».` }
-    }
-  }
-
-  return { text: raw }
-}
+// resolveTemplate() тепер спільна для бота й веб-робочого столу — див. lib/telegram.ts
 
 /** Команда /шаблони — шпаргалка з кодами, щоб не тримати їх у голові. */
 async function sendTemplatesList(payload: Awaited<ReturnType<typeof getPayload>>, chat: string) {
@@ -742,8 +693,11 @@ export async function POST(req: Request) {
   // ── натиснута інлайн-кнопка («Історія», «Видалити») ──
   if (update.callback_query) {
     try {
-      if ((update.callback_query.data || '').startsWith('del:')) {
+      const cqData = update.callback_query.data || ''
+      if (cqData.startsWith('del:')) {
         await handleDeleteCallback(payload, update.callback_query)
+      } else if (cqData.startsWith('authok:')) {
+        await handleLoginConfirm(payload, update.callback_query)
       } else {
         await handleHistoryCallback(payload, update.callback_query)
       }
@@ -815,6 +769,13 @@ export async function POST(req: Request) {
     // ── «Почати», можливо з міткою заявки ──
     if (msg.text?.startsWith('/start')) {
       const arg = msg.text.split(' ')[1] || ''
+
+      const loginMatch = /^login_([A-Za-z0-9]{8,64})$/.exec(arg)
+      if (loginMatch) {
+        await handleLoginStart(payload, chatKey, loginMatch[1])
+        return Response.json({ ok: true })
+      }
+
       const m = /^eval_(\d+)_([A-Za-z0-9]{16,})$/.exec(arg)
 
       if (m) {
@@ -929,7 +890,7 @@ async function findTelegramClient(payload: Awaited<ReturnType<typeof getPayload>
     collection: 'telegram-clients', limit: 1, depth: 0, overrideAccess: true,
     where: { chatId: { equals: chat } },
   })
-  return docs[0] as { id: string | number; phone?: string; pendingIntent?: string } | undefined
+  return docs[0] as { id: string | number; phone?: string; pendingIntent?: string; pendingLogin?: string } | undefined
 }
 
 async function getKnownPhone(payload: Awaited<ReturnType<typeof getPayload>>, chat: string): Promise<string | null> {
@@ -967,6 +928,108 @@ async function takePendingIntent(payload: Awaited<ReturnType<typeof getPayload>>
   if (!doc?.pendingIntent) return null
   await payload.update({ collection: 'telegram-clients', id: doc.id, overrideAccess: true, data: { pendingIntent: null } })
   return doc.pendingIntent as Intent
+}
+
+// ────────────────────────── вхід на робочий стіл ──────────────────────────
+
+/**
+ * Токен входу «переживає» крок «поділіться номером» так само, як і намір
+ * клієнта (pendingIntent) — окреме поле, щоб не плутати з переліком Intent.
+ */
+async function setPendingLogin(payload: Awaited<ReturnType<typeof getPayload>>, chat: string, loginToken: string) {
+  const doc = await findTelegramClient(payload, chat)
+  if (doc) {
+    await payload.update({ collection: 'telegram-clients', id: doc.id, overrideAccess: true, data: { pendingLogin: loginToken } })
+  } else {
+    await payload.create({ collection: 'telegram-clients', overrideAccess: true, data: { chatId: chat, pendingLogin: loginToken } })
+  }
+}
+
+async function takePendingLogin(payload: Awaited<ReturnType<typeof getPayload>>, chat: string): Promise<string | null> {
+  const doc = await findTelegramClient(payload, chat)
+  if (!doc?.pendingLogin) return null
+  await payload.update({ collection: 'telegram-clients', id: doc.id, overrideAccess: true, data: { pendingLogin: null } })
+  return String(doc.pendingLogin)
+}
+
+async function sendLoginConfirm(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  chat: string,
+  loginToken: string,
+  recipient: { title?: string },
+) {
+  await send({
+    chat,
+    text: `Вхід на робочий стіл «Імперіал» для <b>${esc(recipient.title || '')}</b>.`,
+    replyMarkup: { inline_keyboard: [[{ text: '✅ Підтвердити вхід', callback_data: `authok:${loginToken}` }]] },
+  })
+}
+
+/**
+ * «/start login_<токен>» із посилання на сторінці робочого столу. Особу
+ * підтверджуємо тим самим номером, що й для заявок, — жодного пароля.
+ */
+async function handleLoginStart(payload: Awaited<ReturnType<typeof getPayload>>, chat: string, loginToken: string) {
+  const { docs: logins } = await payload.find({
+    collection: 'staff-logins', limit: 1, depth: 0, overrideAccess: true,
+    where: { token: { equals: loginToken }, status: { equals: 'pending' } },
+  })
+  if (!logins.length) {
+    await send({ chat, text: 'Посилання для входу застаріле. Відкрийте сторінку робочого столу ще раз.' })
+    return
+  }
+
+  const { docs: recipients } = await payload.find({
+    collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
+    where: { chatId: { equals: chat }, active: { equals: true } },
+  })
+  const recipient = recipients[0] as { title?: string } | undefined
+
+  if (recipient) {
+    await sendLoginConfirm(payload, chat, loginToken, recipient)
+    return
+  }
+
+  await setPendingLogin(payload, chat, loginToken)
+  await send({
+    chat,
+    text: 'Щоб увійти на робочий стіл, спершу підтвердьте свій робочий номер:',
+    replyMarkup: CONTACT_KEYBOARD,
+  })
+}
+
+/** Кнопка «Підтвердити вхід» під повідомленням від handleLoginStart. */
+async function handleLoginConfirm(payload: Awaited<ReturnType<typeof getPayload>>, cq: TgCallbackQuery) {
+  const loginToken = (cq.data || '').slice('authok:'.length)
+  const chat = cq.message ? chatKeyOf(cq.message) : ''
+  if (!chat || !loginToken) return
+
+  const { docs: logins } = await payload.find({
+    collection: 'staff-logins', limit: 1, depth: 0, overrideAccess: true,
+    where: { token: { equals: loginToken }, status: { equals: 'pending' } },
+  })
+  const login = logins[0]
+  if (!login) {
+    await answerCallback(cq.id, 'Посилання застаріле')
+    return
+  }
+
+  const { docs: recipients } = await payload.find({
+    collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
+    where: { chatId: { equals: chat }, active: { equals: true } },
+  })
+  const recipient = recipients[0]
+  if (!recipient) {
+    await answerCallback(cq.id, 'Спершу поділіться номером')
+    return
+  }
+
+  await payload.update({
+    collection: 'staff-logins', id: login.id, overrideAccess: true,
+    data: { status: 'confirmed', recipient: recipient.id },
+  })
+  await answerCallback(cq.id, 'Вхід підтверджено')
+  await send({ chat, text: '✅ Вхід на робочий стіл підтверджено. Можете повернутись у браузер.' })
 }
 
 // ────────────────────────── кнопки меню ──────────────────────────
@@ -1243,6 +1306,14 @@ async function handleContact(
       collection: 'recipients', id: person.id, overrideAccess: true,
       data: { chatId: chat, linked: new Date().toISOString(), tgName: who },
     })
+
+    // Номер підтверджували заради входу на робочий стіл — одразу показуємо кнопку.
+    const pendingLoginToken = await takePendingLogin(payload, chat)
+    if (pendingLoginToken) {
+      await sendLoginConfirm(payload, chat, pendingLoginToken, person as { title?: string })
+      return
+    }
+
     await send({
       chat,
       text: `Готово, <b>${esc((person as { title?: string }).title)}</b>. Заявки надходитимуть сюди.\n`

@@ -250,6 +250,59 @@ export function sumFromText(
   return pick(numbers[0])
 }
 
+/**
+ * «2. 1200-1400грн» → бере шаблон з кодом «2», підставляє «1200-1400грн»
+ * замість {сума}. Код без крапки (гола цифра, що збігається з реальним
+ * шаблоном) — попередження співробітнику замість тексту клієнту: інакше
+ * недописане повідомлення («2», ще не встиг дописати суму) пішло б як є.
+ * Спільна для Telegram-бота й веб-робочого столу — відповідь має розбиратись
+ * однаково, з якого боку її не надіслали.
+ */
+export async function resolveTemplate(
+  payload: Payload,
+  raw: string,
+): Promise<{ text: string; amount?: string } | { warn: string }> {
+  const trimmed = (raw || '').trim()
+
+  const withDot = trimmed.match(/^(\d+)\.\s*([\s\S]*)$/)
+  if (withDot) {
+    const [, code, rest] = withDot
+    const { docs } = await payload.find({
+      collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
+      where: { code: { equals: code } },
+    })
+    const tpl = docs[0] as { text?: string } | undefined
+    if (tpl?.text) {
+      /*
+       * Без «грн» сума в готовому тексті («…становитиме 1200-1500. Чекаємо…
+       * imperial24.com.ua») губиться серед інших цифр повідомлення (домен
+       * теж містить «24») — розбір суми з відповіді її просто не знаходить.
+       * Дописуємо валюту тут, а не покладаємось, що оцінювач сам її набере.
+       */
+      const rawRest = rest.trim()
+      const amount = rawRest && !/грн|₴|гривень|грв/i.test(rawRest) ? `${rawRest} грн` : rawRest
+      const text = tpl.text.includes('{сума}') ? tpl.text.split('{сума}').join(amount) : tpl.text
+      // amount лише для шаблону з сумою: підтвердження оцінювачу показує те,
+      // що написано («2000-2500 грн»), а не звужене до однієї цифри число.
+      return { text, ...(tpl.text.includes('{сума}') ? { amount } : {}) }
+    }
+    return { text: trimmed }
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    const { docs } = await payload.find({
+      collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
+      where: { code: { equals: trimmed } },
+    })
+    if (docs.length) {
+      return { warn: `Здається, ви хочете використати шаблон — не забудьте крапку після номера, `
+        + `наприклад «${esc(trimmed)}. текст».` }
+    }
+  }
+
+  return { text: raw }
+}
+
 /** Картка броні — те, що бачить відділення. */
 export function bookingCard(doc: Record<string, unknown>, branchName: string, till: string) {
   const amount = Number(doc.amount || 0).toLocaleString('uk-UA')

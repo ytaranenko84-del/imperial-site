@@ -30,5 +30,7 @@ export const TelegramClients: CollectionConfig = {
       admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } } },
     { name: 'pendingIntent', type: 'text', label: 'Очікує після номера',
       admin: { readOnly: true, hidden: true } },
+    { name: 'pendingLogin', type: 'text', label: 'Очікує токен входу',
+      admin: { readOnly: true, hidden: true } },
   ],
 }
