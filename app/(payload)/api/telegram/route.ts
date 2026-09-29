@@ -238,6 +238,60 @@ async function hotlineRecipientsFor(payload: Awaited<ReturnType<typeof getPayloa
 }
 
 /**
+ * «2. 1200-1400грн» → бере шаблон з кодом «2», підставляє «1200-1400грн»
+ * замість {сума}. Код без крапки (гола цифра, що збігається з реальним
+ * шаблоном) — попередження співробітнику замість тексту клієнту: інакше
+ * недописане повідомлення («2», ще не встиг дописати суму) пішло б як є.
+ */
+async function resolveTemplate(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  raw: string,
+): Promise<{ text: string } | { warn: string }> {
+  const trimmed = (raw || '').trim()
+
+  const withDot = trimmed.match(/^(\d+)\.\s*([\s\S]*)$/)
+  if (withDot) {
+    const [, code, rest] = withDot
+    const { docs } = await payload.find({
+      collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
+      where: { code: { equals: code } },
+    })
+    const tpl = docs[0] as { text?: string } | undefined
+    if (tpl?.text) {
+      const text = tpl.text.includes('{сума}') ? tpl.text.split('{сума}').join(rest.trim()) : tpl.text
+      return { text }
+    }
+    return { text: trimmed }
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    const { docs } = await payload.find({
+      collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
+      where: { code: { equals: trimmed } },
+    })
+    if (docs.length) {
+      return { warn: `Здається, ви хочете використати шаблон — не забудьте крапку після номера, `
+        + `наприклад «${esc(trimmed)}. текст».` }
+    }
+  }
+
+  return { text: raw }
+}
+
+/** Команда /шаблони — шпаргалка з кодами, щоб не тримати їх у голові. */
+async function sendTemplatesList(payload: Awaited<ReturnType<typeof getPayload>>, chat: string) {
+  const { docs } = await payload.find({
+    collection: 'reply-templates', limit: 50, depth: 0, overrideAccess: true, sort: 'order',
+  })
+  if (!docs.length) {
+    await send({ chat, text: 'Шаблонів ще немає — додайте їх в адмінці.' })
+    return
+  }
+  const lines = docs.map((d) => `<b>${esc(String(d.code))}.</b> ${esc(String(d.title))}\n<i>${esc(String(d.text))}</i>`)
+  await send({ chat, text: `<b>Шаблони відповідей</b>\n(у Reply пишіть «код. текст», напр. «2. 1200-1400грн»)\n\n${lines.join('\n\n')}` })
+}
+
+/**
  * Закриває чуже відкрите звернення (гаряча лінія чи відгук) того самого чату.
  * Без цього стара розмова й далі «перехоплювала» б повідомлення клієнта,
  * призначені вже для нового контексту (заявки на оцінку абощо).
@@ -564,6 +618,47 @@ async function handleHistoryCallback(
   await answerCallback(cq.id)
 }
 
+/** Кнопка «🗑 Видалити» під підтвердженням відповіді: callback_data виду «del:eval:128». */
+async function handleDeleteCallback(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  cq: TgCallbackQuery,
+) {
+  const msg = cq.message
+  if (!msg) return
+  const chat = chatKeyOf(msg)
+
+  if (!(await isRecipientChat(payload, chat))) {
+    await answerCallback(cq.id, 'Недоступно')
+    return
+  }
+
+  const [, kind, idStr] = (cq.data || '').split(':')
+  const id = Number(idStr)
+  if (!id) { await answerCallback(cq.id); return }
+
+  const collection = kind === 'hotline' ? 'hotline-chats' : 'eval-requests'
+  const doc = await payload.findByID({ collection, id, depth: 0, overrideAccess: true }).catch(() => null)
+  const lastReply = (doc as {
+    lastReply?: { clientChat?: string; clientMsgId?: number; staffCopies?: { chat: string; msgId: number }[] } | null
+  } | null)?.lastReply
+
+  if (!lastReply?.clientMsgId) {
+    await answerCallback(cq.id, 'Вже видалено або застаріло')
+    return
+  }
+
+  const { deleteMessage } = await import('@/lib/telegram.ts')
+  if (lastReply.clientChat) {
+    await deleteMessage(lastReply.clientChat, lastReply.clientMsgId).catch(() => {})
+  }
+  for (const c of lastReply.staffCopies || []) {
+    await deleteMessage(c.chat, c.msgId).catch(() => {})
+  }
+
+  await payload.update({ collection, id, overrideAccess: true, data: { lastReply: null } })
+  await answerCallback(cq.id, '✓ Видалено у клієнта й колег')
+}
+
 async function historyBookingText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<string> {
   const { docs } = await payload.find({
     collection: 'bookings', limit: HISTORY_LIMIT, depth: 1, overrideAccess: true, sort: '-createdAt',
@@ -623,10 +718,14 @@ export async function POST(req: Request) {
     return Response.json({ ok: true })
   }
 
-  // ── натиснута інлайн-кнопка (наприклад, у «Історії») ──
+  // ── натиснута інлайн-кнопка («Історія», «Видалити») ──
   if (update.callback_query) {
     try {
-      await handleHistoryCallback(payload, update.callback_query)
+      if ((update.callback_query.data || '').startsWith('del:')) {
+        await handleDeleteCallback(payload, update.callback_query)
+      } else {
+        await handleHistoryCallback(payload, update.callback_query)
+      }
     } catch (e) {
       console.error('callback_query', e)
     }
@@ -733,6 +832,12 @@ export async function POST(req: Request) {
       } else {
         await send({ chat: chatKey, text: HELLO_NEW, replyMarkup: CONTACT_KEYBOARD })
       }
+      return Response.json({ ok: true })
+    }
+
+    // ── шпаргалка з шаблонами відповідей ──
+    if (msg.text?.trim() === '/шаблони' && (await isRecipientChat(payload, chatKey))) {
+      await sendTemplatesList(payload, chatKey)
       return Response.json({ ok: true })
     }
 
@@ -1186,7 +1291,13 @@ async function relayAnswer(
   if (!doc) return
 
   const who = displayName(msg.from, 'оцінювач')
-  const text = textOf(msg)
+  const rawText = textOf(msg)
+  const resolved = await resolveTemplate(payload, rawText)
+  if ('warn' in resolved) {
+    await send({ chat, text: resolved.warn })
+    return
+  }
+  const text = resolved.text
   const clientChat = String((doc as { clientChat?: string }).clientChat || '')
   const answeredBy = String((doc as { answeredBy?: string }).answeredBy || '')
 
@@ -1194,9 +1305,16 @@ async function relayAnswer(
     await send({ chat, text: `На цю заявку вже відповів ${esc(answeredBy)}. Ваше повідомлення теж надіслано.` })
   }
 
+  let clientMsgId: number | undefined
   if (clientChat) {
-    if (text) await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
-    await send({ chat, text: '✓ Надіслано клієнту' })
+    if (text) {
+      const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
+      clientMsgId = r.message_id
+    }
+    const delKeyboard = clientMsgId
+      ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:eval:${id}` }]] }
+      : undefined
+    await send({ chat, text: '✓ Надіслано клієнту', replyMarkup: delKeyboard })
   } else {
     await send({
       chat,
@@ -1211,14 +1329,19 @@ async function relayAnswer(
    */
   const { recipientsFor } = await import('@/lib/telegram.ts')
   const others = await recipientsFor(payload, String((doc as { category?: string }).category || ''))
+  const staffCopies: { chat: string; msgId: number }[] = []
   for (const target of others.keys()) {
     if (target === chat) continue
-    await send({
-      chat: target,
-      text: `<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(text)}`,
-    }).catch(() => {})
+    try {
+      const r = await send({
+        chat: target,
+        text: `<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(text)}`,
+      })
+      staffCopies.push({ chat: target, msgId: r.message_id })
+    } catch { /* копія не критична — головне, щоб дійшло клієнту */ }
   }
 
+  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
 
   /*
@@ -1239,6 +1362,7 @@ async function relayAnswer(
       status: 'work',
       answeredBy: who,
       answeredAt: new Date().toISOString(),
+      lastReply,
       ...(changed ? { estimate: sum } : {}),
       thread: [...thread, { from: who, text, at: new Date().toISOString() }],
     },
@@ -1265,7 +1389,13 @@ async function relayHotlineAnswer(
   if (!doc) return
 
   const who = displayName(msg.from, 'оператор')
-  const text = textOf(msg)
+  const rawText = textOf(msg)
+  const resolved = await resolveTemplate(payload, rawText)
+  if ('warn' in resolved) {
+    await send({ chat, text: resolved.warn })
+    return
+  }
+  const text = resolved.text
   const photo = pickPhoto(msg)
   const clientChat = String((doc as { clientChat?: string }).clientChat || '')
   const answeredBy = String((doc as { answeredBy?: string }).answeredBy || '')
@@ -1276,11 +1406,18 @@ async function relayHotlineAnswer(
     await send({ chat, text: `На це звернення вже відповів ${esc(answeredBy)}. Ваше повідомлення теж надіслано.` })
   }
 
+  let clientMsgId: number | undefined
   if (clientChat) {
     const { sendPhoto } = await import('@/lib/telegram.ts')
-    if (text) await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
+    if (text) {
+      const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
+      clientMsgId = r.message_id
+    }
     if (photo) await sendPhoto(clientChat, photo).catch(() => {})
-    await send({ chat, text: '✓ Надіслано клієнту' })
+    const delKeyboard = clientMsgId
+      ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:hotline:${id}` }]] }
+      : undefined
+    await send({ chat, text: '✓ Надіслано клієнту', replyMarkup: delKeyboard })
   } else {
     await send({
       chat,
@@ -1289,14 +1426,19 @@ async function relayHotlineAnswer(
   }
 
   const others = await hotlineRecipientsFor(payload)
+  const staffCopies: { chat: string; msgId: number }[] = []
   for (const target of others.keys()) {
     if (target === chat) continue
-    await send({
-      chat: target,
-      text: `<b>${esc(label)} №${id}</b> · ${esc(who)} відповів:\n${esc(text || '[фото]')}`,
-    }).catch(() => {})
+    try {
+      const r = await send({
+        chat: target,
+        text: `<b>${esc(label)} №${id}</b> · ${esc(who)} відповів:\n${esc(text || '[фото]')}`,
+      })
+      staffCopies.push({ chat: target, msgId: r.message_id })
+    } catch { /* копія не критична — головне, щоб дійшло клієнту */ }
   }
 
+  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
   await payload.update({
     collection: 'hotline-chats', id, overrideAccess: true,
@@ -1304,6 +1446,7 @@ async function relayHotlineAnswer(
       status: 'work',
       answeredBy: who,
       answeredAt: new Date().toISOString(),
+      lastReply,
       thread: [...thread, { from: who, text: text || '[фото]', at: new Date().toISOString() }],
     },
   })

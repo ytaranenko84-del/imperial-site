@@ -158,6 +158,7 @@ export const EvalRequests: CollectionConfig = {
           description: 'Порожньо — відповідь лише дзвінком або SMS' } },
         // Таємне слово в посиланні: без нього чужу заявку не «привласнити»
         { name: 'clientKey', type: 'text', label: 'Ключ посилання', admin: { hidden: true } },
+        { name: 'lastReply', type: 'json', label: 'Останнє надіслане (службове)', admin: { readOnly: true, hidden: true } },
         { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
         { name: 'groupSentAt', type: 'date', label: 'У групу надіслано', admin: { readOnly: true,
           date: { pickerAppearance: 'dayAndTime' },

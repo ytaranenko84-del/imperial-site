@@ -48,6 +48,7 @@ export const HotlineChats: CollectionConfig = {
       ],
     },
     { name: 'clientChat', type: 'text', label: 'Telegram-чат клієнта', admin: { readOnly: true, hidden: true } },
+    { name: 'lastReply', type: 'json', label: 'Останнє надіслане (службове)', admin: { readOnly: true, hidden: true } },
     { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
     { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } } },
     {
