@@ -1355,9 +1355,12 @@ async function relayAnswer(
         await send({ chat, text: `✓ Клієнт не в боті — надіслано SMS на ${esc(phone)}` })
       } catch (e) {
         payload.logger.error({ err: e, phone }, 'sms fallback failed')
+        // Причина — короткий код від TurboSMS (наприклад REQUIRED_BALANCE), не секрет:
+        // показуємо прямо тут, щоб не лізти за нею окремо в логи чи базу.
+        const reason = (e as Error).message || 'невідома помилка'
         await send({
           chat,
-          text: `Клієнт не підключений до бота, і SMS не надіслалось. Зателефонуйте: ${esc(phone)}`,
+          text: `Клієнт не підключений до бота, і SMS не надіслалось (${esc(reason)}). Зателефонуйте: ${esc(phone)}`,
         })
       }
     } else {
