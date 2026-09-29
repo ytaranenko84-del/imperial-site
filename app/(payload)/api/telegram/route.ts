@@ -258,7 +258,15 @@ async function resolveTemplate(
     })
     const tpl = docs[0] as { text?: string } | undefined
     if (tpl?.text) {
-      const text = tpl.text.includes('{сума}') ? tpl.text.split('{сума}').join(rest.trim()) : tpl.text
+      /*
+       * Без «грн» сума в готовому тексті («…становитиме 1200-1500. Чекаємо…
+       * imperial24.com.ua») губиться серед інших цифр повідомлення (домен
+       * теж містить «24») — розбір суми з відповіді її просто не знаходить.
+       * Дописуємо валюту тут, а не покладаємось, що оцінювач сам її набере.
+       */
+      const rawRest = rest.trim()
+      const amount = rawRest && !/грн|₴|гривень|грв/i.test(rawRest) ? `${rawRest} грн` : rawRest
+      const text = tpl.text.includes('{сума}') ? tpl.text.split('{сума}').join(amount) : tpl.text
       return { text }
     }
     return { text: trimmed }
