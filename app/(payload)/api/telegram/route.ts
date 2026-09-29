@@ -952,15 +952,45 @@ async function takePendingLogin(payload: Awaited<ReturnType<typeof getPayload>>,
   return String(doc.pendingLogin)
 }
 
+const LOGIN_TTL_MS = 10 * 60 * 1000
+
+function loginExpired(createdAt: unknown): boolean {
+  return Date.now() - new Date(String(createdAt || 0)).getTime() > LOGIN_TTL_MS
+}
+
+/** «Windows, Chrome» тощо — щоб співробітник міг впізнати не свій пристрій. */
+function deviceHint(ua: string): string {
+  const os = /iPhone|iPad/i.test(ua) ? 'iOS'
+    : /Android/i.test(ua) ? 'Android'
+    : /Windows/i.test(ua) ? 'Windows'
+    : /Macintosh/i.test(ua) ? 'Mac'
+    : /Linux/i.test(ua) ? 'Linux' : ''
+  const browser = /Edg\//i.test(ua) ? 'Edge'
+    : /Chrome\//i.test(ua) ? 'Chrome'
+    : /Firefox\//i.test(ua) ? 'Firefox'
+    : /Safari\//i.test(ua) ? 'Safari' : ''
+  return [os, browser].filter(Boolean).join(', ') || 'невідомий пристрій'
+}
+
+type PendingLogin = { id: string | number; code?: string; ip?: string; userAgent?: string; createdAt?: string }
+
 async function sendLoginConfirm(
-  payload: Awaited<ReturnType<typeof getPayload>>,
   chat: string,
   loginToken: string,
   recipient: { title?: string },
+  login: PendingLogin,
 ) {
   await send({
     chat,
-    text: `Вхід на робочий стіл «Імперіал» для <b>${esc(recipient.title || '')}</b>.`,
+    /*
+     * Код і пристрій — головний захист від фішингу: зловмисник теж може
+     * відкрити сторінку входу й переслати посилання на бота. Підтверджувати
+     * можна, лише коли код тут збігається з тим, що на екрані браузера.
+     */
+    text: `Вхід на робочий стіл «Імперіал» для <b>${esc(recipient.title || '')}</b>.\n`
+      + `Код підтвердження: <b>${esc(login.code || '')}</b>\n`
+      + `Пристрій: ${esc(deviceHint(login.userAgent || ''))}${login.ip ? `, IP ${esc(login.ip)}` : ''}\n\n`
+      + `Підтверджуйте, лише якщо бачите цей самий код на своєму екрані.`,
     replyMarkup: { inline_keyboard: [[{ text: '✅ Підтвердити вхід', callback_data: `authok:${loginToken}` }]] },
   })
 }
@@ -974,7 +1004,8 @@ async function handleLoginStart(payload: Awaited<ReturnType<typeof getPayload>>,
     collection: 'staff-logins', limit: 1, depth: 0, overrideAccess: true,
     where: { token: { equals: loginToken }, status: { equals: 'pending' } },
   })
-  if (!logins.length) {
+  const login = logins[0] as PendingLogin | undefined
+  if (!login || loginExpired(login.createdAt)) {
     await send({ chat, text: 'Посилання для входу застаріле. Відкрийте сторінку робочого столу ще раз.' })
     return
   }
@@ -986,7 +1017,7 @@ async function handleLoginStart(payload: Awaited<ReturnType<typeof getPayload>>,
   const recipient = recipients[0] as { title?: string } | undefined
 
   if (recipient) {
-    await sendLoginConfirm(payload, chat, loginToken, recipient)
+    await sendLoginConfirm(chat, loginToken, recipient, login)
     return
   }
 
@@ -1008,8 +1039,8 @@ async function handleLoginConfirm(payload: Awaited<ReturnType<typeof getPayload>
     collection: 'staff-logins', limit: 1, depth: 0, overrideAccess: true,
     where: { token: { equals: loginToken }, status: { equals: 'pending' } },
   })
-  const login = logins[0]
-  if (!login) {
+  const login = logins[0] as PendingLogin | undefined
+  if (!login || loginExpired(login.createdAt)) {
     await answerCallback(cq.id, 'Посилання застаріле')
     return
   }
@@ -1310,8 +1341,15 @@ async function handleContact(
     // Номер підтверджували заради входу на робочий стіл — одразу показуємо кнопку.
     const pendingLoginToken = await takePendingLogin(payload, chat)
     if (pendingLoginToken) {
-      await sendLoginConfirm(payload, chat, pendingLoginToken, person as { title?: string })
-      return
+      const { docs: pendingLogins } = await payload.find({
+        collection: 'staff-logins', limit: 1, depth: 0, overrideAccess: true,
+        where: { token: { equals: pendingLoginToken }, status: { equals: 'pending' } },
+      })
+      const login = pendingLogins[0] as PendingLogin | undefined
+      if (login && !loginExpired(login.createdAt)) {
+        await sendLoginConfirm(chat, pendingLoginToken, person as { title?: string }, login)
+        return
+      }
     }
 
     await send({

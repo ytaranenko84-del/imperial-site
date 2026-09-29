@@ -1,14 +1,14 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
-import { tokenFromCookieHeader } from '@/lib/staffAuth.ts'
+import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { mediaUrl } from '@/lib/telegram.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
 export async function GET(req: Request) {
   const payload = await getPayload({ config })
-  const me = await recipientFromToken(payload, tokenFromCookieHeader(req.headers.get('cookie')))
+  const me = await recipientFromToken(payload, readCookie(req.headers.get('cookie'), SESSION_COOKIE))
   if (!me) return Response.json({ error: 'Потрібен вхід' }, { status: 401 })
 
   const url = new URL(req.url)

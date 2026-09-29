@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-type Status = 'loading' | 'ready' | 'confirmed' | 'error'
+type Status = 'loading' | 'ready' | 'confirmed' | 'expired' | 'error'
 
 export default function LoginScreen() {
   const [status, setStatus] = useState<Status>('loading')
   const [botLink, setBotLink] = useState('')
+  const [code, setCode] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -22,10 +23,20 @@ export default function LoginScreen() {
           return
         }
         setBotLink(json.botLink || '')
+        setCode(json.code || '')
         setStatus('ready')
 
         pollRef.current = setInterval(async () => {
-          const r = await fetch(`/api/staff-auth/status?token=${json.token}`)
+          const r = await fetch('/api/staff-auth/status', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: json.token }),
+          })
+          if (r.status === 410 || r.status === 403) {
+            if (pollRef.current) clearInterval(pollRef.current)
+            setStatus('expired')
+            return
+          }
           const j = await r.json().catch(() => ({}))
           if (j.ok) {
             if (pollRef.current) clearInterval(pollRef.current)
@@ -57,6 +68,10 @@ export default function LoginScreen() {
           <p style={S.dim}>Не вдалося створити посилання для входу. Оновіть сторінку.</p>
         )}
 
+        {status === 'expired' && (
+          <p style={S.dim}>Час на вхід вийшов. <a href="/dashboard" style={S.link}>Спробувати ще раз</a>.</p>
+        )}
+
         {(status === 'ready' || status === 'confirmed') && (
           <>
             <p style={S.p}>Щоб увійти, підтвердьте це в Telegram-боті — жодного пароля вводити не треба.</p>
@@ -64,6 +79,13 @@ export default function LoginScreen() {
               <a href={botLink} style={S.btn}>Відкрити бота і підтвердити →</a>
             ) : (
               <p style={S.dim}>Бот ще не налаштований — зверніться до адміністратора.</p>
+            )}
+            {code && (
+              <p style={S.code}>
+                Код підтвердження: <b style={S.codeNum}>{code}</b>
+                <br />
+                <span style={S.dim}>Підтверджуйте в боті, лише якщо бачите там той самий код</span>
+              </p>
             )}
             <p style={S.wait}>{status === 'confirmed' ? '✓ Підтверджено, заходимо…' : 'Очікуємо підтвердження…'}</p>
           </>
@@ -91,7 +113,13 @@ const S: Record<string, React.CSSProperties> = {
   dim: { color: '#8a8a92', fontSize: 13, lineHeight: 1.5 },
   btn: {
     display: 'block', background: '#b90f0d', color: '#fff', textDecoration: 'none', borderRadius: 980,
-    padding: '14px 20px', fontSize: 14.5, fontWeight: 600, marginBottom: 14,
+    padding: '14px 20px', fontSize: 14.5, fontWeight: 600, marginBottom: 18,
   },
+  code: {
+    color: '#c9c9cf', fontSize: 13, lineHeight: 1.6, margin: '0 0 18px', background: '#101116',
+    borderRadius: 12, padding: '12px 14px',
+  },
+  codeNum: { color: '#e7b34a', fontSize: 22, letterSpacing: '0.12em' },
+  link: { color: '#e7b34a' },
   wait: { color: '#8a8a92', fontSize: 12.5, margin: 0 },
 }

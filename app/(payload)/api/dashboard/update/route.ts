@@ -1,7 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
-import { tokenFromCookieHeader } from '@/lib/staffAuth.ts'
+import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 
 const text = (v: unknown, max = 40) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
@@ -11,7 +11,7 @@ const HOTLINE_STATUSES = new Set(['new', 'work', 'done'])
 /** Призначення «на себе» / зняття призначення і зміна статусу — без відповіді клієнту. */
 export async function POST(req: Request) {
   const payload = await getPayload({ config })
-  const me = await recipientFromToken(payload, tokenFromCookieHeader(req.headers.get('cookie')))
+  const me = await recipientFromToken(payload, readCookie(req.headers.get('cookie'), SESSION_COOKIE))
   if (!me) return Response.json({ error: 'Потрібен вхід' }, { status: 401 })
 
   let body: Record<string, unknown>
