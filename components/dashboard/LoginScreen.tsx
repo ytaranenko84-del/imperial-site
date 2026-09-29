@@ -143,10 +143,14 @@ export default function LoginScreen() {
           <>
             <p style={S.p}>Щоб увійти, підтвердьте це в Telegram-боті — жодного пароля вводити не треба.</p>
             {botLink ? (
-              <a href={botLink} style={S.btn}>Відкрити бота і підтвердити →</a>
+              <a href={botLink} target="_blank" rel="noopener noreferrer" style={S.btn}>Відкрити бота і підтвердити →</a>
             ) : (
               <p style={S.dim}>Бот ще не налаштований — зверніться до адміністратора.</p>
             )}
+            <p style={S.dim}>
+              Відкриється нова вкладка або застосунок Telegram. Підтвердіть там вхід і поверніться
+              сюди (через перемикач вкладок Safari) — ця сторінка сама побачить підтвердження.
+            </p>
             {code && (
               <p style={S.code}>
                 Код підтвердження: <b style={S.codeNum}>{code}</b>
