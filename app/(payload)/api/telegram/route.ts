@@ -1,6 +1,6 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
-import { timingSafeEqual } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { answerCallback, esc, normalizePhone, send, sumFromText, token } from '@/lib/telegram.ts'
 import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
@@ -632,18 +632,29 @@ async function handleDeleteCallback(
     return
   }
 
-  const [, kind, idStr] = (cq.data || '').split(':')
+  const [, kind, idStr, key] = (cq.data || '').split(':')
   const id = Number(idStr)
   if (!id) { await answerCallback(cq.id); return }
 
   const collection = kind === 'hotline' ? 'hotline-chats' : 'eval-requests'
   const doc = await payload.findByID({ collection, id, depth: 0, overrideAccess: true }).catch(() => null)
   const lastReply = (doc as {
-    lastReply?: { clientChat?: string; clientMsgId?: number; staffCopies?: { chat: string; msgId: number }[] } | null
+    lastReply?: {
+      clientChat?: string; clientMsgId?: number; staffCopies?: { chat: string; msgId: number }[]; key?: string
+    } | null
   } | null)?.lastReply
 
   if (!lastReply?.clientMsgId) {
     await answerCallback(cq.id, 'Вже видалено або застаріло')
+    return
+  }
+  /*
+   * Хтось відповів на цю саму заявку пізніше — lastReply вже про ІНШУ
+   * відповідь. Без цієї звірки стара кнопка видалила б чужий, новіший лист,
+   * а не той, під яким її натиснули.
+   */
+  if (lastReply.key !== key) {
+    await answerCallback(cq.id, 'Ця кнопка застаріла — з’явилася новіша відповідь')
     return
   }
 
@@ -755,7 +766,24 @@ export async function POST(req: Request) {
 
     // ── поділився номером ──
     if (msg.contact) {
-      await handleContact(payload, chatKey, msg.contact.phone_number, msg.from)
+      /*
+       * Telegram дозволяє вручну вписати «контакт» із будь-яким чужим номером
+       * і надіслати його боту — це не те саме, що поділитися СВОЇМ номером.
+       * У другому випадку (кнопка «Поділитися номером» чи власний контакт із
+       * телефонної книги) Telegram сам проставляє user_id, що збігається
+       * з відправником. Без цієї звірки хтось, хто просто знає чужий робочий
+       * чи особистий номер, міг би «перехопити» чуже відділення чи роль.
+       */
+      if (msg.contact.user_id && msg.contact.user_id === msg.from?.id) {
+        await handleContact(payload, chatKey, msg.contact.phone_number, msg.from)
+      } else {
+        await send({
+          chat: chatKey,
+          text: 'Це виглядає як чужий контакт, а не ваш власний номер. '
+            + 'Натисніть кнопку «📱 Поділитися номером» — вона підтвердить саме ваш номер.',
+          replyMarkup: CONTACT_KEYBOARD,
+        })
+      }
       return Response.json({ ok: true })
     }
 
@@ -1174,6 +1202,7 @@ async function handleContact(
 
   const branches = await payload.find({
     collection: 'branches', limit: 300, depth: 0, overrideAccess: true,
+    where: { active: { equals: true } },
   })
   const branch = branches.docs.find(
     (b) => normalizePhone((b as { workPhone?: string }).workPhone) === digits,
@@ -1193,6 +1222,7 @@ async function handleContact(
 
   const recipients = await payload.find({
     collection: 'recipients', limit: 200, depth: 0, overrideAccess: true,
+    where: { active: { equals: true } },
   })
   const person = recipients.docs.find(
     (r) => normalizePhone((r as { phone?: string }).phone) === digits,
@@ -1306,13 +1336,14 @@ async function relayAnswer(
   }
 
   let clientMsgId: number | undefined
+  const replyKey = randomBytes(4).toString('hex')
   if (clientChat) {
     if (text) {
       const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
       clientMsgId = r.message_id
     }
     const delKeyboard = clientMsgId
-      ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:eval:${id}` }]] }
+      ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:eval:${id}:${replyKey}` }]] }
       : undefined
     await send({ chat, text: '✓ Надіслано клієнту', replyMarkup: delKeyboard })
   } else {
@@ -1341,7 +1372,7 @@ async function relayAnswer(
     } catch { /* копія не критична — головне, щоб дійшло клієнту */ }
   }
 
-  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies } : null
+  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
 
   /*
@@ -1407,6 +1438,7 @@ async function relayHotlineAnswer(
   }
 
   let clientMsgId: number | undefined
+  const replyKey = randomBytes(4).toString('hex')
   if (clientChat) {
     const { sendPhoto } = await import('@/lib/telegram.ts')
     if (text) {
@@ -1415,7 +1447,7 @@ async function relayHotlineAnswer(
     }
     if (photo) await sendPhoto(clientChat, photo).catch(() => {})
     const delKeyboard = clientMsgId
-      ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:hotline:${id}` }]] }
+      ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:hotline:${id}:${replyKey}` }]] }
       : undefined
     await send({ chat, text: '✓ Надіслано клієнту', replyMarkup: delKeyboard })
   } else {
@@ -1438,7 +1470,7 @@ async function relayHotlineAnswer(
     } catch { /* копія не критична — головне, щоб дійшло клієнту */ }
   }
 
-  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies } : null
+  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
   await payload.update({
     collection: 'hotline-chats', id, overrideAccess: true,

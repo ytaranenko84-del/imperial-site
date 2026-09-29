@@ -1,7 +1,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { bookingCard, send, token as botToken } from '@/lib/telegram.ts'
-import { tooManyRequests } from '@/lib/ratelimit.ts'
+import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
 
 /**
  * Бронь суми: POST JSON із вікна на головній.
@@ -39,8 +39,12 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Не вдалося прочитати заявку' }, { status: 400 })
   }
 
-  // приманка для роботів
-  if (text(body.company)) return Response.json({ ok: true })
+  // приманка для роботів: лишаємо слід у логах, щоб не сплутати з тихо
+  // втраченою справжньою заявкою (автозаповнення браузера теж сюди пише)
+  if (text(body.company)) {
+    console.warn('booking honeypot triggered', { name: text(body.name, 120), phone: text(body.phone, 40) })
+    return Response.json({ ok: true })
+  }
 
   const name = text(body.name, 120)
   const phone = text(body.phone, 40)
@@ -57,8 +61,10 @@ export async function POST(req: Request) {
   }
 
   const payload = await getPayload({ config })
-  const tooMany = await tooManyRequests(payload, 'bookings', phone, { perPhone: 5, perSite: 30 })
+  const ip = clientIp(req)
+  const tooMany = await tooManyRequests(payload, 'bookings', { phone, ip }, { perPhone: 5, perIp: 10, perSite: 30 })
   if (tooMany) return Response.json({ error: tooMany }, { status: 429 })
+  await recordHit(payload, 'bookings', { phone, ip })
 
   try {
     const branch = await payload.findByID({

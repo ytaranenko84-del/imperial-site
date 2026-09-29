@@ -3,7 +3,7 @@ import config from '@payload-config'
 import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
 import { randomBytes } from 'node:crypto'
 import { evalCard, mediaUrl, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
-import { tooManyRequests } from '@/lib/ratelimit.ts'
+import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 
 /**
@@ -27,8 +27,13 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Не вдалося прочитати форму' }, { status: 400 })
   }
 
-  // приманка для роботів: люди цього поля не бачать
-  if (text(form.get('company'))) return Response.json({ ok: true })
+  // приманка для роботів: люди цього поля не бачать. Лишаємо слід у логах —
+  // інакше живий клієнт, якому автозаповнення браузера випадково підставило
+  // сюди щось, отримає "успіх", а заявка мовчки зникне без жодного сліду.
+  if (text(form.get('company'))) {
+    console.warn('eval-request honeypot triggered', { name: text(form.get('name'), 120), phone: text(form.get('phone'), 40) })
+    return Response.json({ ok: true })
+  }
 
   const category = text(form.get('category'), 20)
   const name = text(form.get('name'), 120)
@@ -50,8 +55,10 @@ export async function POST(req: Request) {
   }
 
   const payload = await getPayload({ config })
-  const tooMany = await tooManyRequests(payload, 'eval-requests', phone, { perPhone: 5, perSite: 30 })
+  const ip = clientIp(req)
+  const tooMany = await tooManyRequests(payload, 'eval-requests', { phone, ip }, { perPhone: 5, perIp: 10, perSite: 30 })
   if (tooMany) return Response.json({ error: tooMany }, { status: 429 })
+  await recordHit(payload, 'eval-requests', { phone, ip })
 
   const files = form.getAll('photos').filter((f): f is File => f instanceof File && f.size > 0)
   if (files.length > MAX_FILES) {
