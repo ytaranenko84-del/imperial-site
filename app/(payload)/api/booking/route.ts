@@ -7,9 +7,11 @@ import { tooManyRequests } from '@/lib/ratelimit.ts'
  * Бронь суми: POST JSON із вікна на головній.
  *
  * Заявка завжди зберігається в адмінці. Якщо задано токен бота
- * (змінна TELEGRAM_BOT_TOKEN) — додатково йде у чат відділення, а коли той
- * не заданий — у загальний чат із налаштувань. Немає токена — просто
- * зберігаємо: жодна заявка не губиться через мессенджер.
+ * (змінна TELEGRAM_BOT_TOKEN) — додатково йде і в чат відділення (якщо
+ * підключений), і в загальний чат із налаштувань — одночасно, не одне
+ * замість іншого: керівник бачить усі брони, навіть коли відділення вже
+ * підключило власний номер. Немає токена — просто зберігаємо: жодна заявка
+ * не губиться через мессенджер.
  */
 
 const text = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
@@ -83,14 +85,15 @@ export async function POST(req: Request) {
       },
     })
 
-    // ── повідомлення у чат ──
+    // ── повідомлення у чат(и): відділення й загальний — обидва, якщо задані ──
     let sent = 'вимкнено: немає токена бота'
     if (botToken()) {
       const settings = await payload.findGlobal({ slug: 'settings', overrideAccess: true })
-      const chat = String((branch as { telegramChat?: string }).telegramChat
-        || (settings as { telegramChatDefault?: string }).telegramChatDefault || '')
+      const branchChat = String((branch as { telegramChat?: string }).telegramChat || '')
+      const defaultChat = String((settings as { telegramChatDefault?: string }).telegramChatDefault || '')
+      const chats = [...new Set([branchChat, defaultChat].filter(Boolean))]
 
-      if (!chat) {
+      if (!chats.length) {
         sent = 'чат не заданий'
       } else {
         const till = expiresAt.toLocaleString('uk-UA', {
@@ -102,14 +105,22 @@ export async function POST(req: Request) {
           till,
         )
 
-        try {
-          await send({ chat, text: message })
-          sent = `надіслано ${new Date().toLocaleString('uk-UA')}`
-        } catch (e) {
-          // заявка вже збережена — мессенджер не має ламати бронь
-          payload.logger.error({ err: e }, 'booking telegram failed')
-          sent = 'помилка надсилання, дивіться заявку в адмінці'
-        }
+        const results = await Promise.all(chats.map(async (chat) => {
+          try {
+            await send({ chat, text: message })
+            return true
+          } catch (e) {
+            // заявка вже збережена — мессенджер не має ламати бронь
+            payload.logger.error({ err: e, chat }, 'booking telegram failed')
+            return false
+          }
+        }))
+        const ok = results.filter(Boolean).length
+        sent = ok === chats.length
+          ? `надіслано ${new Date().toLocaleString('uk-UA')}`
+          : ok > 0
+            ? `надіслано частково (${ok} з ${chats.length}), дивіться заявку в адмінці`
+            : 'помилка надсилання, дивіться заявку в адмінці'
       }
       await payload.update({ collection: 'bookings', id: doc.id, data: { sent }, overrideAccess: true })
     }
