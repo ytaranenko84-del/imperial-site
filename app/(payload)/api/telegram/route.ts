@@ -246,7 +246,7 @@ async function hotlineRecipientsFor(payload: Awaited<ReturnType<typeof getPayloa
 async function resolveTemplate(
   payload: Awaited<ReturnType<typeof getPayload>>,
   raw: string,
-): Promise<{ text: string } | { warn: string }> {
+): Promise<{ text: string; amount?: string } | { warn: string }> {
   const trimmed = (raw || '').trim()
 
   const withDot = trimmed.match(/^(\d+)\.\s*([\s\S]*)$/)
@@ -267,7 +267,9 @@ async function resolveTemplate(
       const rawRest = rest.trim()
       const amount = rawRest && !/грн|₴|гривень|грв/i.test(rawRest) ? `${rawRest} грн` : rawRest
       const text = tpl.text.includes('{сума}') ? tpl.text.split('{сума}').join(amount) : tpl.text
-      return { text }
+      // amount лише для шаблону з сумою: підтвердження оцінювачу показує те,
+      // що написано («2000-2500 грн»), а не звужене до однієї цифри число.
+      return { text, ...(tpl.text.includes('{сума}') ? { amount } : {}) }
     }
     return { text: trimmed }
   }
@@ -1424,7 +1426,10 @@ async function relayAnswer(
 
   if (changed) {
     const label = already > 0 ? 'Виправив оцінку' : 'Записав оцінку'
-    await send({ chat, text: `${label}: <b>${sum.toLocaleString('uk-UA')} грн</b>` })
+    // Показуємо те, що фактично написано («2000-2500 грн»), а не звужене
+    // до однієї цифри число — воно лишається лише службовим полем у базі.
+    const shown = 'amount' in resolved && resolved.amount ? esc(resolved.amount) : `${sum.toLocaleString('uk-UA')} грн`
+    await send({ chat, text: `${label}: <b>${shown}</b>` })
   }
 }
 
