@@ -405,10 +405,10 @@ src="https://www.facebook.com/tr?id=2062992624325059&ev=PageView&noscript=1"
           <option value="750">750</option><option value="916">916</option><option value="999">999</option></select></label>
       </div>
       <div class="cres">
-        <div><span>Отримаєте сьогодні</span><b id="cout">до 35 000 грн</b></div>
+        <div><span>Отримаєте сьогодні</span><b id="cout">до 10 000 грн</b></div>
         <div><span>Переплата за 14 днів</span><b id="cfee">0,00 грн</b></div>
       </div>
-      <p class="cnote">До 3 500 грн за грам 585 проби, інші проби — у перерахунку. Точну суму називає оцінювач після перевірки ваги й проби при вас.</p>
+      <p class="cnote">До 3 500 грн за грам 585 проби, інші проби — у перерахунку. За акцією — сума до 10 000 грн. Точну суму називає оцінювач після перевірки ваги й проби при вас.</p>
     </div>
     <div class="hcta">
       <a class="btn btn-r" href="https://t.me/imperialpolbot" target="_blank" rel="noopener" data-tg>Закріпити суму в Telegram</a>
@@ -455,7 +455,7 @@ src="https://www.facebook.com/tr?id=2062992624325059&ev=PageView&noscript=1"
     <a class="btn btn-w" href="https://t.me/imperialpolbot" target="_blank" rel="noopener" data-tg>Закріпити суму в Telegram</a>
     <a class="btn btn-g" href="#call" data-call>Подзвонити</a>
   </div>
-  <p class="pterms">Акція діє постійно, лише для застави золота. Ставка 0,0000001% на день — перші 14 днів; з 15-го дня — від 0,6% на день. Викупити можна в будь-який день, платите лише за фактичні дні. Новий клієнт — той, хто раніше не оформлював жодних застав у мережі «Імперіал».</p>
+  <p class="pterms">Акція діє постійно, лише для застави золота на суму до 10 000 грн. Ставка 0,0000001% на день — перші 14 днів; з 15-го дня — від 0,6% на день. Викупити можна в будь-який день, платите лише за фактичні дні. Новий клієнт — той, хто раніше не оформлював жодних застав у мережі «Імперіал».</p>
 </div></div></section>
 
 <div class="mq"><div class="mqi" id="mq"></div></div>
@@ -614,7 +614,7 @@ src="https://www.facebook.com/tr?id=2062992624325059&ev=PageView&noscript=1"
     <tr><td>Мінімальний період погашення</td><td>1 день</td></tr>
     <tr><td>Максимальний період погашення</td><td>30 днів</td></tr>
     <tr><td>Відсоткова ставка</td><td>від 0,6% на день</td></tr>
-    <tr><td>Акція для нових клієнтів: застава золота, перші 14 днів</td><td>0,0000001% на день</td></tr>
+    <tr><td>Акція для нових клієнтів: застава золота до 10 000 грн, перші 14 днів</td><td>0,0000001% на день</td></tr>
   </table>
   <p>Максимальна річна ставка, що включає позиковий відсоток, а також усі витрати за рік — згідно з умовами договору. Штрафи та комісії за дострокове погашення не застосовуються.</p>
   <p>Повне товариство «Ломбард «Гарант» «Імперіал» Батура Р. В. і Компанія». Ліцензія на провадження господарської діяльності з надання фінансових послуг видана Розпорядженням Нацкомфінпослуг № 232 від 31.10.2003 р.</p>
@@ -845,6 +845,7 @@ addEventListener('load',()=>{
 /* ---------- калькулятор застави: ЦІНУ ЗА ГРАМ МІНЯТИ ТУТ ---------- */
 (function(){
   const PRICE_585 = 3500;          // грн за грам 585 проби (до)
+  const LIMIT = 10000;             // максимальна сума за акцією, грн
   const RATE_DAY = 0.0000001/100;  // 0,0000001% на день
   const DAYS = 14;
   const w=document.getElementById('cw'), p=document.getElementById('cp');
@@ -855,7 +856,7 @@ addEventListener('load',()=>{
   let sent=false;
   const calc=(user)=>{
     const g=Math.max(0,parseFloat(String(w.value).replace(',','.'))||0);
-    const sum=g*PRICE_585*(+p.value)/585;
+    const sum=Math.min(LIMIT, g*PRICE_585*(+p.value)/585);
     out.textContent='до '+fmt0(sum)+' грн';
     fee.textContent=fmt2(Math.round(sum*RATE_DAY*DAYS*100)/100)+' грн';
     if(user&&!sent){sent=true; if(typeof gtag==='function') gtag('event','calc_use',{probe:p.value}); if(typeof fbq==='function') fbq('track','CustomizeProduct');}
