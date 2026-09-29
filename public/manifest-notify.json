@@ -1,7 +1,6 @@
 {
   "name": "Імперіал — сповіщення",
   "short_name": "Імперіал",
-  "start_url": "/notify",
   "display": "standalone",
   "background_color": "#101116",
   "theme_color": "#b90f0d",
