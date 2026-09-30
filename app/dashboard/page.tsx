@@ -16,9 +16,9 @@ export default async function DashboardPage() {
   const payload = await getPayload({ config })
   const doc = await payload.findByID({
     collection: 'recipients', id: recipientId, depth: 0, overrideAccess: true,
-  }).catch(() => null) as { id: string | number; title?: string; active?: boolean } | null
+  }).catch(() => null) as { id: string | number; title?: string; active?: boolean; kind?: string } | null
 
   if (!doc || doc.active === false) return <LoginScreen />
 
-  return <DashboardApp me={{ id: String(doc.id), title: doc.title || '' }} />
+  return <DashboardApp me={{ id: String(doc.id), title: doc.title || '', kind: doc.kind || '' }} />
 }

@@ -86,6 +86,7 @@
 .dw-btn:disabled { opacity: .45; cursor: default; }
 .dw-btn--primary { background: var(--brand); color: #fff; border-color: var(--brand); }
 .dw-btn--ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+.dw-btn--danger { color: var(--brand); border-color: var(--brand); background: #fff; margin-left: auto; }
 
 .dw-booking-card { background: var(--surface2); border: 1px solid var(--line); border-radius: 14px; padding: 20px; max-width: 440px; }
 .dw-booking-sum { font-size: 26px; font-weight: 800; color: var(--brand); margin: 0 0 14px; }

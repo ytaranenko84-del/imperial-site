@@ -82,9 +82,9 @@ const CHANNEL_LABEL: Record<Channel, string> = {
 }
 const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking']
 
-export default function DashboardApp({ me }: { me: { id: string; title: string } }) {
+export default function DashboardApp({ me }: { me: { id: string; title: string; kind: string } }) {
   const [items, setItems] = useState<Item[] | null>(null)
-  const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned' | 'unread' | 'unanswered'>('all')
+  const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned' | 'unread' | 'unanswered' | 'answered'>('all')
   const [channel, setChannel] = useState<'all' | Channel>('all')
   const [q, setQ] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -96,6 +96,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
   // Лише для телефону: рейка-фільтри як шторка поверх екрана, а не колонка
   // поруч — там і так тісно. Список/деталі перемикаються повноекранно.
   const [railOpen, setRailOpen] = useState(false)
+
+  const qRef = useRef(q)
+  useEffect(() => { qRef.current = q }, [q])
 
   const loadItems = useCallback(async (query: string) => {
     const res = await fetch(`/api/dashboard/items${query ? `?q=${encodeURIComponent(query)}` : ''}`)
@@ -112,7 +115,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
     const res = await fetch(`/api/dashboard/item?kind=${kind}&id=${id}`)
     const json = await res.json().catch(() => null)
     if (json && !json.error) setDetail(json)
-  }, [])
+    // Відкриття картки саме зараз позначило її переглянутою на сервері —
+    // без цього лічильники й кольори точок зліва лишались би старими
+    // до наступного опитування (до 8 секунд).
+    loadItems(qRef.current)
+  }, [loadItems])
 
   useEffect(() => {
     loadItems(q)
@@ -141,6 +148,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
     if (filter === 'unassigned') return !it.assignedTo
     if (filter === 'unread') return it.unread
     if (filter === 'unanswered') return it.unanswered
+    if (filter === 'answered') return !it.unanswered
     return true
   })
 
@@ -148,6 +156,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
   const unassignedCount = byChannel.filter((it) => !it.assignedTo).length
   const unreadCount = byChannel.filter((it) => it.unread).length
   const unansweredCount = byChannel.filter((it) => it.unanswered).length
+  const answeredCount = byChannel.filter((it) => !it.unanswered).length
   const channelCount = (c: Channel) => (items || []).filter((it) => it.channel === c).length
 
   async function update(body: Record<string, unknown>) {
@@ -210,6 +219,22 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
     setSelectedKey(key)
   }
 
+  async function deleteCurrent() {
+    if (!detail) return
+    if (!window.confirm('Видалити заявку назавжди, разом з усією перепискою? Це незворотньо.')) return
+    const res = await fetch('/api/dashboard/delete', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: detail.kind, id: detail.id }),
+    })
+    if (res.ok) {
+      setSelectedKey(null)
+      loadItems(q)
+    } else {
+      const json = await res.json().catch(() => ({}))
+      window.alert(json.error || 'Не вдалося видалити заявку')
+    }
+  }
+
   return (
     <div className="dw">
       <div className="dw-titlebar">
@@ -248,6 +273,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
             </button>
             <button type="button" className={`dw-view ${filter === 'unanswered' ? 'on' : ''}`} onClick={() => pickFilter('unanswered')}>
               <span>🟡 Не відповідані</span><span className="dw-n">{unansweredCount}</span>
+            </button>
+            <button type="button" className={`dw-view ${filter === 'answered' ? 'on' : ''}`} onClick={() => pickFilter('answered')}>
+              <span>⚪ Відповідані</span><span className="dw-n">{answeredCount}</span>
             </button>
           </div>
 
@@ -314,6 +342,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
                   <button type="button" className="dw-btn" disabled={detail.status === 'came'} onClick={() => update({ status: 'came' })}>Клієнт прийшов</button>
                   <button type="button" className="dw-btn dw-btn--ok" disabled={detail.status === 'done'} onClick={() => update({ status: 'done' })}>Оформлено</button>
                   <button type="button" className="dw-btn" disabled={detail.status === 'missed'} onClick={() => update({ status: 'missed' })}>Не прийшов</button>
+                  {me.kind === 'admin' && (
+                    <button type="button" className="dw-btn dw-btn--danger" onClick={deleteCurrent}>🗑 Видалити</button>
+                  )}
                 </div>
               </div>
               {detail.related && detail.related.length > 0 && (
@@ -362,6 +393,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
                   )}
                   {detail.status !== 'done' && (
                     <button type="button" className="dw-btn dw-btn--primary" onClick={() => update({ status: 'done' })}>Закрити</button>
+                  )}
+                  {me.kind === 'admin' && (
+                    <button type="button" className="dw-btn dw-btn--danger" onClick={deleteCurrent}>🗑 Видалити</button>
                   )}
                 </div>
               </div>
