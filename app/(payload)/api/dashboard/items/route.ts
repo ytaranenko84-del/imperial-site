@@ -49,8 +49,11 @@ function lastThreadAt(thread: unknown, fallback: unknown): number {
 /**
  * «Не відповідані» — без окремого поля: останній запис у переписці не
  * належить тому, хто востаннє відповідав, тобто останнє слово за клієнтом.
+ * Закрите чи відхилене вручну (без жодної відповіді — сміття, дублі тощо)
+ * не має вічно висіти як «не відповідано»: рішення вже прийняте статусом.
  */
-function isUnanswered(thread: unknown, answeredBy: unknown): boolean {
+function isUnanswered(thread: unknown, answeredBy: unknown, status: unknown): boolean {
+  if (status === 'done' || status === 'reject') return false
   const arr = Array.isArray(thread) ? thread : []
   if (!arr.length) return true
   const last = arr[arr.length - 1] as { from?: string }
@@ -79,9 +82,9 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get('q') || '').trim().toLowerCase()
 
   const [evalRes, hotlineRes, bookingRes] = await Promise.all([
-    payload.find({ collection: 'eval-requests', limit: 200, depth: 1, overrideAccess: true, sort: '-updatedAt' }),
-    payload.find({ collection: 'hotline-chats', limit: 200, depth: 1, overrideAccess: true, sort: '-updatedAt' }),
-    payload.find({ collection: 'bookings', limit: 200, depth: 1, overrideAccess: true, sort: '-updatedAt' }),
+    payload.find({ collection: 'eval-requests', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'hotline-chats', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'bookings', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt' }),
   ])
 
   const items: Item[] = []
@@ -99,7 +102,7 @@ export async function GET(req: Request) {
       statusLabel: EVAL_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
       unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
-      unanswered: isUnanswered(d.thread, d.answeredBy),
+      unanswered: isUnanswered(d.thread, d.answeredBy, d.status),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
@@ -120,7 +123,7 @@ export async function GET(req: Request) {
       statusLabel: HOTLINE_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || (isReview ? 'Відгук / скарга' : 'Гаряча лінія'),
       unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
-      unanswered: isUnanswered(d.thread, d.answeredBy),
+      unanswered: isUnanswered(d.thread, d.answeredBy, d.status),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
@@ -154,7 +157,9 @@ export async function GET(req: Request) {
     ? items.filter((it) => `${it.title} ${it.phone} ${it.snippet}`.toLowerCase().includes(q))
     : items
 
-  filtered.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+  // Сортуємо за тим, коли заявка надійшла, а не коли її востаннє
+  // переглядали чи відповідали — інакше список стрибав би від власних дій.
+  filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 
   return Response.json({ me: { id: me.id, title: me.title }, items: filtered })
 }

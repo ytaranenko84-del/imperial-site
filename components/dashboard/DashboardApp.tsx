@@ -20,6 +20,7 @@ type Item = {
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
+  createdAt: string
 }
 
 type Detail = {
@@ -86,6 +87,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [items, setItems] = useState<Item[] | null>(null)
   const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned' | 'unread' | 'unanswered' | 'answered'>('all')
   const [channel, setChannel] = useState<'all' | Channel>('all')
+  const [period, setPeriod] = useState<'all' | 'today' | 'week' | 'month'>('all')
   const [q, setQ] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
@@ -141,7 +143,18 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     else setDetail(null)
   }, [selectedKey, loadDetail])
 
-  const byChannel = (items || []).filter((it) => channel === 'all' || it.channel === channel)
+  function periodCutoff(): number {
+    const now = new Date()
+    if (period === 'today') { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime() }
+    if (period === 'week') return now.getTime() - 7 * 24 * 3600_000
+    if (period === 'month') return now.getTime() - 30 * 24 * 3600_000
+    return 0
+  }
+  const cutoff = periodCutoff()
+
+  const byChannel = (items || []).filter((it) =>
+    (channel === 'all' || it.channel === channel)
+    && (cutoff === 0 || new Date(it.createdAt).getTime() >= cutoff))
 
   const filtered = byChannel.filter((it) => {
     if (filter === 'mine') return String(it.assignedTo) === String(me.id)
@@ -212,6 +225,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
   function pickChannel(c: typeof channel) {
     setChannel(c)
+    setRailOpen(false)
+  }
+
+  function pickPeriod(p: typeof period) {
+    setPeriod(p)
     setRailOpen(false)
   }
 
@@ -291,6 +309,22 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
             ))}
           </div>
 
+          <div className="dw-section-label">Період</div>
+          <div className="dw-views">
+            <button type="button" className={`dw-view ${period === 'all' ? 'on' : ''}`} onClick={() => pickPeriod('all')}>
+              <span>Увесь час</span>
+            </button>
+            <button type="button" className={`dw-view ${period === 'today' ? 'on' : ''}`} onClick={() => pickPeriod('today')}>
+              <span>Сьогодні</span>
+            </button>
+            <button type="button" className={`dw-view ${period === 'week' ? 'on' : ''}`} onClick={() => pickPeriod('week')}>
+              <span>7 днів</span>
+            </button>
+            <button type="button" className={`dw-view ${period === 'month' ? 'on' : ''}`} onClick={() => pickPeriod('month')}>
+              <span>30 днів</span>
+            </button>
+          </div>
+
           <div className="dw-rail-bottom">
             <div className="dw-avatar">{me.title.slice(0, 1) || '?'}</div>
             <div className="dw-me"><b>{me.title}</b></div>
@@ -315,7 +349,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 {it.unread && <div className="dw-dot dw-dot--unread" title="Ніхто ще не відкривав" />}
                 {!it.unread && it.unanswered && <div className="dw-dot dw-dot--unanswered" title="Переглянуто, немає відповіді" />}
                 <div className="dw-item-body">
-                  <div className="dw-item-top"><b>{it.title}</b><time>{timeAgo(it.updatedAt)}</time></div>
+                  <div className="dw-item-top"><b>{it.title}</b><time>{timeAgo(it.createdAt)}</time></div>
                   <div className="dw-snippet">{it.snippet}</div>
                   <div className="dw-tags">
                     <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
