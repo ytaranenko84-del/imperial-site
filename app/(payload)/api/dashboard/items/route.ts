@@ -40,6 +40,8 @@ type Item = {
   unread: boolean
   /** Хтось відкривав, але останнє слово — за клієнтом: відповіді ще не було. */
   unanswered: boolean
+  /** Відколи чекає на відповідь — для таймера прострочення. null, якщо вже відповіли. */
+  waitingSince: string | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -71,6 +73,13 @@ function isUnanswered(thread: unknown, answeredBy: unknown, status: unknown): bo
   if (!arr.length) return true
   const last = arr[arr.length - 1] as { from?: string }
   return String(last?.from || '') !== String(answeredBy || '')
+}
+
+/** Мить, відколи «тікає» таймер очікування — час останнього слова клієнта (чи створення, якщо переписки ще нема). */
+function waitingSinceOf(thread: unknown, createdAt: unknown, unanswered: boolean): string | null {
+  if (!unanswered) return null
+  const t = lastThreadAt(thread, createdAt)
+  return t ? new Date(t).toISOString() : null
 }
 
 /** «Непрочитане» — окреме від «не відповідано»: ніхто не відкривав відтоді, як з'явилось останнє повідомлення. */
@@ -119,6 +128,7 @@ export async function GET(req: Request) {
       // Незавершений чернетковий запис — нема чого «відповідати» чи «читати», доки клієнт нічого не написав.
       unread: isIncompleteDraft(d) ? false : isUnread(d.lastViewedAt, d.thread, d.createdAt),
       unanswered: isIncompleteDraft(d) ? false : isUnanswered(d.thread, d.answeredBy, d.status),
+      waitingSince: isIncompleteDraft(d) ? null : waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
@@ -140,6 +150,7 @@ export async function GET(req: Request) {
       snippet: lastThreadText(d.thread) || (isReview ? 'Відгук / скарга' : 'Гаряча лінія'),
       unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
       unanswered: isUnanswered(d.thread, d.answeredBy, d.status),
+      waitingSince: waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
@@ -163,6 +174,7 @@ export async function GET(req: Request) {
       // Бронь — не переписка: немає answeredBy/thread, тож ці позначки тут не застосовні.
       unread: false,
       unanswered: false,
+      waitingSince: null,
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),

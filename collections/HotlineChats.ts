@@ -66,5 +66,17 @@ export const HotlineChats: CollectionConfig = {
         { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
       ],
     },
+    {
+      name: 'notes',
+      type: 'array',
+      label: 'Нотатки команди',
+      admin: { readOnly: true, hidden: true, description: 'Внутрішнє обговорення — клієнт цього не бачить' },
+      fields: [
+        { name: 'from', type: 'text', label: 'Хто' },
+        { name: 'text', type: 'textarea', label: 'Текст' },
+        { name: 'mentions', type: 'text', label: 'Згадані (службове)' },
+        { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
+      ],
+    },
   ],
 }

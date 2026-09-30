@@ -143,6 +143,11 @@ export async function GET(req: Request) {
     assignedToName: assigned?.title || '',
     answeredBy: String(d.answeredBy || ''),
     thread: (d.thread as { from?: string; text?: string; at?: string }[] | undefined) || [],
+    notes: ((d.notes as { from?: string; text?: string; mentions?: string; at?: string }[] | undefined) || [])
+      .map((n) => ({
+        from: n.from, text: n.text, at: n.at,
+        mentions: (() => { try { return JSON.parse(n.mentions || '[]') as string[] } catch { return [] } })(),
+      })),
     related: await relatedByPhone(payload, String(d.phone || ''), key),
   })
 }

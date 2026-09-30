@@ -23,11 +23,15 @@ type Item = {
   snippet: string
   unread: boolean
   unanswered: boolean
+  waitingSince: string | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
   createdAt: string
 }
+
+type Note = { from?: string; text?: string; at?: string; mentions?: string[] }
+type Staff = { id: string; title: string }
 
 type Detail = {
   key: string
@@ -48,6 +52,7 @@ type Detail = {
   assignedToName: string
   answeredBy?: string
   thread?: { from?: string; text?: string; at?: string }[]
+  notes?: Note[]
   // лише для брони
   amount?: number
   purity?: string
@@ -96,6 +101,16 @@ function playPing() {
   } catch { /* автоплей міг заблокувати браузер до першої взаємодії — не критично */ }
 }
 
+/** Скільки чекає без відповіді — і з якого моменту фарбувати це червоним. */
+function waitingBadge(waitingSince: string | null): { label: string; level: 'ok' | 'warn' | 'late' } | null {
+  if (!waitingSince) return null
+  const ms = Date.now() - new Date(waitingSince).getTime()
+  const min = Math.floor(ms / 60000)
+  const label = min < 60 ? `${min} хв` : min < 1440 ? `${Math.floor(min / 60)} год` : `${Math.floor(min / 1440)} дн`
+  const level = min >= 240 ? 'late' : min >= 30 ? 'warn' : 'ok'
+  return { label, level }
+}
+
 function pluralUa(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10
   const mod100 = n % 100
@@ -121,7 +136,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
+  const [staff, setStaff] = useState<Staff[]>([])
+  const [composerMode, setComposerMode] = useState<'reply' | 'note'>('reply')
   const [composer, setComposer] = useState('')
+  const [noteText, setNoteText] = useState('')
+  const [noteMentions, setNoteMentions] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [note, setNote] = useState('')
   // Лише для телефону: рейка-фільтри як шторка поверх екрана, а не колонка
@@ -197,6 +216,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   useEffect(() => {
     loadItems(q)
     fetch('/api/dashboard/templates').then((r) => r.json()).then((j) => setTemplates(j.templates || [])).catch(() => {})
+    fetch('/api/dashboard/staff').then((r) => r.json()).then((j) => setStaff(j.staff || [])).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -212,6 +232,12 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   useEffect(() => {
     if (selectedKey) loadDetail(selectedKey)
     else setDetail(null)
+    // Чернетка відповіді чи нотатки для попередньої заявки не має «перетікати» в наступну.
+    setComposer('')
+    setNoteText('')
+    setNoteMentions(new Set())
+    setComposerMode('reply')
+    setNote('')
   }, [selectedKey, loadDetail])
 
   function periodCutoff(): number {
@@ -286,6 +312,43 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     setComposer(`${code}. `)
   }
 
+  function toggleMention(s: Staff) {
+    setNoteMentions((prev) => {
+      const next = new Set(prev)
+      if (next.has(s.id)) {
+        next.delete(s.id)
+      } else {
+        next.add(s.id)
+        if (!noteText.includes(`@${s.title}`)) setNoteText((t) => `${t}${t ? ' ' : ''}@${s.title} `)
+      }
+      return next
+    })
+  }
+
+  async function sendNote() {
+    if (!detail || !noteText.trim() || sending) return
+    setSending(true)
+    setNote('')
+    try {
+      const res = await fetch('/api/dashboard/note', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: detail.kind, id: detail.id, text: noteText.trim(), mentions: Array.from(noteMentions) }),
+      })
+      if (res.ok) {
+        setNoteText('')
+        setNoteMentions(new Set())
+        await Promise.all([loadDetail(detail.key), loadItems(q)])
+      } else {
+        const json = await res.json().catch(() => ({}))
+        setNote(json.error || 'Не вдалося зберегти нотатку')
+      }
+    } catch {
+      setNote('Помилка мережі')
+    } finally {
+      setSending(false)
+    }
+  }
+
   async function logout() {
     await fetch('/api/staff-auth/logout', { method: 'POST' })
     window.location.reload()
@@ -308,6 +371,19 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
   function openItem(key: string) {
     setSelectedKey(key)
+  }
+
+  /** Підсвічує «@Ім'я» в тексті нотатки — просто косметика, самі згадування рахуються окремо через чіпси. */
+  function renderNoteText(text: string) {
+    const parts = text.split(/(@[А-Яа-яЇїІіЄєҐґ'’]+)/g)
+    return parts.map((p, i) => (p.startsWith('@') ? <b key={i} className="dw-mention">{p}</b> : p))
+  }
+
+  /** Переписка й нотатки в одній стрічці за часом — нотатки просто виглядають геть інакше. */
+  function mergedTimeline(d: Detail): ({ type: 'message' | 'note' } & Note)[] {
+    const messages = (d.thread || []).map((m) => ({ type: 'message' as const, ...m }))
+    const notes = (d.notes || []).map((n) => ({ type: 'note' as const, ...n }))
+    return [...messages, ...notes].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
   }
 
   async function deleteCurrent() {
@@ -448,6 +524,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   <div className="dw-tags">
                     <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
                     {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
+                    {waitingBadge(it.waitingSince) && (
+                      <span className={`dw-tag dw-tag--wait-${waitingBadge(it.waitingSince)!.level}`}>
+                        ⏱ {waitingBadge(it.waitingSince)!.label}
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>
@@ -548,40 +629,93 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     // eslint-disable-next-line @next/next/no-img-element
                     <img key={url} src={url} alt="" className="dw-photo" />
                   ))}
-                  {(detail.thread || []).map((m, i) => (
-                    <div key={i} className={`dw-bubble ${m.from === detail.answeredBy || (m.from || '').includes('робочого столу') || (m.from || '').includes(me.title) ? 'out' : 'in'}`}>
-                      {!((m.from || '').includes('робочого столу')) && m.from ? <span className="dw-who">{m.from}</span> : null}
-                      {m.text}
-                      {m.at && <time>{new Date(m.at).toLocaleString('uk-UA')}</time>}
-                    </div>
+                  {mergedTimeline(detail).map((m, i) => (
+                    m.type === 'note' ? (
+                      <div key={i} className="dw-note-card">
+                        <div className="dw-note-tag">🔒 Нотатка · тільки команда</div>
+                        {renderNoteText(m.text || '')}
+                        <time>{m.from} · {m.at && new Date(m.at).toLocaleString('uk-UA')}</time>
+                      </div>
+                    ) : (
+                      <div key={i} className={`dw-bubble ${m.from === detail.answeredBy || (m.from || '').includes('робочого столу') || (m.from || '').includes(me.title) ? 'out' : 'in'}`}>
+                        {!((m.from || '').includes('робочого столу')) && m.from ? <span className="dw-who">{m.from}</span> : null}
+                        {m.text}
+                        {m.at && <time>{new Date(m.at).toLocaleString('uk-UA')}</time>}
+                      </div>
+                    )
                   ))}
-                  {!(detail.thread || []).length && !detail.comment && <p className="dw-empty">Ще немає переписки</p>}
+                  {!mergedTimeline(detail).length && !detail.comment && <p className="dw-empty">Ще немає переписки</p>}
                 </div>
               </div>
 
               <div className="dw-composer">
-                {templates.length > 0 && (
-                  <div className="dw-templates">
-                    {templates.map((t) => (
-                      <button type="button" key={t.code} className="dw-tpl" onClick={() => insertTemplate(t.code)}>
-                        {t.code}. {t.title}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="dw-input-row">
-                  <input
-                    value={composer}
-                    onChange={(e) => setComposer(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') sendReply() }}
-                    placeholder="Напишіть відповідь або код шаблону…"
-                  />
-                  <button type="button" className="dw-send" disabled={sending || !composer.trim()} onClick={sendReply}>➤</button>
+                <div className="dw-mode-tabs">
+                  <button type="button" className={`dw-mode-tab ${composerMode === 'reply' ? 'on-reply' : ''}`} onClick={() => setComposerMode('reply')}>
+                    💬 Відповідь клієнту
+                  </button>
+                  <button type="button" className={`dw-mode-tab ${composerMode === 'note' ? 'on-note' : ''}`} onClick={() => setComposerMode('note')}>
+                    📝 Нотатка команді
+                  </button>
                 </div>
-                {note && <p className="dw-note">{note}</p>}
-                <p className="dw-hint">
-                  {detail.clientChat ? 'Клієнт у боті — повідомлення піде в Telegram' : 'Клієнта немає в боті — піде SMS'}
-                </p>
+
+                {composerMode === 'reply' && (
+                  <>
+                    {templates.length > 0 && (
+                      <div className="dw-templates">
+                        {templates.map((t) => (
+                          <button type="button" key={t.code} className="dw-tpl" onClick={() => insertTemplate(t.code)}>
+                            {t.code}. {t.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="dw-input-row">
+                      <input
+                        value={composer}
+                        onChange={(e) => setComposer(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') sendReply() }}
+                        placeholder="Напишіть відповідь або код шаблону…"
+                      />
+                      <button type="button" className="dw-send" disabled={sending || !composer.trim()} onClick={sendReply}>➤</button>
+                    </div>
+                    {note && <p className="dw-note">{note}</p>}
+                    <p className="dw-hint">
+                      {detail.clientChat ? 'Клієнт у боті — повідомлення піде в Telegram' : 'Клієнта немає в боті — піде SMS'}
+                    </p>
+                  </>
+                )}
+
+                {composerMode === 'note' && (
+                  <>
+                    {staff.length > 0 && (
+                      <div className="dw-mentions">
+                        {staff.filter((s) => s.id !== me.id).map((s) => (
+                          <button
+                            type="button"
+                            key={s.id}
+                            className={`dw-mention-chip ${noteMentions.has(s.id) ? 'on' : ''}`}
+                            onClick={() => toggleMention(s)}
+                          >
+                            @{s.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="dw-input-row dw-input-row--note">
+                      <input
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') sendNote() }}
+                        placeholder="Нотатка для колег — клієнт цього не побачить…"
+                      />
+                      <button type="button" className="dw-send dw-send--note" disabled={sending || !noteText.trim()} onClick={sendNote}>➤</button>
+                    </div>
+                    {note && <p className="dw-note">{note}</p>}
+                    <p className="dw-hint">
+                      Бачать лише співробітники. {noteMentions.size > 0 ? 'Позначені колеги отримають повідомлення в Telegram.' : 'Оберіть колегу вище, щоб надіслати йому сповіщення.'}
+                    </p>
+                  </>
+                )}
               </div>
             </>
           )}

@@ -183,5 +183,18 @@ export const EvalRequests: CollectionConfig = {
       ],
     },
     { name: 'note', type: 'textarea', label: 'Нотатка оцінювача' },
+    {
+      name: 'notes',
+      type: 'array',
+      label: 'Нотатки команди',
+      admin: { readOnly: true, hidden: true, description: 'Внутрішнє обговорення — клієнт цього не бачить' },
+      fields: [
+        { name: 'from', type: 'text', label: 'Хто' },
+        { name: 'text', type: 'textarea', label: 'Текст' },
+        // JSON-масив id отримувачів, кого згадали — рядком, щоб не плодити ще одну вкладену таблицю
+        { name: 'mentions', type: 'text', label: 'Згадані (службове)' },
+        { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
+      ],
+    },
   ],
 }

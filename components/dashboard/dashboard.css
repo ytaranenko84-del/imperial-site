@@ -3,6 +3,7 @@
   --ink: #1d1d1f; --dim: #6e6e73; --line: #e4e4e8; --surface2: #f7f7f9;
   --ok: #1f9254; --ok-soft: #e7f6ee; --warn: #b8790a; --warn-soft: #fbf1de;
   --new: #2f6fed; --new-soft: #eaf1fe; --closed: #8a8a92; --closed-soft: #f0f0f2;
+  --note: #a8873a; --note-bg: #fdf6e3; --late: #c0392b; --late-soft: #fbe6e4;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   height: 100dvh; display: flex; flex-direction: column; background: #d8d8dc; color: var(--ink);
 }
@@ -82,6 +83,9 @@
 .dw-tag--done { background: var(--ok-soft); color: var(--ok); }
 .dw-tag--reject { background: var(--closed-soft); color: var(--closed); }
 .dw-tag--assigned { background: #f0f0f2; color: #5a5a60; }
+.dw-tag--wait-ok { background: #f0f0f2; color: var(--dim); }
+.dw-tag--wait-warn { background: var(--warn-soft); color: var(--warn); }
+.dw-tag--wait-late { background: var(--late-soft); color: var(--late); font-weight: 800; }
 
 .dw-detail { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .dw-placeholder, .dw-empty { color: var(--dim); font-size: 13px; padding: 20px; text-align: center; margin: auto; }
@@ -113,6 +117,14 @@
 .dw-bubble .dw-who { display: block; font-size: 10.5px; font-weight: 700; opacity: .7; margin-bottom: 2px; }
 .dw-bubble time { display: block; margin-top: 4px; font-size: 10px; opacity: .65; }
 
+.dw-note-card {
+  align-self: center; max-width: 78%; background: var(--note-bg); border: 1.5px dashed var(--note);
+  border-radius: 12px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5;
+}
+.dw-note-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--note); margin-bottom: 4px; }
+.dw-note-card time { display: block; margin-top: 4px; font-size: 10px; color: var(--dim); }
+.dw-mention { color: var(--brand); font-weight: 700; }
+
 .dw-composer { border-top: 1px solid var(--line); padding: 12px 20px; flex: none; }
 .dw-templates { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .dw-tpl { font-size: 11.5px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 11px; cursor: pointer; }
@@ -122,6 +134,25 @@
 .dw-send { width: 32px; height: 32px; border-radius: 10px; background: var(--brand); color: #fff; border: 0; flex: none; cursor: pointer; }
 .dw-send:disabled { opacity: .4; cursor: default; }
 .dw-note { font-size: 11.5px; color: var(--brand); margin: 8px 0 0; }
+
+.dw-mode-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.dw-mode-tab {
+  font-size: 12px; font-weight: 700; border-radius: 999px; padding: 6px 14px; border: 1px solid var(--line);
+  background: #fff; color: #5a5a60; cursor: pointer; font-family: inherit;
+}
+.dw-mode-tab.on-reply { background: var(--brand); color: #fff; border-color: var(--brand); }
+.dw-mode-tab.on-note { background: var(--note); color: #fff; border-color: var(--note); }
+
+.dw-mentions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.dw-mention-chip {
+  font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 5px 12px; border: 1px solid var(--line);
+  background: #fff; color: #5a5a60; cursor: pointer; font-family: inherit;
+}
+.dw-mention-chip.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); font-weight: 700; }
+
+.dw-input-row--note { border-color: var(--note); background: var(--note-bg); }
+.dw-input-row--note input::placeholder { color: var(--note); opacity: .75; }
+.dw-send--note { background: var(--note); }
 .dw-hint { font-size: 11px; color: var(--dim); margin: 6px 0 0; }
 
 .dw-related {
