@@ -2,9 +2,68 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
-import { mediaUrl } from '@/lib/telegram.ts'
+import { mediaUrl, normalizePhone } from '@/lib/telegram.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
+type Related = { key: string; channel: string; title: string; createdAt: string }
+
+/**
+ * Інші заявки того самого клієнта за номером телефону — щоб оцінювач бачив,
+ * що людина вже зверталась, і не оцінював той самий товар вдруге наосліп.
+ * Записи лишаються окремими (різні товари не змішуються в одну переписку) —
+ * це просто підказка-посилання.
+ */
+async function relatedByPhone(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  phone: string,
+  excludeKey: string,
+): Promise<Related[]> {
+  const digits = normalizePhone(phone)
+  if (!digits) return []
+
+  const [evalRes, hotlineRes, bookingRes] = await Promise.all([
+    payload.find({ collection: 'eval-requests', limit: 300, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'hotline-chats', limit: 300, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'bookings', limit: 300, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+  ])
+
+  const related: Related[] = []
+
+  for (const raw of evalRes.docs) {
+    const d = raw as Record<string, unknown>
+    const key = `eval:${d.id}`
+    if (key === excludeKey || normalizePhone(d.phone) !== digits) continue
+    related.push({
+      key, channel: 'eval',
+      title: [d.brand, d.model].filter(Boolean).join(' ') || String(d.title || 'Заявка'),
+      createdAt: String(d.createdAt || ''),
+    })
+  }
+
+  for (const raw of hotlineRes.docs) {
+    const d = raw as Record<string, unknown>
+    const key = `hotline:${d.id}`
+    if (key === excludeKey || normalizePhone(d.phone) !== digits) continue
+    const isReview = d.kind === 'review'
+    related.push({
+      key, channel: isReview ? 'review' : 'hotline',
+      title: isReview ? 'Відгук' : 'Гаряча лінія',
+      createdAt: String(d.createdAt || ''),
+    })
+  }
+
+  for (const raw of bookingRes.docs) {
+    const d = raw as Record<string, unknown>
+    const key = `booking:${d.id}`
+    if (key === excludeKey || normalizePhone(d.phone) !== digits) continue
+    const amount = Number(d.amount || 0).toLocaleString('uk-UA')
+    related.push({ key, channel: 'booking', title: `Бронь ${amount} ₴`, createdAt: String(d.createdAt || '') })
+  }
+
+  related.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  return related.slice(0, 10)
+}
 
 export async function GET(req: Request) {
   const payload = await getPayload({ config })
@@ -24,8 +83,9 @@ export async function GET(req: Request) {
     const d = doc as Record<string, unknown>
     const assigned = d.assignedTo as { id?: unknown; title?: string } | null | undefined
     const branch = d.branch as { address?: string } | null | undefined
+    const key = `booking:${id}`
     return Response.json({
-      key: `booking:${id}`,
+      key,
       kind: 'booking',
       id,
       title: String(d.title || d.name || ''),
@@ -42,6 +102,7 @@ export async function GET(req: Request) {
       note: String(d.note || ''),
       assignedTo: (assigned?.id as string | number | undefined) ?? null,
       assignedToName: assigned?.title || '',
+      related: await relatedByPhone(payload, String(d.phone || ''), key),
     })
   }
 
@@ -61,9 +122,10 @@ export async function GET(req: Request) {
         .map((p) => (p?.filename ? mediaUrl(p.filename) : null))
         .filter(Boolean)
     : []
+  const key = `${kind}:${id}`
 
   return Response.json({
-    key: `${kind}:${id}`,
+    key,
     kind,
     id,
     title: String(d.title || d.name || ''),
@@ -81,5 +143,6 @@ export async function GET(req: Request) {
     assignedToName: assigned?.title || '',
     answeredBy: String(d.answeredBy || ''),
     thread: (d.thread as { from?: string; text?: string; at?: string }[] | undefined) || [],
+    related: await relatedByPhone(payload, String(d.phone || ''), key),
   })
 }

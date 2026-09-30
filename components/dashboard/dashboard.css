@@ -115,6 +115,16 @@
 .dw-note { font-size: 11.5px; color: var(--brand); margin: 8px 0 0; }
 .dw-hint { font-size: 11px; color: var(--dim); margin: 6px 0 0; }
 
+.dw-related {
+  flex: none; padding: 10px 20px; background: var(--warn-soft); border-bottom: 1px solid var(--line);
+  font-size: 12px; color: var(--warn); display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.dw-related-link {
+  font-size: 11.5px; font-weight: 600; color: var(--ink); background: #fff; border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer; font-family: inherit;
+}
+.dw-related-link:hover { background: var(--brand-soft); }
+
 @media (max-width: 900px) {
   .dw-burger { display: block; }
   .dw-back { display: inline-block; }

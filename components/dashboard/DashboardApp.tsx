@@ -50,6 +50,7 @@ type Detail = {
   branchName?: string
   expiresAt?: string
   note?: string
+  related?: { key: string; channel: Channel; title: string; createdAt: string }[]
 }
 
 type Template = { code: string; title: string; text: string }
@@ -65,6 +66,14 @@ function timeAgo(iso: string): string {
   const h = Math.floor(min / 60)
   if (h < 24) return `${h} год`
   return `${Math.floor(h / 24)} дн`
+}
+
+function pluralUa(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
+  return many
 }
 
 const CHANNEL_ICON: Record<Channel, string> = { eval: '💍', hotline: '☎️', review: '⭐', booking: '📅' }
@@ -307,6 +316,16 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
                   <button type="button" className="dw-btn" disabled={detail.status === 'missed'} onClick={() => update({ status: 'missed' })}>Не прийшов</button>
                 </div>
               </div>
+              {detail.related && detail.related.length > 0 && (
+                <div className="dw-related">
+                  У цього клієнта є ще {detail.related.length} {pluralUa(detail.related.length, 'заявка', 'заявки', 'заявок')}:
+                  {detail.related.map((r) => (
+                    <button type="button" key={r.key} className="dw-related-link" onClick={() => openItem(r.key)}>
+                      {CHANNEL_ICON[r.channel]} №{r.key.split(':')[1]} · {r.title}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="dw-d-body">
                 <div className="dw-booking-card">
                   <div className="dw-booking-sum">{(detail.amount || 0).toLocaleString('uk-UA')} ₴</div>
@@ -346,6 +365,17 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
                   )}
                 </div>
               </div>
+
+              {detail.related && detail.related.length > 0 && (
+                <div className="dw-related">
+                  У цього клієнта є ще {detail.related.length} {pluralUa(detail.related.length, 'заявка', 'заявки', 'заявок')}:
+                  {detail.related.map((r) => (
+                    <button type="button" key={r.key} className="dw-related-link" onClick={() => openItem(r.key)}>
+                      {CHANNEL_ICON[r.channel]} №{r.key.split(':')[1]} · {r.title}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="dw-d-body">
                 <div className="dw-thread">
