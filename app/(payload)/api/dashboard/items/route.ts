@@ -2,6 +2,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
+import { normalizePhone } from '@/lib/telegram.ts'
 
 /** Єдина стрічка для робочого столу: оцінка + гаряча лінія + відгуки + бронь. */
 
@@ -154,15 +155,16 @@ export async function GET(req: Request) {
   }
 
   /*
-   * Телефон шукаємо окремо, за цифрами: інакше "0770770997" не знайшов би
-   * запис, збережений як "+380 77 077 09 97" — формат запису номера в базі
-   * не завжди однаковий.
+   * Телефон шукаємо за останніми дев'ятьма цифрами (як і всюди в проєкті,
+   * див. normalizePhone) — інакше "0770770997" не знайшов би той самий
+   * номер, збережений як "+380 77 077 09 97": з кодом країни рядок довший,
+   * і жоден з них не є підрядком іншого при порівнянні «як є».
    */
-  const qDigits = q.replace(/\D/g, '')
+  const qDigits = normalizePhone(q)
   const filtered = q
     ? items.filter((it) =>
         `${it.title} ${it.phone} ${it.snippet}`.toLowerCase().includes(q)
-        || (qDigits.length >= 3 && it.phone.replace(/\D/g, '').includes(qDigits)))
+        || (qDigits.length >= 3 && normalizePhone(it.phone).includes(qDigits)))
     : items
 
   // Сортуємо за тим, коли заявка надійшла, а не коли її востаннє
