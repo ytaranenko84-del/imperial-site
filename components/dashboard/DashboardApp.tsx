@@ -171,6 +171,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const unansweredCount = byChannel.filter((it) => it.unanswered).length
   const answeredCount = byChannel.filter((it) => !it.unanswered).length
   const channelCount = (c: Channel) => (items || []).filter((it) => it.channel === c).length
+  const channelUnreadCount = (c: Channel) => (items || []).filter((it) => it.channel === c && it.unread).length
+  const totalUnread = (items || []).filter((it) => it.unread).length
 
   async function update(body: Record<string, unknown>) {
     if (!detail) return
@@ -256,8 +258,10 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   return (
     <div className="dw">
       <div className="dw-titlebar">
-        <button type="button" className="dw-burger" onClick={() => setRailOpen(true)} aria-label="Фільтри">☰</button>
-        <div className="dw-appname"><span className="dw-dot" /> Імперіал · Робочий стіл</div>
+        <button type="button" className="dw-burger" onClick={() => setRailOpen(true)} aria-label="Фільтри">
+          ☰{totalUnread > 0 && <span className="dw-burger-dot" />}
+        </button>
+        <div className="dw-appname"><span className="dw-logo-dot" /> Імперіал · Робочий стіл</div>
       </div>
 
       <div className={`dw-body ${selectedKey ? 'has-selection' : ''}`}>
@@ -304,7 +308,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
             </button>
             {CHANNELS.map((c) => (
               <button type="button" key={c} className={`dw-view ${channel === c ? 'on' : ''}`} onClick={() => pickChannel(c)}>
-                <span>{CHANNEL_ICON[c]} {CHANNEL_LABEL[c]}</span><span className="dw-n">{channelCount(c)}</span>
+                <span>
+                  {CHANNEL_ICON[c]} {CHANNEL_LABEL[c]}
+                  {channelUnreadCount(c) > 0 && <b className="dw-n-unread"> ({channelUnreadCount(c)})</b>}
+                </span>
+                <span className="dw-n">{channelCount(c)}</span>
               </button>
             ))}
           </div>
