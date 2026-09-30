@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './dashboard.css'
 
+/** Chrome/Edge; відсутнє в стандартних типах DOM. */
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => void
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
 type Channel = 'eval' | 'hotline' | 'review' | 'booking'
 
 type Item = {
@@ -69,6 +75,27 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)} дн`
 }
 
+/** Короткий «дзвінок» через Web Audio — без файлу, синтезований на льоту. */
+function playPing() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const o = ctx.createOscillator()
+    const g = ctx.createGain()
+    o.type = 'sine'
+    o.frequency.value = 880
+    g.gain.setValueAtTime(0.0001, ctx.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01)
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5)
+    o.connect(g)
+    g.connect(ctx.destination)
+    o.start()
+    o.stop(ctx.currentTime + 0.5)
+    o.onended = () => ctx.close()
+  } catch { /* автоплей міг заблокувати браузер до першої взаємодії — не критично */ }
+}
+
 function pluralUa(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10
   const mod100 = n % 100
@@ -99,8 +126,40 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   // поруч — там і так тісно. Список/деталі перемикаються повноекранно.
   const [railOpen, setRailOpen] = useState(false)
 
+  // Встановлення як програма: Chrome/Edge дають подію й можна показати
+  // кнопку напряму; Safari й Firefox такого не вміють — для них лише підказка.
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [installed, setInstalled] = useState(false)
+  const [showInstallHint, setShowInstallHint] = useState(false)
+
+  useEffect(() => {
+    setInstalled(window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true)
+    const onPrompt = (e: Event) => { e.preventDefault(); setInstallPrompt(e as BeforeInstallPromptEvent) }
+    const onInstalled = () => { setInstalled(true); setInstallPrompt(null) }
+    window.addEventListener('beforeinstallprompt', onPrompt)
+    window.addEventListener('appinstalled', onInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt)
+      window.removeEventListener('appinstalled', onInstalled)
+    }
+  }, [])
+
+  async function installApp() {
+    if (!installPrompt) {
+      setShowInstallHint((v) => !v)
+      return
+    }
+    installPrompt.prompt()
+    await installPrompt.userChoice
+    setInstallPrompt(null)
+  }
+
   const qRef = useRef(q)
   useEffect(() => { qRef.current = q }, [q])
+
+  // Для звуку: чи з'явився ключ, якого не було непрочитаним хвилину тому.
+  const loadedOnceRef = useRef(false)
+  const prevUnreadKeysRef = useRef<Set<string>>(new Set())
 
   const loadItems = useCallback(async (query: string) => {
     const res = await fetch(`/api/dashboard/items${query ? `?q=${encodeURIComponent(query)}` : ''}`)
@@ -109,7 +168,17 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
       return
     }
     const json = await res.json().catch(() => null)
-    if (json?.items) setItems(json.items)
+    if (json?.items) {
+      setItems(json.items)
+      const nowUnread = new Set<string>((json.items as Item[]).filter((it) => it.unread).map((it) => it.key))
+      if (loadedOnceRef.current) {
+        let hasNew = false
+        nowUnread.forEach((k) => { if (!prevUnreadKeysRef.current.has(k)) hasNew = true })
+        if (hasNew) playPing()
+      }
+      loadedOnceRef.current = true
+      prevUnreadKeysRef.current = nowUnread
+    }
   }, [])
 
   const loadDetail = useCallback(async (key: string) => {
@@ -278,6 +347,21 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+
+          {!installed && (
+            <div className="dw-install">
+              <button type="button" className="dw-install-btn" onClick={installApp}>
+                📲 Встановити як програму
+              </button>
+              {showInstallHint && (
+                <p className="dw-install-hint">
+                  <b>iPhone (Safari):</b> кнопка «Поділитися» → «На екран Домой».<br />
+                  <b>Mac (Safari):</b> меню Файл → «Додати в Dock».<br />
+                  <b>Firefox:</b> поки не підтримує встановлення — відкривайте як звичайний сайт.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="dw-section-label">Мої списки</div>
           <div className="dw-views">

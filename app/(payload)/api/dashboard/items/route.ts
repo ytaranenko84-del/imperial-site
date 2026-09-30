@@ -153,8 +153,16 @@ export async function GET(req: Request) {
     })
   }
 
+  /*
+   * Телефон шукаємо окремо, за цифрами: інакше "0770770997" не знайшов би
+   * запис, збережений як "+380 77 077 09 97" — формат запису номера в базі
+   * не завжди однаковий.
+   */
+  const qDigits = q.replace(/\D/g, '')
   const filtered = q
-    ? items.filter((it) => `${it.title} ${it.phone} ${it.snippet}`.toLowerCase().includes(q))
+    ? items.filter((it) =>
+        `${it.title} ${it.phone} ${it.snippet}`.toLowerCase().includes(q)
+        || (qDigits.length >= 3 && it.phone.replace(/\D/g, '').includes(qDigits)))
     : items
 
   // Сортуємо за тим, коли заявка надійшла, а не коли її востаннє
