@@ -74,7 +74,7 @@ const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking']
 
 export default function DashboardApp({ me }: { me: { id: string; title: string } }) {
   const [items, setItems] = useState<Item[] | null>(null)
-  const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned'>('all')
+  const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned' | 'unread'>('all')
   const [channel, setChannel] = useState<'all' | Channel>('all')
   const [q, setQ] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -83,6 +83,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
   const [composer, setComposer] = useState('')
   const [sending, setSending] = useState(false)
   const [note, setNote] = useState('')
+  // Лише для телефону: рейка-фільтри як шторка поверх екрана, а не колонка
+  // поруч — там і так тісно. Список/деталі перемикаються повноекранно.
+  const [railOpen, setRailOpen] = useState(false)
 
   const loadItems = useCallback(async (query: string) => {
     const res = await fetch(`/api/dashboard/items${query ? `?q=${encodeURIComponent(query)}` : ''}`)
@@ -126,11 +129,13 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
   const filtered = byChannel.filter((it) => {
     if (filter === 'mine') return String(it.assignedTo) === String(me.id)
     if (filter === 'unassigned') return !it.assignedTo
+    if (filter === 'unread') return it.unread
     return true
   })
 
   const mineCount = byChannel.filter((it) => String(it.assignedTo) === String(me.id)).length
   const unassignedCount = byChannel.filter((it) => !it.assignedTo).length
+  const unreadCount = byChannel.filter((it) => it.unread).length
   const channelCount = (c: Channel) => (items || []).filter((it) => it.channel === c).length
 
   async function update(body: Record<string, unknown>) {
@@ -179,17 +184,34 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
     window.location.reload()
   }
 
+  function pickFilter(f: typeof filter) {
+    setFilter(f)
+    setRailOpen(false)
+  }
+
+  function pickChannel(c: typeof channel) {
+    setChannel(c)
+    setRailOpen(false)
+  }
+
+  function openItem(key: string) {
+    setSelectedKey(key)
+  }
+
   return (
     <div className="dw">
       <div className="dw-titlebar">
+        <button type="button" className="dw-burger" onClick={() => setRailOpen(true)} aria-label="Фільтри">☰</button>
         <div className="dw-appname"><span className="dw-dot" /> Імперіал · Робочий стіл</div>
       </div>
 
-      <div className="dw-body">
-        <aside className="dw-rail">
+      <div className={`dw-body ${selectedKey ? 'has-selection' : ''}`}>
+        {railOpen && <div className="dw-backdrop" onClick={() => setRailOpen(false)} />}
+        <aside className={`dw-rail ${railOpen ? 'open' : ''}`}>
           <div className="dw-rail-logo">
             <div className="dw-mark">І</div>
             <div><b>Імперіал</b><small>робочий стіл</small></div>
+            <button type="button" className="dw-rail-close" onClick={() => setRailOpen(false)} aria-label="Закрити">✕</button>
           </div>
           <input
             className="dw-search"
@@ -200,24 +222,27 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
 
           <div className="dw-section-label">Мої списки</div>
           <div className="dw-views">
-            <button type="button" className={`dw-view ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
+            <button type="button" className={`dw-view ${filter === 'all' ? 'on' : ''}`} onClick={() => pickFilter('all')}>
               <span>Усі активні</span><span className="dw-n">{byChannel.length}</span>
             </button>
-            <button type="button" className={`dw-view ${filter === 'mine' ? 'on' : ''}`} onClick={() => setFilter('mine')}>
+            <button type="button" className={`dw-view ${filter === 'mine' ? 'on' : ''}`} onClick={() => pickFilter('mine')}>
               <span>На мені</span><span className="dw-n">{mineCount}</span>
             </button>
-            <button type="button" className={`dw-view ${filter === 'unassigned' ? 'on' : ''}`} onClick={() => setFilter('unassigned')}>
+            <button type="button" className={`dw-view ${filter === 'unassigned' ? 'on' : ''}`} onClick={() => pickFilter('unassigned')}>
               <span>Непризначені</span><span className="dw-n">{unassignedCount}</span>
+            </button>
+            <button type="button" className={`dw-view ${filter === 'unread' ? 'on' : ''}`} onClick={() => pickFilter('unread')}>
+              <span>🔴 Непрочитані</span><span className="dw-n">{unreadCount}</span>
             </button>
           </div>
 
           <div className="dw-section-label">Канал</div>
           <div className="dw-views">
-            <button type="button" className={`dw-view ${channel === 'all' ? 'on' : ''}`} onClick={() => setChannel('all')}>
+            <button type="button" className={`dw-view ${channel === 'all' ? 'on' : ''}`} onClick={() => pickChannel('all')}>
               <span>💬 Усі канали</span><span className="dw-n">{items?.length ?? '—'}</span>
             </button>
             {CHANNELS.map((c) => (
-              <button type="button" key={c} className={`dw-view ${channel === c ? 'on' : ''}`} onClick={() => setChannel(c)}>
+              <button type="button" key={c} className={`dw-view ${channel === c ? 'on' : ''}`} onClick={() => pickChannel(c)}>
                 <span>{CHANNEL_ICON[c]} {CHANNEL_LABEL[c]}</span><span className="dw-n">{channelCount(c)}</span>
               </button>
             ))}
@@ -241,7 +266,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
                 type="button"
                 key={it.key}
                 className={`dw-item ${selectedKey === it.key ? 'sel' : ''} ${it.unread ? 'unread' : ''}`}
-                onClick={() => setSelectedKey(it.key)}
+                onClick={() => openItem(it.key)}
               >
                 <div className={`dw-ico dw-ico--${it.channel}`}>{CHANNEL_ICON[it.channel]}</div>
                 {it.unread && <div className="dw-unread-dot" />}
@@ -264,6 +289,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
           {detail && detail.kind === 'booking' && (
             <>
               <div className="dw-d-head">
+                <button type="button" className="dw-back" onClick={() => setSelectedKey(null)} aria-label="Назад до списку">←</button>
                 <div>
                   <h3>{detail.name}{detail.phone ? ` · ${detail.phone}` : ''}</h3>
                   <p>Бронь суми{detail.branchName ? ` · ${detail.branchName}` : ''} · №{detail.id}</p>
@@ -293,6 +319,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
           {detail && detail.kind !== 'booking' && (
             <>
               <div className="dw-d-head">
+                <button type="button" className="dw-back" onClick={() => setSelectedKey(null)} aria-label="Назад до списку">←</button>
                 <div>
                   <h3>{detail.name || detail.title}{detail.phone ? ` · ${detail.phone}` : ''}</h3>
                   <p>
