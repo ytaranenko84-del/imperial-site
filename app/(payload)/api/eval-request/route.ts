@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto'
 import { evalCard, mediaUrl, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
 import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
 import { notifyRecipients } from '@/lib/push.ts'
+import convertHeic from 'heic-convert'
 
 /**
  * Заявка на оцінку за фото: POST multipart/form-data зі сторінок категорій
@@ -14,10 +15,25 @@ import { notifyRecipients } from '@/lib/push.ts'
 const MAX_FILES = 6
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/heic', 'image/heif']
+const HEIC_TYPES = new Set(['image/heic', 'image/heif'])
 const KEYS = EVAL_CATEGORIES.map((c) => c.value) as string[]
 
 const text = (v: FormDataEntryValue | null, max = 200) =>
   typeof v === 'string' ? v.trim().slice(0, max) : ''
+
+/**
+ * Safari сам перетворює HEIC на JPEG ще до відправки — але не завжди
+ * (напр. файл обрано через «Файли», а не звичайний фотопікер, або старий
+ * iOS). Медіатека не приймає heic/heif, тож конвертуємо тут заздалегідь:
+ * до payload.create долітає вже звичайний JPEG.
+ */
+async function toUploadable(f: File): Promise<{ buffer: Buffer; name: string; mimetype: string }> {
+  const buffer = Buffer.from(await f.arrayBuffer())
+  if (!HEIC_TYPES.has(f.type)) return { buffer, name: f.name, mimetype: f.type }
+  const jpeg = await convertHeic({ buffer, format: 'JPEG', quality: 0.9 })
+  const name = (f.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg'
+  return { buffer: Buffer.from(jpeg), name, mimetype: 'image/jpeg' }
+}
 
 export async function POST(req: Request) {
   let form: FormData
@@ -77,15 +93,22 @@ export async function POST(req: Request) {
     const photos: (string | number)[] = []
     const urls: string[] = []
     for (const [i, f] of files.entries()) {
+      let upload: { buffer: Buffer; name: string; mimetype: string }
+      try {
+        upload = await toUploadable(f)
+      } catch (e) {
+        payload.logger.error({ err: e, name: f.name }, 'eval-request heic convert')
+        return Response.json({ error: 'Не вдалося обробити фото. Спробуйте інший формат.' }, { status: 422 })
+      }
       const doc = await payload.create({
         collection: 'media',
         overrideAccess: true,
         data: { alt: `Заявка: ${[brand, model].filter(Boolean).join(' ')}, фото ${i + 1}` },
         file: {
-          data: Buffer.from(await f.arrayBuffer()),
-          name: f.name || `photo-${i + 1}.jpg`,
-          mimetype: f.type,
-          size: f.size,
+          data: upload.buffer,
+          name: upload.name || `photo-${i + 1}.jpg`,
+          mimetype: upload.mimetype,
+          size: upload.buffer.length,
         },
       })
       photos.push(doc.id)
