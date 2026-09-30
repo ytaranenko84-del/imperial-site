@@ -16,6 +16,7 @@ type Item = {
   statusLabel: string
   snippet: string
   unread: boolean
+  unanswered: boolean
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -74,7 +75,7 @@ const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking']
 
 export default function DashboardApp({ me }: { me: { id: string; title: string } }) {
   const [items, setItems] = useState<Item[] | null>(null)
-  const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned' | 'unread'>('all')
+  const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned' | 'unread' | 'unanswered'>('all')
   const [channel, setChannel] = useState<'all' | Channel>('all')
   const [q, setQ] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -130,12 +131,14 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
     if (filter === 'mine') return String(it.assignedTo) === String(me.id)
     if (filter === 'unassigned') return !it.assignedTo
     if (filter === 'unread') return it.unread
+    if (filter === 'unanswered') return it.unanswered
     return true
   })
 
   const mineCount = byChannel.filter((it) => String(it.assignedTo) === String(me.id)).length
   const unassignedCount = byChannel.filter((it) => !it.assignedTo).length
   const unreadCount = byChannel.filter((it) => it.unread).length
+  const unansweredCount = byChannel.filter((it) => it.unanswered).length
   const channelCount = (c: Channel) => (items || []).filter((it) => it.channel === c).length
 
   async function update(body: Record<string, unknown>) {
@@ -234,6 +237,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
             <button type="button" className={`dw-view ${filter === 'unread' ? 'on' : ''}`} onClick={() => pickFilter('unread')}>
               <span>🔴 Непрочитані</span><span className="dw-n">{unreadCount}</span>
             </button>
+            <button type="button" className={`dw-view ${filter === 'unanswered' ? 'on' : ''}`} onClick={() => pickFilter('unanswered')}>
+              <span>🟡 Не відповідані</span><span className="dw-n">{unansweredCount}</span>
+            </button>
           </div>
 
           <div className="dw-section-label">Канал</div>
@@ -265,11 +271,12 @@ export default function DashboardApp({ me }: { me: { id: string; title: string }
               <button
                 type="button"
                 key={it.key}
-                className={`dw-item ${selectedKey === it.key ? 'sel' : ''} ${it.unread ? 'unread' : ''}`}
+                className={`dw-item ${selectedKey === it.key ? 'sel' : ''} ${it.unanswered ? 'unanswered' : ''}`}
                 onClick={() => openItem(it.key)}
               >
                 <div className={`dw-ico dw-ico--${it.channel}`}>{CHANNEL_ICON[it.channel]}</div>
-                {it.unread && <div className="dw-unread-dot" />}
+                {it.unread && <div className="dw-dot dw-dot--unread" title="Ніхто ще не відкривав" />}
+                {!it.unread && it.unanswered && <div className="dw-dot dw-dot--unanswered" title="Переглянуто, немає відповіді" />}
                 <div className="dw-item-body">
                   <div className="dw-item-top"><b>{it.title}</b><time>{timeAgo(it.updatedAt)}</time></div>
                   <div className="dw-snippet">{it.snippet}</div>

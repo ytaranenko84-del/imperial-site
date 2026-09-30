@@ -49,6 +49,11 @@ export async function GET(req: Request) {
   const doc = await payload.findByID({ collection, id, depth: 1, overrideAccess: true }).catch(() => null)
   if (!doc) return Response.json({ error: 'Не знайдено' }, { status: 404 })
 
+  // Відкрили картку — значить, хтось із команди її побачив: знімаємо «непрочитане».
+  await payload.update({
+    collection, id, overrideAccess: true, data: { lastViewedAt: new Date().toISOString() },
+  }).catch(() => {})
+
   const d = doc as Record<string, unknown>
   const assigned = d.assignedTo as { id?: unknown; title?: string } | null | undefined
   const photos = kind === 'eval'

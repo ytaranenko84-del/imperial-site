@@ -1527,6 +1527,8 @@ async function relayAnswer(
       status: 'work',
       answeredBy: who,
       answeredAt: new Date().toISOString(),
+      // Хто відповідає — той і бачив заявку, тож заразом знімаємо «непрочитане».
+      lastViewedAt: new Date().toISOString(),
       lastReply,
       ...(changed ? { estimate: sum } : {}),
       thread: [...thread, { from: who, text, at: new Date().toISOString() }],
@@ -1615,6 +1617,7 @@ async function relayHotlineAnswer(
       status: 'work',
       answeredBy: who,
       answeredAt: new Date().toISOString(),
+      lastViewedAt: new Date().toISOString(),
       lastReply,
       thread: [...thread, { from: who, text: text || '[фото]', at: new Date().toISOString() }],
     },

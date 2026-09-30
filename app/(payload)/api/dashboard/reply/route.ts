@@ -62,11 +62,14 @@ export async function POST(req: Request) {
     }
   }
 
+  const now = new Date().toISOString()
   const data: Record<string, unknown> = {
     status: 'work',
     answeredBy: who,
-    answeredAt: new Date().toISOString(),
-    thread: [...thread, { from: who, text: replyText, at: new Date().toISOString() }],
+    answeredAt: now,
+    // Хто відповідає — той і бачив заявку, тож заразом знімаємо «непрочитане».
+    lastViewedAt: now,
+    thread: [...thread, { from: who, text: replyText, at: now }],
   }
 
   if (kind === 'eval') {

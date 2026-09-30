@@ -54,7 +54,9 @@
   position: relative;
 }
 .dw-item.sel { background: var(--brand-soft); border-left-color: var(--brand); }
-.dw-unread-dot { position: absolute; left: 5px; top: 18px; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+.dw-dot { position: absolute; left: 5px; top: 18px; width: 7px; height: 7px; border-radius: 50%; }
+.dw-dot--unread { background: var(--brand); }
+.dw-dot--unanswered { background: var(--warn); }
 .dw-ico { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex: none; }
 .dw-ico--eval { background: #eef2ff; } .dw-ico--hotline { background: #fff1e8; }
 .dw-ico--review { background: #fef6e0; } .dw-ico--booking { background: #eafaf1; }
@@ -63,8 +65,8 @@
 .dw-item-top b { font-size: 13px; }
 .dw-item-top time { font-size: 11px; color: var(--dim); flex: none; }
 .dw-snippet { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0 6px; }
-.dw-item.unread .dw-item-top b { font-weight: 800; }
-.dw-item.unread .dw-snippet { color: var(--ink); font-weight: 600; }
+.dw-item.unanswered .dw-item-top b { font-weight: 800; }
+.dw-item.unanswered .dw-snippet { color: var(--ink); font-weight: 600; }
 .dw-tags { display: flex; gap: 6px; }
 .dw-tag { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: var(--closed-soft); color: var(--closed); }
 .dw-tag--new { background: var(--new-soft); color: var(--new); }

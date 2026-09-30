@@ -23,7 +23,10 @@ type Item = {
   status: string
   statusLabel: string
   snippet: string
+  /** Ще ніхто з команди не відкривав цю заявку в робочому столі відтоді, як там щось змінилось. */
   unread: boolean
+  /** Хтось відкривав, але останнє слово — за клієнтом: відповіді ще не було. */
+  unanswered: boolean
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -36,17 +39,29 @@ function lastThreadText(thread: unknown): string {
   return String(last?.text || '').slice(0, 160)
 }
 
-/*
- * Непрочитане — без нового поля в базі: дивимось, чи останній запис у
- * переписці належить тому самому, хто востаннє відповідав. Щойно клієнт
- * пише знову, останній запис уже не збігається з answeredBy — і так до
- * наступної відповіді, яка знову зрівнює їх.
+function lastThreadAt(thread: unknown, fallback: unknown): number {
+  const arr = Array.isArray(thread) ? thread : []
+  const last = arr[arr.length - 1] as { at?: string } | undefined
+  const t = new Date(String(last?.at || fallback || 0)).getTime()
+  return Number.isFinite(t) ? t : 0
+}
+
+/**
+ * «Не відповідані» — без окремого поля: останній запис у переписці не
+ * належить тому, хто востаннє відповідав, тобто останнє слово за клієнтом.
  */
-function isUnread(thread: unknown, answeredBy: unknown): boolean {
+function isUnanswered(thread: unknown, answeredBy: unknown): boolean {
   const arr = Array.isArray(thread) ? thread : []
   if (!arr.length) return true
   const last = arr[arr.length - 1] as { from?: string }
   return String(last?.from || '') !== String(answeredBy || '')
+}
+
+/** «Непрочитане» — окреме від «не відповідано»: ніхто не відкривав відтоді, як з'явилось останнє повідомлення. */
+function isUnread(lastViewedAt: unknown, thread: unknown, createdAt: unknown): boolean {
+  const viewed = new Date(String(lastViewedAt || 0)).getTime()
+  if (!lastViewedAt || !Number.isFinite(viewed)) return true
+  return viewed < lastThreadAt(thread, createdAt)
 }
 
 function assignedFields(d: Record<string, unknown>): { assignedTo: string | number | null; assignedToName: string } {
@@ -83,7 +98,8 @@ export async function GET(req: Request) {
       status: String(d.status || 'new'),
       statusLabel: EVAL_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
-      unread: isUnread(d.thread, d.answeredBy),
+      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
+      unanswered: isUnanswered(d.thread, d.answeredBy),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
@@ -103,7 +119,8 @@ export async function GET(req: Request) {
       status: String(d.status || 'new'),
       statusLabel: HOTLINE_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || (isReview ? 'Відгук / скарга' : 'Гаряча лінія'),
-      unread: isUnread(d.thread, d.answeredBy),
+      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
+      unanswered: isUnanswered(d.thread, d.answeredBy),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
@@ -124,8 +141,9 @@ export async function GET(req: Request) {
       status: String(d.status || 'new'),
       statusLabel: BOOKING_STATUS[String(d.status)] || String(d.status || ''),
       snippet: `Бронь ${amount} ₴${branch?.address ? ` · ${branch.address}` : ''}`,
-      // Бронь — не переписка: немає answeredBy/thread, тож «непрочитаних» тут немає.
+      // Бронь — не переписка: немає answeredBy/thread, тож ці позначки тут не застосовні.
       unread: false,
+      unanswered: false,
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),

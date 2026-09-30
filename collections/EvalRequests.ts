@@ -162,6 +162,8 @@ export const EvalRequests: CollectionConfig = {
         { name: 'clientKey', type: 'text', label: 'Ключ посилання', admin: { hidden: true } },
         { name: 'lastReply', type: 'json', label: 'Останнє надіслане (службове)', admin: { readOnly: true, hidden: true } },
         { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
+    { name: 'lastViewedAt', type: 'date', label: 'Востаннє переглянуто', admin: { readOnly: true, hidden: true,
+      date: { pickerAppearance: 'dayAndTime' } } },
         { name: 'groupSentAt', type: 'date', label: 'У групу надіслано', admin: { readOnly: true,
           date: { pickerAppearance: 'dayAndTime' },
           description: 'Копія пішла у спільну групу відділень. Заповнюється само' } },

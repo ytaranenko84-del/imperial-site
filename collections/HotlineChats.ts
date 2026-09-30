@@ -52,6 +52,8 @@ export const HotlineChats: CollectionConfig = {
       admin: { position: 'sidebar' } },
     { name: 'lastReply', type: 'json', label: 'Останнє надіслане (службове)', admin: { readOnly: true, hidden: true } },
     { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
+    { name: 'lastViewedAt', type: 'date', label: 'Востаннє переглянуто', admin: { readOnly: true, hidden: true,
+      date: { pickerAppearance: 'dayAndTime' } } },
     { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } } },
     {
       name: 'thread',
