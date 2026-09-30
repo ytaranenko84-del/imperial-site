@@ -136,10 +136,21 @@
   .dw-rail-close { display: block; }
   .dw-backdrop { display: block; position: absolute; inset: 0; z-index: 19; background: rgba(0,0,0,.35); }
 
+  /*
+   * Заголовок заявки: кнопки дій («Закрити» тощо) не влазили в один рядок
+   * з іменем на вузькому екрані й обрізались за межею екрана. Переносимо
+   * їх на свій рядок, а не стискаємо до нечитабельного розміру.
+   */
+  .dw-d-head { flex-wrap: wrap; }
+  .dw-actions { margin-left: 0; width: 100%; }
+
   /* Пальцем має бути легко влучити: збільшуємо найдрібніші елементи. */
   .dw-logout { min-width: 40px; min-height: 40px; font-size: 18px; }
   .dw-tpl { padding: 9px 14px; font-size: 13px; }
   .dw-send { width: 40px; height: 40px; }
   .dw-btn { padding: 10px 16px; font-size: 13px; }
   .dw-view { padding: 12px 10px; }
+  .dw-burger { min-width: 40px; min-height: 40px; font-size: 20px; }
+  .dw-rail-close { min-width: 36px; min-height: 36px; font-size: 18px; }
+  .dw-back { min-width: 36px; min-height: 36px; font-size: 22px; display: flex; align-items: center; justify-content: center; }
 }
