@@ -6,6 +6,7 @@ import { evalCard, mediaUrl, recipientsFor, send, sendPhotos, token } from '@/li
 import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 import convertHeic from 'heic-convert'
+import libheif from 'libheif-js/wasm-bundle'
 
 /**
  * Заявка на оцінку за фото: POST multipart/form-data зі сторінок категорій
@@ -16,10 +17,30 @@ const MAX_FILES = 6
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/heic', 'image/heif']
 const HEIC_TYPES = new Set(['image/heic', 'image/heif'])
+// з запасом понад 48-Мп режим iPhone Pro — розпакований HEIC декодується у
+// сирий RGBA-буфер width*height*4 байт ще до будь-якої перевірки розміру
+// файлу, тож саме кількість пікселів, а не байти, обмежує пам'ять на декодер
+const MAX_HEIC_PIXELS = 40_000_000
 const KEYS = EVAL_CATEGORIES.map((c) => c.value) as string[]
 
 const text = (v: FormDataEntryValue | null, max = 200) =>
   typeof v === 'string' ? v.trim().slice(0, max) : ''
+
+/** Дивимось на розмір картинки заздалегідь (дешево — лише заголовки контейнера), не чіпаючи важкий HEVC-декод пікселів. */
+async function assertSafeHeicDimensions(buffer: Buffer): Promise<void> {
+  await libheif.ready
+  const decoder = new libheif.HeifDecoder()
+  const images = decoder.decode(buffer)
+  try {
+    if (!images.length) throw new Error('HEIF: зображення не знайдено')
+    const w = images[0].get_width()
+    const h = images[0].get_height()
+    if (w * h > MAX_HEIC_PIXELS) throw new Error(`HEIF завеликий: ${w}x${h}`)
+  } finally {
+    for (const image of images) image.free()
+    decoder.decoder.delete()
+  }
+}
 
 /**
  * Safari сам перетворює HEIC на JPEG ще до відправки — але не завжди
@@ -30,6 +51,7 @@ const text = (v: FormDataEntryValue | null, max = 200) =>
 async function toUploadable(f: File): Promise<{ buffer: Buffer; name: string; mimetype: string }> {
   const buffer = Buffer.from(await f.arrayBuffer())
   if (!HEIC_TYPES.has(f.type)) return { buffer, name: f.name, mimetype: f.type }
+  await assertSafeHeicDimensions(buffer)
   const jpeg = await convertHeic({ buffer, format: 'JPEG', quality: 0.9 })
   const name = (f.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg'
   return { buffer: Buffer.from(jpeg), name, mimetype: 'image/jpeg' }
