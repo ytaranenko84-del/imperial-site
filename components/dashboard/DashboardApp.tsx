@@ -9,7 +9,7 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-type Channel = 'eval' | 'hotline' | 'review' | 'booking'
+type Channel = 'eval' | 'hotline' | 'review' | 'booking' | 'incomplete'
 
 type Item = {
   key: string
@@ -104,11 +104,13 @@ function pluralUa(n: number, one: string, few: string, many: string): string {
   return many
 }
 
-const CHANNEL_ICON: Record<Channel, string> = { eval: '💍', hotline: '☎️', review: '⭐', booking: '📅' }
-const CHANNEL_LABEL: Record<Channel, string> = {
-  eval: 'Оцінка', hotline: 'Гаряча лінія', review: 'Відгуки', booking: 'Бронь',
+const CHANNEL_ICON: Record<Channel, string> = {
+  eval: '💍', hotline: '☎️', review: '⭐', booking: '📅', incomplete: '📝',
 }
-const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking']
+const CHANNEL_LABEL: Record<Channel, string> = {
+  eval: 'Оцінка', hotline: 'Гаряча лінія', review: 'Відгуки', booking: 'Бронь', incomplete: 'Незавершені',
+}
+const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking', 'incomplete']
 
 export default function DashboardApp({ me }: { me: { id: string; title: string; kind: string } }) {
   const [items, setItems] = useState<Item[] | null>(null)

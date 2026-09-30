@@ -12,7 +12,19 @@ const BOOKING_STATUS: Record<string, string> = {
   new: 'Новий', came: 'Клієнт прийшов', done: 'Оформлено', missed: 'Не прийшов',
 }
 
-type Channel = 'eval' | 'hotline' | 'review' | 'booking'
+type Channel = 'eval' | 'hotline' | 'review' | 'booking' | 'incomplete'
+
+/**
+ * Клієнт натиснув «Оцінка» в боті, отримав інструкцію — і на цьому зупинився,
+ * нічого не написавши. Записи не порожні в базі, але надсилати їх у Telegram
+ * нема чого: recipientsFor тут ніколи не викликався. Показувати їх поруч зі
+ * справжніми заявками на оцінку тільки заплутає — ховаємо в окремий розділ,
+ * доки клієнт не допише опис чи не надішле фото (тоді сама впаде в «Оцінка»).
+ */
+function isIncompleteDraft(d: Record<string, unknown>): boolean {
+  const photos = d.photos as unknown[] | undefined
+  return d.source === 'bot' && d.category === 'other' && !d.comment && !(photos && photos.length)
+}
 
 type Item = {
   key: string
@@ -95,15 +107,18 @@ export async function GET(req: Request) {
     items.push({
       key: `eval:${d.id}`,
       kind: 'eval',
-      channel: 'eval',
+      channel: isIncompleteDraft(d) ? 'incomplete' : 'eval',
       id: d.id as string | number,
       title: String(d.title || d.name || 'Заявка'),
       phone: String(d.phone || ''),
       status: String(d.status || 'new'),
       statusLabel: EVAL_STATUS[String(d.status)] || String(d.status || ''),
-      snippet: lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
-      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
-      unanswered: isUnanswered(d.thread, d.answeredBy, d.status),
+      snippet: isIncompleteDraft(d)
+        ? 'Клієнт ще не написав опис товару'
+        : lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
+      // Незавершений чернетковий запис — нема чого «відповідати» чи «читати», доки клієнт нічого не написав.
+      unread: isIncompleteDraft(d) ? false : isUnread(d.lastViewedAt, d.thread, d.createdAt),
+      unanswered: isIncompleteDraft(d) ? false : isUnanswered(d.thread, d.answeredBy, d.status),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d),
