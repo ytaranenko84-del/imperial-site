@@ -114,6 +114,23 @@ function waitingBadge(waitingSince: string | null): { label: string; level: 'ok'
   return { label, level }
 }
 
+type Report = {
+  total: number
+  answered: number
+  avgReplyMs: number | null
+  staff: { name: string; count: number; avgReplyMs: number | null }[]
+}
+
+/** Формат тривалості для звіту: не секунди/мілісекунди — хвилини, години, дні. */
+function formatDuration(ms: number | null): string {
+  if (ms == null) return '—'
+  const min = Math.round(ms / 60000)
+  if (min < 60) return `${min} хв`
+  const h = Math.round(min / 60)
+  if (h < 48) return `${h} год`
+  return `${Math.round(h / 24)} дн`
+}
+
 function pluralUa(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10
   const mod100 = n % 100
@@ -156,6 +173,27 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [installed, setInstalled] = useState(false)
   const [showInstallHint, setShowInstallHint] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
+
+  // Звіти — лише для адміністратора, окремий оверлей над усім дашбордом
+  const [showReport, setShowReport] = useState(false)
+  const [report, setReport] = useState<Report | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'week' | 'month'>('week')
+
+  const loadReport = useCallback(async (p: typeof reportPeriod) => {
+    setReportLoading(true)
+    try {
+      const res = await fetch(`/api/dashboard/report?period=${p}`)
+      const json = await res.json().catch(() => null)
+      if (json && !json.error) setReport(json)
+    } finally {
+      setReportLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showReport) loadReport(reportPeriod)
+  }, [showReport, reportPeriod, loadReport])
 
   useEffect(() => {
     setInstalled(window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true)
@@ -507,6 +545,17 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
             </button>
           </div>
 
+          {me.kind === 'admin' && (
+            <>
+              <div className="dw-section-label">Звіти</div>
+              <div className="dw-views">
+                <button type="button" className="dw-view" onClick={() => setShowReport(true)}>
+                  <span>📊 Відповіді по співробітниках</span>
+                </button>
+              </div>
+            </>
+          )}
+
           <div className="dw-rail-bottom">
             <div className="dw-avatar">{me.title.slice(0, 1) || '?'}</div>
             <div className="dw-me"><b>{me.title}</b></div>
@@ -733,6 +782,69 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
           )}
         </section>
       </div>
+
+      {showReport && (
+        <div className="dw-report-backdrop" onClick={() => setShowReport(false)}>
+          <div className="dw-report-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="dw-report-head">
+              <b>Відповіді по співробітниках</b>
+              <button type="button" className="dw-report-close" onClick={() => setShowReport(false)} aria-label="Закрити">✕</button>
+            </div>
+
+            <div className="dw-views dw-views--row">
+              {([['all', 'Увесь час'], ['month', '30 днів'], ['week', '7 днів'], ['today', 'Сьогодні']] as const).map(([p, label]) => (
+                <button key={p} type="button" className={`dw-view ${reportPeriod === p ? 'on' : ''}`} onClick={() => setReportPeriod(p)}>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {reportLoading && <p className="dw-hint">Рахуємо…</p>}
+
+            {!reportLoading && report && (
+              <>
+                <div className="dw-report-summary">
+                  <div className="dw-report-stat">
+                    <b>{report.total}</b>
+                    <span>{pluralUa(report.total, 'заявка', 'заявки', 'заявок')} за період</span>
+                  </div>
+                  <div className="dw-report-stat">
+                    <b>{report.answered}</b>
+                    <span>з відповіддю</span>
+                  </div>
+                  <div className="dw-report-stat">
+                    <b>{formatDuration(report.avgReplyMs)}</b>
+                    <span>середній час першої відповіді</span>
+                  </div>
+                </div>
+
+                {report.staff.length === 0 ? (
+                  <p className="dw-hint">За цей період відповідей ще не було.</p>
+                ) : (
+                  <table className="dw-report-table">
+                    <thead>
+                      <tr><th>Співробітник</th><th>Відповідей</th><th>Сер. час відповіді</th></tr>
+                    </thead>
+                    <tbody>
+                      {report.staff.map((s) => (
+                        <tr key={s.name}>
+                          <td>{s.name}</td>
+                          <td>{s.count}</td>
+                          <td>{formatDuration(s.avgReplyMs)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <p className="dw-hint">
+                  Рахується з моменту надходження заявки до першої відповіді в переписці. Заявки-брони сюди не входять.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
