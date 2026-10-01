@@ -2,7 +2,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
 import { randomBytes } from 'node:crypto'
-import { evalCard, mediaUrl, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
+import { evalCard, mediaUrl, normalizePhone, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
 import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 import convertHeic from 'heic-convert'
@@ -22,9 +22,41 @@ const HEIC_TYPES = new Set(['image/heic', 'image/heif'])
 // файлу, тож саме кількість пікселів, а не байти, обмежує пам'ять на декодер
 const MAX_HEIC_PIXELS = 40_000_000
 const KEYS = EVAL_CATEGORIES.map((c) => c.value) as string[]
+// 5 хвилин — досить, щоб накрити і подвійний тап, і переляк "не надіслалося,
+// спробую ще раз", але не накрити справді другу заявку, надіслану пізніше
+const DUPLICATE_WINDOW_MS = 5 * 60 * 1000
 
 const text = (v: FormDataEntryValue | null, max = 200) =>
   typeof v === 'string' ? v.trim().slice(0, max) : ''
+const norm = (s: string) => s.trim().toLowerCase()
+
+type PayloadInstance = Awaited<ReturnType<typeof getPayload>>
+
+/**
+ * Той самий телефон, напрямок і марка/модель за останні кілька хвилин —
+ * майже завжди не друга заявка, а повторний тап чи переляк "не
+ * надіслалося". Порівнюємо строго: номер + категорія + марка/модель мають
+ * збігтися всі разом, інакше дві різні речі від того самого клієнта
+ * (годинник і телефон за 2 хвилини) злилися б в одну.
+ */
+async function findRecentDuplicate(
+  payload: PayloadInstance, phone: string, category: string, brand: string, model: string,
+): Promise<Record<string, unknown> | null> {
+  const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString()
+  const { docs } = await payload.find({
+    collection: 'eval-requests',
+    where: { and: [{ category: { equals: category } }, { createdAt: { greater_than: since } }] },
+    sort: '-createdAt',
+    limit: 20,
+    overrideAccess: true,
+  })
+  const phoneDigits = normalizePhone(phone)
+  const found = (docs as Record<string, unknown>[]).find((d) =>
+    normalizePhone(String(d.phone || '')) === phoneDigits
+    && norm(String(d.brand || '')) === norm(brand)
+    && norm(String(d.model || '')) === norm(model))
+  return found || null
+}
 
 /** Дивимось на розмір картинки заздалегідь (дешево — лише заголовки контейнера), не чіпаючи важкий HEVC-декод пікселів. */
 async function assertSafeHeicDimensions(buffer: Buffer): Promise<void> {
@@ -137,25 +169,51 @@ export async function POST(req: Request) {
       if (doc.filename) urls.push(mediaUrl(String(doc.filename)))
     }
 
-    const doc = await payload.create({
-      collection: 'eval-requests',
-      overrideAccess: true,
-      data: {
-        category: category as 'watches',
-        name, phone, brand, model,
-        year: text(form.get('year'), 20),
-        condition: text(form.get('condition'), 80),
-        comment: text(form.get('comment'), 2000),
-        status: 'new',
-        photos,
-        // ключ для посилання в Telegram: без нього чужу заявку не привласнити
-        clientKey: randomBytes(16).toString('hex'),
-      },
-    })
+    const dup = await findRecentDuplicate(payload, phone, category, brand, model)
 
-    // ── надсилання в Telegram ──
-    let sent = 'вимкнено: немає токена бота'
-    if (token()) {
+    let doc: Record<string, unknown>
+    if (dup) {
+      const newComment = text(form.get('comment'), 2000)
+      const existingPhotos = (Array.isArray(dup.photos) ? dup.photos : [])
+        .map((p) => (typeof p === 'object' && p ? (p as { id?: unknown }).id : p))
+      const existingThread = Array.isArray(dup.thread) ? dup.thread as { from: string; text: string; at: string }[] : []
+      const noteParts = ['Повторне звернення по тій самій речі']
+      if (photos.length) noteParts.push(`додано фото: ${photos.length}`)
+      if (newComment) noteParts.push(newComment)
+
+      doc = await payload.update({
+        collection: 'eval-requests',
+        id: dup.id as string | number,
+        overrideAccess: true,
+        data: {
+          photos: [...existingPhotos, ...photos],
+          thread: [...existingThread, { from: 'клієнт', text: noteParts.join(' · '), at: new Date().toISOString() }],
+          sent: [dup.sent, 'повторне звернення — без нового сповіщення'].filter(Boolean).join(' · '),
+          // клієнт повернувся по той самий товар — закрита заявка знову потребує уваги
+          ...(dup.status === 'done' || dup.status === 'reject' ? { status: 'new' } : {}),
+        },
+      }) as Record<string, unknown>
+    } else {
+      doc = await payload.create({
+        collection: 'eval-requests',
+        overrideAccess: true,
+        data: {
+          category: category as 'watches',
+          name, phone, brand, model,
+          year: text(form.get('year'), 20),
+          condition: text(form.get('condition'), 80),
+          comment: text(form.get('comment'), 2000),
+          status: 'new',
+          photos,
+          // ключ для посилання в Telegram: без нього чужу заявку не привласнити
+          clientKey: randomBytes(16).toString('hex'),
+        },
+      }) as Record<string, unknown>
+    }
+
+    // ── надсилання в Telegram — лише для справді нової заявки, не для дубля ──
+    if (!dup && token()) {
+      let sent = 'вимкнено: немає токена бота'
       const chats = await recipientsFor(payload, category)
       if (!chats.size) {
         sent = 'отримувачів не задано'
@@ -189,7 +247,7 @@ export async function POST(req: Request) {
           body: [brand, model].filter(Boolean).join(' ') || 'Заявка з сайту',
         })
       }
-      await payload.update({ collection: 'eval-requests', id: doc.id, data: { sent }, overrideAccess: true })
+      await payload.update({ collection: 'eval-requests', id: doc.id as string | number, data: { sent }, overrideAccess: true })
     }
 
     const bot = await payload
