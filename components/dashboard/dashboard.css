@@ -17,6 +17,11 @@
 .dw-logo-dot { width: 14px; height: 14px; border-radius: 4px; background: var(--brand); display: inline-block; }
 .dw-burger { display: none; position: relative; background: none; border: 0; font-size: 18px; line-height: 1; padding: 6px 4px; cursor: pointer; color: #3a3a3f; }
 .dw-burger-dot { position: absolute; top: 2px; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); border: 1.5px solid #fafafa; }
+.dw-update-btn {
+  flex: none; background: var(--new-soft); border: 1px solid var(--new); border-radius: 999px;
+  padding: 5px 11px; font-size: 12px; font-weight: 700; color: var(--new); cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+}
 .dw-rail-close { display: none; margin-left: auto; background: none; border: 0; font-size: 16px; color: var(--dim); cursor: pointer; padding: 4px 8px; }
 
 .dw-body { flex: 1; display: flex; min-height: 0; background: #fff; position: relative; }

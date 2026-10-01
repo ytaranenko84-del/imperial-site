@@ -2,6 +2,16 @@ import { withPayload } from '@payloadcms/next/withPayload'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  /*
+   * Мітка поточної збірки: Netlify підставляє SHA коміту під час білда.
+   * Робочий стіл звіряє це значення (вшите в код при збірці) з тим, що
+   * повертає сервер — вкладка, відкрита до нового деплою, лишається зі
+   * старим BUILD_ID і показує кнопку "Оновити".
+   */
+  env: {
+    BUILD_ID: process.env.COMMIT_REF || String(Date.now()),
+  },
+
   // Медіа з адмінки (обкладинки новин тощо) на бойовому лежать у Supabase
   // Storage через S3-сумісний ендпоінт — без цього next/image відмовляється
   // оптимізувати «чужий» домен і кидає помилку замість картинки.

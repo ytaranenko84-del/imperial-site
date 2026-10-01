@@ -68,6 +68,9 @@ type Detail = {
 type Template = { code: string; title: string; text: string }
 
 const POLL_MS = 8000
+// Вшито при збірці (next.config.ts) — порівнюємо з version, що віддає сервер,
+// щоб відрізнити вкладку на старому коді від справді нової версії.
+const BUILD_ID = process.env.BUILD_ID || ''
 
 function timeAgo(iso: string): string {
   if (!iso) return ''
@@ -152,6 +155,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [installed, setInstalled] = useState(false)
   const [showInstallHint, setShowInstallHint] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
 
   useEffect(() => {
     setInstalled(window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true)
@@ -191,6 +195,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     const json = await res.json().catch(() => null)
     if (json?.items) {
       setItems(json.items)
+      // Сервер завжди свіжий (API — не статика), а код вкладки лишається
+      // тим, з яким її відкрили: якщо мітки розійшлись, деплой уже стався.
+      if (BUILD_ID && json.version && json.version !== BUILD_ID) setUpdateAvailable(true)
       const nowUnread = new Set<string>((json.items as Item[]).filter((it) => it.unread).map((it) => it.key))
       if (loadedOnceRef.current) {
         let hasNew = false
@@ -409,6 +416,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
           ☰{totalUnread > 0 && <span className="dw-burger-dot" />}
         </button>
         <div className="dw-appname"><span className="dw-logo-dot" /> Імперіал · Робочий стіл</div>
+        {updateAvailable && (
+          <button type="button" className="dw-update-btn" onClick={() => window.location.reload()}>
+            ⟳ Оновити
+          </button>
+        )}
       </div>
 
       <div className={`dw-body ${selectedKey ? 'has-selection' : ''}`}>

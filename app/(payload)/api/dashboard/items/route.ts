@@ -198,5 +198,5 @@ export async function GET(req: Request) {
   // переглядали чи відповідали — інакше список стрибав би від власних дій.
   filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 
-  return Response.json({ me: { id: me.id, title: me.title }, items: filtered })
+  return Response.json({ me: { id: me.id, title: me.title }, items: filtered, version: process.env.BUILD_ID || '' })
 }
