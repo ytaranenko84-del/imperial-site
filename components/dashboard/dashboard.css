@@ -31,6 +31,9 @@
 .dw-rail {
   width: 220px; flex: none; background: var(--surface2); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; padding: 14px 10px; gap: 14px;
+  /* Секцій побільшало (Звіти додались останніми) — без прокрутки нижні
+     просто обрізались за межею екрана й ставали недосяжними. */
+  overflow-y: auto;
 }
 .dw-rail-logo { display: flex; align-items: center; gap: 10px; padding: 0 4px; }
 .dw-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--brand); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; flex: none; }
