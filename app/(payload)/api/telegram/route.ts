@@ -287,6 +287,23 @@ async function isAdminChat(payload: Awaited<ReturnType<typeof getPayload>>, chat
   return docs.length > 0
 }
 
+/**
+ * Ім'я для answeredBy/thread: якщо чат прив'язаний до картки співробітника —
+ * справжнє імʼя з Recipients, а не телеграм-нік. Інакше той самий оцінювач,
+ * що пише то з бота, то з робочого стола, рахувався б у звітах як двоє
+ * (виявлено на живих даних: «Micky» і «Назар» — одна й та сама людина).
+ */
+async function staffNameFor(
+  payload: Awaited<ReturnType<typeof getPayload>>, chat: string, from: TgUser | undefined, fallback: string,
+): Promise<string> {
+  const { docs } = await payload.find({
+    collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
+    where: { chatId: { equals: chat }, active: { equals: true } },
+  })
+  const person = docs[0] as { title?: string } | undefined
+  return person?.title || displayName(from, fallback)
+}
+
 type GoldRow = {
   id: string | number; purity: number; purityLabel: string
   oldBase: number; newBase: number; oldBuyout: number; newBuyout: number
@@ -1439,7 +1456,7 @@ async function relayAnswer(
   }).catch(() => null)
   if (!doc) return
 
-  const who = displayName(msg.from, 'оцінювач')
+  const who = await staffNameFor(payload, chat, msg.from, 'оцінювач')
   const rawText = textOf(msg)
   const resolved = await resolveTemplate(payload, rawText)
   if ('warn' in resolved) {
@@ -1558,7 +1575,7 @@ async function relayHotlineAnswer(
   }).catch(() => null)
   if (!doc) return
 
-  const who = displayName(msg.from, 'оператор')
+  const who = await staffNameFor(payload, chat, msg.from, 'оператор')
   const rawText = textOf(msg)
   const resolved = await resolveTemplate(payload, rawText)
   if ('warn' in resolved) {
