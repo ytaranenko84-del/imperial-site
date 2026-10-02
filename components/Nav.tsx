@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { localePair, withLocale } from '@/lib/locale-utils.ts'
+import { trackCta } from '@/lib/analytics.ts'
 
 /**
  * Меню сайту.
@@ -41,7 +42,11 @@ export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[
   return (
     <>
       <nav className="nav">
-        {items.map((i) => <a key={i.href} href={withLocale(i.href, locale)}>{i.label}</a>)}
+        {items.map((i) => (
+          <a key={i.href} href={withLocale(i.href, locale)} onClick={() => { if (i.href === '/calc') trackCta('nav') }}>
+            {i.label}
+          </a>
+        ))}
       </nav>
 
       <button
@@ -59,7 +64,9 @@ export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[
         <div className="mnav" ref={panelRef} role="dialog" aria-modal="true" aria-label="Меню">
           <div className="mnav__links">
             {items.map((i) => (
-              <a key={i.href} href={withLocale(i.href, locale)} onClick={() => setOpen(false)}>{i.label}</a>
+              <a key={i.href} href={withLocale(i.href, locale)} onClick={() => { setOpen(false); if (i.href === '/calc') trackCta('nav_mobile') }}>
+                {i.label}
+              </a>
             ))}
           </div>
           <a className="mnav__tel" href={`tel:${hotline.replace(/\s/g, '')}`}>

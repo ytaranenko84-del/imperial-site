@@ -3,6 +3,7 @@ import './globals.css'
 import Motion from '@/components/Motion'
 import MobileActionBar from '@/components/MobileActionBar'
 import Analytics from '@/components/Analytics'
+import Clarity from '@/components/Clarity'
 import { getSettings } from '@/lib/data.ts'
 import { inter } from '@/lib/fonts.ts'
 import { siteUrl } from '@/lib/site.ts'
@@ -39,12 +40,14 @@ export default async function RootLayout({ children }: LayoutProps<'/'>) {
   const hotline = String(settings.hotline || '0 800 30 85 00')
   const telegram = (settings.telegram as string) || null
   const gaId = (settings.gaMeasurementId as string) || null
+  const clarityId = (settings.clarityId as string) || null
 
   return (
     <html lang="uk" suppressHydrationWarning className={inter.variable}>
       <head><script dangerouslySetInnerHTML={{ __html: MOTION_ON }} /></head>
       <body>
         {gaId && <Analytics measurementId={gaId} />}
+        {clarityId && <Clarity projectId={clarityId} />}
         {children}
         <MobileActionBar hotline={hotline} telegram={telegram} locale="uk" />
         <Motion />

@@ -18,6 +18,12 @@ const gaId = (value: string | null | undefined) =>
     ? true
     : 'Формат: G-XXXXXXXXXX (з analytics.google.com)'
 
+const CLARITY_ID = /^[a-z0-9]{6,20}$/i
+const clarityId = (value: string | null | undefined) =>
+  !value || CLARITY_ID.test(value.trim())
+    ? true
+    : 'Короткий код з clarity.microsoft.com (літери й цифри)'
+
 /** Те, що існує в одному екземплярі: ставки, контакти, гарантія, графік чату. */
 export const Settings: GlobalConfig = {
   slug: 'settings',
@@ -98,6 +104,10 @@ export const Settings: GlobalConfig = {
               admin: { description: 'З analytics.google.com → Адміністрування → Потоки даних → '
                 + 'ваш потік. Вигляд: G-XXXXXXXXXX. Поки поле порожнє, лічильник на сайт не '
                 + 'вантажиться взагалі' } },
+            { name: 'clarityId', type: 'text', label: 'Microsoft Clarity Project ID', validate: clarityId,
+              admin: { description: 'З clarity.microsoft.com → Settings → Setup → код проєкту. '
+                + 'Безкоштовний запис реальних сесій відвідувачів. Поки поле порожнє, нічого не '
+                + 'вантажиться' } },
           ],
         },
       ],

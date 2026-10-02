@@ -5,6 +5,7 @@ import { withLocale } from '@/lib/locale-utils.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BreadcrumbSchema } from '@/components/Schema.tsx'
+import TrackedLink from '@/components/TrackedLink.tsx'
 
 export const revalidate = 600
 
@@ -89,12 +90,15 @@ export async function ZastavaContent({ locale }: { locale: L }) {
 
             <div className="grid grid--3" data-reveal-group>
               {CATEGORIES[locale].map(([name, sub, action, how, href]) => (
-                <a className="card card--link" key={name} href={withLocale(href, locale)}>
+                <TrackedLink
+                  location={`zastava_card_${href.replace(/[/#]/g, '_')}`}
+                  className="card card--link" key={name} href={withLocale(href, locale)}
+                >
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
                   <p>{sub}</p>
                   <span className="card__act">{action}<i>→</i></span>
                   <span className="card__how">{how}</span>
-                </a>
+                </TrackedLink>
               ))}
             </div>
           </div>

@@ -9,6 +9,7 @@ import { FaqSchema, OrganizationSchema } from '@/components/Schema.tsx'
 import Branches from '@/components/Branches'
 import Social from '@/components/Social'
 import PromoRibbon from '@/components/PromoRibbon'
+import TrackedLink from '@/components/TrackedLink.tsx'
 import '@/components/Calculator.css'
 import '@/components/Branches.css'
 import '@/components/Booking.css'
@@ -291,7 +292,7 @@ export async function HomePage({ locale }: { locale: L }) {
             <div className="fact"><b><span data-count={years}>{years}</span> {t.factYears}</b><span>{t.factMarket}</span></div>
           </div>
 
-          <a className="pill start__go" href="#calc">{t.ctaCalc}</a>
+          <TrackedLink location="home_hero" className="pill start__go" href="#calc">{t.ctaCalc}</TrackedLink>
           </div>
 
           {/* перший екран займає всю висоту, тож потрібен знак, що сторінка триває */}
@@ -324,12 +325,16 @@ export async function HomePage({ locale }: { locale: L }) {
             </div>
             <div className="grid grid--3" data-reveal-group>
               {CATEGORIES[locale].map(([name, sub, action, how, href]) => (
-                <a className="card card--link" key={name} href={href.startsWith('#') ? href : withLocale(href, locale)}>
+                <TrackedLink
+                  location={`home_card_${href.replace(/[/#]/g, '_')}`}
+                  className="card card--link" key={name}
+                  href={href.startsWith('#') ? href : withLocale(href, locale)}
+                >
                   <h3 style={{ fontSize: 'var(--s1)' }}>{name}</h3>
                   <p>{sub}</p>
                   <span className="card__act">{action}<i>→</i></span>
                   <span className="card__how">{how}</span>
-                </a>
+                </TrackedLink>
               ))}
             </div>
           </div>

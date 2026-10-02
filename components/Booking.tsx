@@ -1,7 +1,7 @@
 'use client'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { trackLead } from '@/lib/analytics.ts'
+import { trackCta, trackFormStart, trackLead } from '@/lib/analytics.ts'
 import { createPortal } from 'react-dom'
 import 'leaflet/dist/leaflet.css'
 import type { Map as LMap, Marker as LMarker } from 'leaflet'
@@ -110,6 +110,7 @@ export default function Booking({ branches, calc, locale = 'uk' }: { branches: B
   const [error, setError] = useState<string | null>(null)
   const [till, setTill] = useState<string>('')
 
+  const startedRef = useRef(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LMap | null>(null)
@@ -233,7 +234,7 @@ export default function Booking({ branches, calc, locale = 'uk' }: { branches: B
 
   return (
     <>
-      <button className="pill res__cta" type="button" onClick={() => { setOpen(true); setState('form') }}>
+      <button className="pill res__cta" type="button" onClick={() => { setOpen(true); setState('form'); trackCta('booking_open') }}>
         {bt.cta}
       </button>
 
@@ -245,7 +246,10 @@ export default function Booking({ branches, calc, locale = 'uk' }: { branches: B
           <div className="modal" role="dialog" aria-modal="true" aria-label={bt.modalTitle}>
 
             {state !== 'done' ? (
-              <form onSubmit={submit}>
+              <form
+                onSubmit={submit}
+                onChangeCapture={() => { if (!startedRef.current) { startedRef.current = true; trackFormStart('booking') } }}
+              >
                 <div className="modal__head">
                   <div>
                     <h2>{bt.modalTitle}</h2>

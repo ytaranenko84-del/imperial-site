@@ -1,7 +1,7 @@
 'use client'
 import React, { useEffect, useRef, useState } from 'react'
 
-import { trackLead } from '@/lib/analytics.ts'
+import { trackCta, trackFormStart, trackFormStep, trackLead } from '@/lib/analytics.ts'
 import { compressImage } from '@/lib/compress-image.ts'
 
 /** Три перші знімки обов'язкові: без них оцінити модель неможливо. */
@@ -85,12 +85,16 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
   const [error, setError] = useState<string | null>(null)
   const [botLink, setBotLink] = useState<string | null>(null)
 
+  const startedRef = useRef(false)
+  const photoStepRef = useRef(false)
+
   async function pickPhoto(i: number, f: File | undefined) {
     if (!f) {
       setFilled((s) => { const n = { ...s }; delete n[i]; return n })
       setPhotoFiles((s) => { const n = { ...s }; delete n[i]; return n })
       return
     }
+    if (!photoStepRef.current) { photoStepRef.current = true; trackFormStep('eval-watches', 'photo_upload') }
     setFilled((s) => ({ ...s, [i]: `✓ ${f.name}` }))
     setCompressing((c) => c + 1)
     try {
@@ -149,7 +153,7 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
         <p>{wt.doneText}</p>
         {botLink && (
           <>
-            <a className="tgbtn" href={botLink} target="_blank" rel="noopener">
+            <a className="tgbtn" href={botLink} target="_blank" rel="noopener" onClick={() => trackCta('post_submit_telegram_eval-watches')}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M21.94 4.9 18.9 19.2c-.23 1.01-.83 1.26-1.68.78l-4.64-3.42-2.24 2.15c-.25.25-.46.46-.94.46l.33-4.73 8.6-7.77c.37-.33-.08-.52-.58-.19L7.13 12.4 2.55 10.97c-1-.31-1.01-1 .21-1.48l17.9-6.9c.83-.3 1.56.2 1.28 2.31Z" />
               </svg>
@@ -169,7 +173,10 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
   }
 
   return (
-    <form className="wform" ref={formRef} onSubmit={submit} noValidate>
+    <form
+      className="wform" ref={formRef} onSubmit={submit} noValidate
+      onChangeCapture={() => { if (!startedRef.current) { startedRef.current = true; trackFormStart('eval-watches') } }}
+    >
       <div className="wgrid">
         <p>
           <label htmlFor="wf-name">{wt.name} <span className="req">*</span></label>

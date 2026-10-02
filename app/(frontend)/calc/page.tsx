@@ -6,6 +6,7 @@ import { CATEGORIES } from '@/lib/categories.ts'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import Calculator from '@/components/Calculator'
+import TrackedLink from '@/components/TrackedLink.tsx'
 import { BreadcrumbSchema, FaqSchema } from '@/components/Schema.tsx'
 import '@/components/Calculator.css'
 import '@/components/Branches.css'
@@ -187,17 +188,17 @@ export async function CalcContent({ locale }: { locale: L }) {
             <h2>{t.techH2}</h2>
             <p className="lead">{t.techLead}</p>
             <div className="grid grid--4" data-reveal-group>
-              <a className="card card--link" href={withLocale('/zastava/hodynnyky', locale)}>
+              <TrackedLink location="calc_card_hodynnyky" className="card card--link" href={withLocale('/zastava/hodynnyky', locale)}>
                 <h3 style={{ fontSize: 'var(--s1)' }}>{t.watchesName}</h3>
                 <p>{t.watchesSub}</p>
                 <span className="card__act">{t.techAct}<i>→</i></span>
-              </a>
+              </TrackedLink>
               {CATEGORIES[locale].map((c) => (
-                <a className="card card--link" key={c.slug} href={withLocale(`/zastava/${c.slug}`, locale)}>
+                <TrackedLink location={`calc_card_${c.slug}`} className="card card--link" key={c.slug} href={withLocale(`/zastava/${c.slug}`, locale)}>
                   <h3 style={{ fontSize: 'var(--s1)' }}>{c.name}</h3>
                   <p>{c.take[0]}</p>
                   <span className="card__act">{t.techAct}<i>→</i></span>
-                </a>
+                </TrackedLink>
               ))}
             </div>
           </div>

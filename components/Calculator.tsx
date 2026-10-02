@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Branch, LoyaltyTier, RateTier, Tariff } from '@/lib/data'
 import Booking from './Booking'
+import { trackCalcUsed } from '@/lib/analytics.ts'
 
 type Props = {
   tariffs: Tariff[]
@@ -140,6 +141,7 @@ export default function Calculator({
     () => list.find((t) => t.purityLabel.startsWith('585'))?.purityLabel ?? list[0]?.purityLabel ?? '',
   )
   const selectMetal = (m: 'gold' | 'silver') => {
+    markUsed()
     setMetal(m)
     const l = tariffs.filter((t) => t.metal === m)
     setPurity(l.find((t) => t.purityLabel.startsWith('585'))?.purityLabel ?? l[0]?.purityLabel ?? '')
@@ -195,7 +197,14 @@ export default function Calculator({
   const clampW = (v: number) => Math.max(0.1, Math.min(500, v))
   const clampD = (v: number) => Math.max(minDays, Math.min(maxDays, Math.round(v)))
 
+  // Вага за умовчанням уже ненульова — сама наявність суми на екрані ще не
+  // означає, що людина рахувала. Лічимо «використав», тільки коли щось
+  // реально зміняли: вагу, пробу чи метал.
+  const usedRef = useRef(false)
+  const markUsed = () => { if (!usedRef.current) { usedRef.current = true; trackCalcUsed() } }
+
   const setW = (v: number, syncField: boolean) => {
+    markUsed()
     const w = clampW(v)
     setWeight(w)
     if (syncField) setWeightText(num(w))
@@ -237,7 +246,7 @@ export default function Calculator({
               <button
                 key={t.purityLabel} type="button" className="chip"
                 aria-pressed={t.purityLabel === purity}
-                onClick={() => setPurity(t.purityLabel)}
+                onClick={() => { markUsed(); setPurity(t.purityLabel) }}
               >
                 {t.purityLabel}
               </button>
