@@ -274,12 +274,12 @@ export default function Booking({ branches, calc, locale = 'uk' }: { branches: B
                     <p>
                       <label htmlFor="bk-name">{bt.name} <span className="req">*</span></label>
                       <input ref={nameRef} id="bk-name" name="name" type="text" required maxLength={120}
-                        placeholder={bt.namePh} autoComplete="name" />
+                        placeholder={bt.namePh} autoComplete="name" data-clarity-mask="true" />
                     </p>
                     <p>
                       <label htmlFor="bk-phone">{bt.phone} <span className="req">*</span></label>
                       <input id="bk-phone" name="phone" type="tel" required maxLength={40}
-                        placeholder="+380" autoComplete="tel" />
+                        placeholder="+380" autoComplete="tel" data-clarity-mask="true" />
                     </p>
                   </div>
 

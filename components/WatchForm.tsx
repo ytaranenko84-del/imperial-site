@@ -181,12 +181,12 @@ export default function WatchForm({ brands, locale = 'uk' }: { brands: string[];
         <p>
           <label htmlFor="wf-name">{wt.name} <span className="req">*</span></label>
           <input id="wf-name" name="name" type="text" required maxLength={120}
-            placeholder={wt.namePh} autoComplete="name" />
+            placeholder={wt.namePh} autoComplete="name" data-clarity-mask="true" />
         </p>
         <p>
           <label htmlFor="wf-phone">{wt.phone} <span className="req">*</span></label>
           <input id="wf-phone" name="phone" type="tel" required maxLength={40}
-            placeholder="+380" autoComplete="tel" />
+            placeholder="+380" autoComplete="tel" data-clarity-mask="true" />
         </p>
       </div>
 

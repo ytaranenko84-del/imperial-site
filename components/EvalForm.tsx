@@ -172,12 +172,12 @@ export default function EvalForm({ category, shots, example, brands, locale = 'u
         <p>
           <label htmlFor="ef-name">{ef.name} <span className="req">*</span></label>
           <input id="ef-name" name="name" type="text" required maxLength={120}
-            placeholder={ef.namePh} autoComplete="name" />
+            placeholder={ef.namePh} autoComplete="name" data-clarity-mask="true" />
         </p>
         <p>
           <label htmlFor="ef-phone">{ef.phone} <span className="req">*</span></label>
           <input id="ef-phone" name="phone" type="tel" required maxLength={40}
-            placeholder="+380" autoComplete="tel" />
+            placeholder="+380" autoComplete="tel" data-clarity-mask="true" />
         </p>
       </div>
 
