@@ -121,6 +121,15 @@ a { color: inherit; }
 }
 .nav a:hover { opacity: 1; }
 .nav a:hover::after { opacity: 0.5; transform: none; }
+.top__contact { display: flex; align-items: center; gap: 0.7rem; }
+/* Нижче 900px той самий Telegram уже є в липкій панелі дій (.mabar) —
+   дублювати в шапці не треба, лише звужувати й так тісний рядок. */
+.top__tg {
+  display: none; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  color: var(--dim); flex: none; transition: color 0.16s, background-color 0.16s;
+}
+.top__tg:hover { color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); }
+.top__tg svg { width: 16px; height: 16px; }
 .tel { display: flex; flex-direction: column; align-items: flex-end; text-decoration: none; }
 .tel b { font-weight: 400; font-size: 0.8rem; white-space: nowrap; }
 .tel span { font-size: 0.66rem; color: var(--dim); }
@@ -134,7 +143,7 @@ a { color: inherit; }
   .tel b { font-size: 0.74rem; }
   .brand b { font-size: 1rem; letter-spacing: 0.08em; }
 }
-@media (min-width: 900px) { .nav { display: flex; } }
+@media (min-width: 900px) { .nav { display: flex; } .top__tg { display: grid; } }
 
 /* ── меню на телефоні ─────────────────────────────────────────────────────
    Рядок посилань не вміщається у вузький екран, тож там його замінює кнопка

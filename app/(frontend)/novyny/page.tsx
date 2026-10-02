@@ -49,6 +49,7 @@ export async function NovynyContent({ locale }: { locale: L }) {
   const t = T[locale]
   const settings = await getSettings(locale)
   const hotline = String(settings.hotline || '0 800 30 85 00')
+  const telegram = (settings.telegram as string) || null
   const all = await getNews(locale)
   const live = all.filter((n) => !n.archived)
   const archived = all.filter((n) => n.archived)
@@ -73,7 +74,7 @@ export async function NovynyContent({ locale }: { locale: L }) {
         { name: t.home, href: withLocale('/', locale) },
         { name: t.crumb, href: withLocale('/novyny', locale) },
       ]} />
-      <SiteHeader hotline={hotline} locale={locale} />
+      <SiteHeader hotline={hotline} telegram={telegram} locale={locale} />
 
       <main>
         <section className="sec">

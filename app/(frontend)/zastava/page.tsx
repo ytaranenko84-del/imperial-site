@@ -68,6 +68,7 @@ export async function ZastavaContent({ locale }: { locale: L }) {
   const t = T[locale]
   const settings = await getSettings(locale)
   const hotline = String(settings.hotline || '0 800 30 85 00')
+  const telegram = (settings.telegram as string) || null
 
   return (
     <>
@@ -75,7 +76,7 @@ export async function ZastavaContent({ locale }: { locale: L }) {
         { name: t.home, href: withLocale('/', locale) },
         { name: t.crumb, href: withLocale('/zastava', locale) },
       ]} />
-      <SiteHeader hotline={hotline} locale={locale} />
+      <SiteHeader hotline={hotline} telegram={telegram} locale={locale} />
 
       <main>
         <section className="sec">

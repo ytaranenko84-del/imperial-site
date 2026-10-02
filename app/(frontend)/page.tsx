@@ -219,6 +219,7 @@ export async function HomePage({ locale }: { locale: L }) {
   const s = settings as Record<string, string | number | boolean | undefined>
 
   const hotline = String(s.hotline || '0 800 30 85 00')
+  const telegram = (s.telegram as string) || null
   const minDays = Number(s.minTermDays ?? 5)
   const maxDays = Number(s.maxTermDays ?? 30)
   const share = Number(s.valuationShare ?? 80)
@@ -258,9 +259,19 @@ export async function HomePage({ locale }: { locale: L }) {
           ]}
         />
         <LangSwitch locale={locale} />
-        <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
-          <b>{hotline}</b><span>{t.roundClock}</span>
-        </a>
+        <div className="top__contact">
+          {telegram && (
+            <TrackedLink location="header_telegram" className="top__tg" href={telegram} target="_blank" rel="noopener"
+              aria-label="Telegram" title="Telegram">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+                <path d="M21.94 4.9 18.9 19.2c-.23 1.01-.83 1.26-1.68.78l-4.64-3.42-2.24 2.15c-.25.25-.46.46-.94.46l.33-4.73 8.6-7.77c.37-.33-.08-.52-.58-.19L7.13 12.4 2.55 10.97c-1-.31-1.01-1 .21-1.48l17.9-6.9c.83-.3 1.56.2 1.28 2.31Z" />
+              </svg>
+            </TrackedLink>
+          )}
+          <a className="tel" href={`tel:${hotline.replace(/\s/g, '')}`}>
+            <b>{hotline}</b><span>{t.roundClock}</span>
+          </a>
+        </div>
       </header>
 
       <main>

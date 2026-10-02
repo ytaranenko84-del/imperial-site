@@ -58,6 +58,7 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
   const [n, settings] = await Promise.all([getNewsItem(slug, locale), getSettings(locale)])
   if (!n) notFound()
   const hotline = String(settings.hotline || '0 800 30 85 00')
+  const telegram = (settings.telegram as string) || null
 
   // Спершу діючі: пропонувати завершені акції — марно витрачати увагу
   const others = (await getNews(locale))
@@ -72,7 +73,7 @@ export async function NovynyItemContent({ slug, locale }: { slug: string; locale
         { name: t.crumb, href: withLocale('/novyny', locale) },
         { name: n.title, href: withLocale(`/novyny/${n.slug}`, locale) },
       ]} />
-      <SiteHeader hotline={hotline} locale={locale} />
+      <SiteHeader hotline={hotline} telegram={telegram} locale={locale} />
 
       <main>
         <article className="sec">

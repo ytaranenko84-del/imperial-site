@@ -93,6 +93,7 @@ export async function ViddilennyaContent({ locale }: { locale: L }) {
   const { branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | undefined>
   const hotline = String(s.hotline || '0 800 30 85 00')
+  const telegram = (s.telegram as string) || null
 
   const roundClock = branches.filter((b) => b.roundClock).length
   const onMap = branches.filter((b) => b.lat != null && b.lng != null).length
@@ -106,7 +107,7 @@ export async function ViddilennyaContent({ locale }: { locale: L }) {
         { name: t.crumb, href: withLocale('/viddilennya', locale) },
       ]} />
 
-      <SiteHeader hotline={hotline} locale={locale} />
+      <SiteHeader hotline={hotline} telegram={telegram} locale={locale} />
 
       <main>
         <section className="sec">

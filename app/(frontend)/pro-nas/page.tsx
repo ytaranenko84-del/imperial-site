@@ -78,6 +78,7 @@ export async function ProNasContent({ locale }: { locale: L }) {
   const { branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | undefined>
   const hotline = String(s.hotline || '0 800 30 85 00')
+  const telegram = (s.telegram as string) || null
   const years = new Date().getFullYear() - 2008
 
   return (
@@ -86,7 +87,7 @@ export async function ProNasContent({ locale }: { locale: L }) {
         { name: t.home, href: withLocale('/', locale) },
         { name: t.crumb, href: withLocale('/pro-nas', locale) },
       ]} />
-      <SiteHeader hotline={hotline} locale={locale} />
+      <SiteHeader hotline={hotline} telegram={telegram} locale={locale} />
 
       <main>
         <section className="sec">

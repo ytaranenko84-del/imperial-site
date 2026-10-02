@@ -63,7 +63,7 @@ export async function DyakuyemoContent({ locale }: { locale: L }) {
         { name: t.home, href: withLocale('/', locale) },
         { name: t.crumb, href: withLocale('/dyakuyemo', locale) },
       ]} />
-      <SiteHeader hotline={hotline} locale={locale} />
+      <SiteHeader hotline={hotline} telegram={telegram} locale={locale} />
 
       <main>
         <section className="sec">

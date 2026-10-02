@@ -140,6 +140,7 @@ export async function CalcContent({ locale }: { locale: L }) {
   const { tariffs, rateTiers, loyaltyTiers, branches, settings } = await getSiteData(locale)
   const s = settings as Record<string, string | number | undefined>
   const hotline = String(s.hotline || '0 800 30 85 00')
+  const telegram = (s.telegram as string) || null
   const minDays = Number(s.minTermDays ?? 5)
   const maxDays = Number(s.maxTermDays ?? 30)
 
@@ -150,7 +151,7 @@ export async function CalcContent({ locale }: { locale: L }) {
         { name: t.home, href: withLocale('/', locale) },
         { name: t.crumb, href: withLocale('/calc', locale) },
       ]} />
-      <SiteHeader hotline={hotline} locale={locale} />
+      <SiteHeader hotline={hotline} telegram={telegram} locale={locale} />
 
       <main>
         <section className="sec">
