@@ -36,6 +36,7 @@ type TgMessage = {
   text?: string
   caption?: string
   photo?: TgPhotoSize[]
+  document?: { file_id: string; mime_type?: string }
   contact?: { phone_number: string; user_id?: number }
   location?: { latitude: number; longitude: number }
   migrate_to_chat_id?: number
@@ -161,11 +162,20 @@ function textOf(msg: TgMessage): string {
   return String(msg.text || msg.caption || '').trim()
 }
 
-/** Фото середнього розміру: найбільше вантажиться довше, а тут важлива швидкість. */
-function pickPhoto(msg: TgMessage): string | null {
+const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+
+/**
+ * Фото середнього розміру: найбільше вантажиться довше, а тут важлива швидкість.
+ * Якщо клієнт надіслав фото «без стиснення» (кнопка «Файл», а не «Фото»),
+ * Telegram кладе його в msg.document, а не msg.photo — такий варіант раніше
+ * тут не перевірявся взагалі, і фото мовчки губилось.
+ */
+function pickPhoto(msg: TgMessage): { fileId: string; mimeType: string } | null {
   const sizes = msg.photo
-  if (!sizes?.length) return null
-  return sizes[Math.max(0, sizes.length - 2)].file_id
+  if (sizes?.length) return { fileId: sizes[Math.max(0, sizes.length - 2)].file_id, mimeType: 'image/jpeg' }
+  const doc = msg.document
+  if (doc?.mime_type && IMAGE_MIME_TYPES.has(doc.mime_type)) return { fileId: doc.file_id, mimeType: doc.mime_type }
+  return null
 }
 
 function displayName(from?: TgUser, fallback = 'клієнт') {
@@ -1607,7 +1617,7 @@ async function relayHotlineAnswer(
       const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
       clientMsgId = r.message_id
     }
-    if (photo) await sendPhoto(clientChat, photo).catch(() => {})
+    if (photo) await sendPhoto(clientChat, photo.fileId).catch(() => {})
     const delKeyboard = clientMsgId
       ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:hotline:${id}:${replyKey}` }]] }
       : undefined
@@ -1740,7 +1750,7 @@ async function appendHotline(
       ? hotlineCard({ id: doc.id, name: doc.name, phone: doc.phone }, text, label)
       : `<b>${esc(label)} №${doc.id}</b> · клієнт додав:\n${esc(entryText)}`
     await send({ chat: target, text: text2 }).catch(() => {})
-    if (photo) await sendPhoto(target, photo).catch(() => {})
+    if (photo) await sendPhoto(target, photo.fileId).catch(() => {})
   }
   if (isFirst) {
     await notifyRecipients(payload, chats, { title: `Нове звернення: ${label}`, body: entryText || doc.name || '' })
@@ -1766,18 +1776,18 @@ async function appendOtsinka(
   msg: TgMessage,
 ) {
   const text = textOf(msg)
-  const photoId = pickPhoto(msg)
+  const photo = pickPhoto(msg)
   const isFirst = !doc.comment && !(doc.photos || []).length
 
   let mediaId: string | number | null = null
-  if (photoId) {
+  if (photo) {
     const { downloadTelegramFile } = await import('@/lib/telegram.ts')
-    const file = await downloadTelegramFile(photoId)
+    const file = await downloadTelegramFile(photo.fileId)
     if (file) {
       const created = await payload.create({
         collection: 'media', overrideAccess: true,
         data: { alt: `Заявка з бота: фото ${(doc.photos || []).length + 1}` },
-        file: { data: file.data, name: file.name, mimetype: 'image/jpeg', size: file.data.length },
+        file: { data: file.data, name: file.name, mimetype: photo.mimeType, size: file.data.length },
       }).catch(() => null)
       if (created) mediaId = created.id
     }
@@ -1842,6 +1852,6 @@ async function noteClientMessage(
       chat: target,
       text: `<b>Заявка №${doc.id}</b> · клієнт відповів:\n${esc(entryText)}`,
     }).catch(() => {})
-    if (photo) await sendPhoto(target, photo).catch(() => {})
+    if (photo) await sendPhoto(target, photo.fileId).catch(() => {})
   }
 }
