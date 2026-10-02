@@ -23,6 +23,7 @@ import { RateLimitHits } from './collections/RateLimitHits.ts'
 import { StaffLogins } from './collections/StaffLogins.ts'
 import { HotlineChats } from './collections/HotlineChats.ts'
 import { TelegramClients } from './collections/TelegramClients.ts'
+import { BotEvents } from './collections/BotEvents.ts'
 import { News } from './collections/News.ts'
 import { Media } from './collections/Media.ts'
 import { Users } from './collections/Users.ts'
@@ -73,7 +74,7 @@ export default buildConfig({
   },
   collections: [
     Tariffs, RateTiers, LoyaltyTiers, Cities, Branches, Bookings, EvalRequests, Recipients,
-    PushSubscriptions, ReplyTemplates, RateLimitHits, StaffLogins, HotlineChats, TelegramClients, News, Media, Users,
+    PushSubscriptions, ReplyTemplates, RateLimitHits, StaffLogins, HotlineChats, TelegramClients, BotEvents, News, Media, Users,
   ],
   globals: [Settings],
   // GraphQL сайт не використовує, а відкритий /api/graphql видає стороннім

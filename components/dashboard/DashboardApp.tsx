@@ -121,6 +121,20 @@ type Report = {
   staff: { name: string; count: number; avgReplyMs: number | null }[]
 }
 
+type BotFunnel = {
+  start: number
+  menuClick: number
+  contactShared: number
+  formCompleted: number
+  byMenu: { intent: string; count: number }[]
+  gotLinkNotStarted: number
+}
+
+const MENU_LABEL: Record<string, string> = {
+  otsinka: 'Оцінка речі', hotline: 'Гаряча лінія', bron: 'Мої броні',
+  viddilennya: 'Найближче відділення', umovy: 'Умови', review: 'Відгуки та побажання',
+}
+
 /** Формат тривалості для звіту: не секунди/мілісекунди — хвилини, години, дні. */
 function formatDuration(ms: number | null): string {
   if (ms == null) return '—'
@@ -194,6 +208,27 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   useEffect(() => {
     if (showReport) loadReport(reportPeriod)
   }, [showReport, reportPeriod, loadReport])
+
+  // Воронка бота — теж лише для адміністратора, окремий оверлей
+  const [showBotFunnel, setShowBotFunnel] = useState(false)
+  const [botFunnel, setBotFunnel] = useState<BotFunnel | null>(null)
+  const [botFunnelLoading, setBotFunnelLoading] = useState(false)
+  const [botFunnelPeriod, setBotFunnelPeriod] = useState<'all' | 'today' | 'week' | 'month'>('week')
+
+  const loadBotFunnel = useCallback(async (p: typeof botFunnelPeriod) => {
+    setBotFunnelLoading(true)
+    try {
+      const res = await fetch(`/api/dashboard/bot-funnel?period=${p}`)
+      const json = await res.json().catch(() => null)
+      if (json && !json.error) setBotFunnel(json)
+    } finally {
+      setBotFunnelLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showBotFunnel) loadBotFunnel(botFunnelPeriod)
+  }, [showBotFunnel, botFunnelPeriod, loadBotFunnel])
 
   useEffect(() => {
     setInstalled(window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true)
@@ -552,6 +587,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 <button type="button" className="dw-view" onClick={() => setShowReport(true)}>
                   <span>📊 Відповіді по співробітниках</span>
                 </button>
+                <button type="button" className="dw-view" onClick={() => setShowBotFunnel(true)}>
+                  <span>📊 Воронка бота</span>
+                </button>
               </div>
             </>
           )}
@@ -839,6 +877,67 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
                 <p className="dw-hint">
                   Рахується з моменту надходження заявки до першої відповіді в переписці. Заявки-брони сюди не входять.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showBotFunnel && (
+        <div className="dw-report-backdrop" onClick={() => setShowBotFunnel(false)}>
+          <div className="dw-report-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="dw-report-head">
+              <b>Воронка бота</b>
+              <button type="button" className="dw-report-close" onClick={() => setShowBotFunnel(false)} aria-label="Закрити">✕</button>
+            </div>
+
+            <div className="dw-views dw-views--row">
+              {([['all', 'Увесь час'], ['month', '30 днів'], ['week', '7 днів'], ['today', 'Сьогодні']] as const).map(([p, label]) => (
+                <button key={p} type="button" className={`dw-view ${botFunnelPeriod === p ? 'on' : ''}`} onClick={() => setBotFunnelPeriod(p)}>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {botFunnelLoading && <p className="dw-hint">Рахуємо…</p>}
+
+            {!botFunnelLoading && botFunnel && (
+              <>
+                <table className="dw-report-table">
+                  <thead><tr><th>Крок</th><th>Людей</th></tr></thead>
+                  <tbody>
+                    <tr><td>Натиснули «Старт»</td><td>{botFunnel.start}</td></tr>
+                    <tr><td>Вибрали пункт меню</td><td>{botFunnel.menuClick}</td></tr>
+                    <tr><td>Поділились номером</td><td>{botFunnel.contactShared}</td></tr>
+                    <tr><td>Довели до кінця</td><td>{botFunnel.formCompleted}</td></tr>
+                  </tbody>
+                </table>
+
+                {botFunnel.byMenu.length > 0 && (
+                  <>
+                    <p className="dw-section-label">По пунктах меню</p>
+                    <table className="dw-report-table">
+                      <thead><tr><th>Пункт</th><th>Людей</th></tr></thead>
+                      <tbody>
+                        {botFunnel.byMenu.map((m) => (
+                          <tr key={m.intent}><td>{MENU_LABEL[m.intent] || m.intent}</td><td>{m.count}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                <div className="dw-report-summary">
+                  <div className="dw-report-stat">
+                    <b>{botFunnel.gotLinkNotStarted}</b>
+                    <span>отримали посилання після заявки з сайту, але не почали діалог у боті</span>
+                  </div>
+                </div>
+
+                <p className="dw-hint">
+                  Рахуємо унікальних людей на кожному кроці, не кількість натискань. Співробітники, що теж
+                  користуються цим ботом, у підрахунок не входять.
                 </p>
               </>
             )}

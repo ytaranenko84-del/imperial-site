@@ -4,6 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { answerCallback, esc, normalizePhone, resolveTemplate, send, sumFromText, token } from '@/lib/telegram.ts'
 import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
+import { logBotEvent } from '@/lib/botEvents.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -841,6 +842,7 @@ export async function POST(req: Request) {
         return Response.json({ ok: true })
       }
 
+      await logBotEvent(payload, chatKey, 'start')
       const known = await getKnownPhone(payload, chatKey)
       const menu = (await isAdminChat(payload, chatKey)) ? ADMIN_MENU_KEYBOARD : MENU_KEYBOARD
       if (known) {
@@ -860,6 +862,7 @@ export async function POST(req: Request) {
     // ── кнопка меню (або стара слеш-команда) ──
     const intent = matchIntent(msg.text)
     if (intent) {
+      await logBotEvent(payload, chatKey, 'menu_click', intent)
       await handleIntent(payload, chatKey, msg.from, intent)
       return Response.json({ ok: true })
     }
@@ -1199,6 +1202,7 @@ async function startIntent(
       collection: 'hotline-chats', overrideAccess: true,
       data: { clientChat: chat, name: displayName(from), phone, status: 'new', kind: 'hotline' },
     })
+    await logBotEvent(payload, chat, 'form_completed', 'hotline')
     await send({ chat, text: 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?', replyMarkup: MENU_KEYBOARD })
     return
   }
@@ -1207,6 +1211,7 @@ async function startIntent(
       collection: 'hotline-chats', overrideAccess: true,
       data: { clientChat: chat, name: displayName(from), phone, status: 'new', kind: 'review' },
     })
+    await logBotEvent(payload, chat, 'form_completed', 'review')
     await send({ chat, text: REVIEW_GREETING, replyMarkup: MENU_KEYBOARD })
     return
   }
@@ -1319,6 +1324,7 @@ async function handleContact(
   const digits = normalizePhone(phone)
   const who = displayName(from, '')
 
+  await logBotEvent(payload, chat, 'contact_shared')
   await saveKnownPhone(payload, chat, phone, who)
 
   const branches = await payload.find({
@@ -1784,6 +1790,9 @@ async function appendOtsinka(
     collection: 'eval-requests', id: doc.id, overrideAccess: true,
     data: { comment, photos },
   })
+  // Кнопка «Оцінка речі» створює порожню чернетку — заявкою вона стає лише тут,
+  // у момент першого реального опису чи фото.
+  if (isFirst && doc.clientChat) await logBotEvent(payload, doc.clientChat, 'form_completed', 'otsinka')
 
   const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, 'other')
