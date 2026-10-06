@@ -24,10 +24,15 @@ export function trackCta(location: string) {
 /**
  * Початок заповнення форми — рівно один раз за сесію форми, інакше кожне
  * наступне поле рахувалося б як нова «спроба» і перекручувало воронку.
+ *
+ * Назва навмисне НЕ "form_start" — GA4 сам, без жодного коду тут, стежить
+ * за будь-якою формою на сайті (Enhanced measurement) і шле подію з рівно
+ * такою самою назвою. Однакові імена злились би в одну цифру без способу
+ * їх розрізнити заднім числом.
  */
 export function trackFormStart(form: string) {
   if (typeof window === 'undefined') return
-  window.gtag?.('event', 'form_start', { form })
+  window.gtag?.('event', 'lead_form_start', { form })
 }
 
 /** Промайданий крок усередині форми (напр. дійшов до фото) — теж один раз. */
