@@ -22,10 +22,14 @@ async function relatedByPhone(
   const digits = normalizePhone(phone)
   if (!digits) return []
 
+  // Шукаємо за останніми 9 цифрами прямо в базі (contains), а не вичитуємо
+  // по 300 рядків із трьох колекцій і фільтруємо в пам'яті на кожен клік —
+  // це й було справжньою причиною затримки при відкритті картки.
+  const where = { phone: { contains: digits } }
   const [evalRes, hotlineRes, bookingRes] = await Promise.all([
-    payload.find({ collection: 'eval-requests', limit: 300, depth: 0, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'hotline-chats', limit: 300, depth: 0, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'bookings', limit: 300, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'eval-requests', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'hotline-chats', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'bookings', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt' }),
   ])
 
   const related: Related[] = []
@@ -107,13 +111,13 @@ export async function GET(req: Request) {
   }
 
   const collection = kind === 'eval' ? 'eval-requests' : 'hotline-chats'
-  const doc = await payload.findByID({ collection, id, depth: 1, overrideAccess: true }).catch(() => null)
+  // Відкрили картку — значить, хтось із команди її побачив: знімаємо
+  // «непрочитане» тим самим запитом, що й читає дані — замість окремих
+  // findByID + update (зайвий зворотний рейс на кожен клік).
+  const doc = await payload.update({
+    collection, id, depth: 1, overrideAccess: true, data: { lastViewedAt: new Date().toISOString() },
+  }).catch(() => null)
   if (!doc) return Response.json({ error: 'Не знайдено' }, { status: 404 })
-
-  // Відкрили картку — значить, хтось із команди її побачив: знімаємо «непрочитане».
-  await payload.update({
-    collection, id, overrideAccess: true, data: { lastViewedAt: new Date().toISOString() },
-  }).catch(() => {})
 
   const d = doc as Record<string, unknown>
   const assigned = d.assignedTo as { id?: unknown; title?: string } | null | undefined

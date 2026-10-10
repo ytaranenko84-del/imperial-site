@@ -287,11 +287,15 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     const res = await fetch(`/api/dashboard/item?kind=${kind}&id=${id}`)
     const json = await res.json().catch(() => null)
     if (json && !json.error) setDetail(json)
-    // Відкриття картки саме зараз позначило її переглянутою на сервері —
-    // без цього лічильники й кольори точок зліва лишались би старими
-    // до наступного опитування (до 8 секунд).
-    loadItems(qRef.current)
-  }, [loadItems])
+    /*
+     * Відкриття картки саме зараз позначило її переглянутою на сервері —
+     * без цього лічильники й кольори точок зліва лишались би старими до
+     * наступного опитування. Раніше тут перезавантажувався весь список
+     * (три важких запити) заради однієї зміненої позначки — тепер просто
+     * знімаємо «непрочитане» локально, без зайвого рейсу на сервер.
+     */
+    setItems((prev) => prev && prev.map((it) => (it.key === key ? { ...it, unread: false } : it)))
+  }, [])
 
   useEffect(() => {
     loadItems(q)
