@@ -111,21 +111,45 @@ export async function GET(req: Request) {
   }
 
   const collection = kind === 'eval' ? 'eval-requests' : 'hotline-chats'
-  // Відкрили картку — значить, хтось із команди її побачив: знімаємо
-  // «непрочитане» тим самим запитом, що й читає дані — замість окремих
-  // findByID + update (зайвий зворотний рейс на кожен клік).
+  /*
+   * Відкрили картку — значить, хтось із команди її побачив: знімаємо
+   * «непрочитане» тим самим запитом, що й читає дані — замість окремих
+   * findByID + update (зайвий зворотний рейс на кожен клік).
+   *
+   * depth:0 навмисно: на depth:1 Payload розгортав би ВСІ фото заявки
+   * повними документами медіатеки за одне розгортання зв'язку — для
+   * заявки з 5-7 фото це і була справжня причина "відкривається секунд
+   * 5". Натомість — один прицільний запит лише за filename потрібних
+   * фото, нижче.
+   */
   const doc = await payload.update({
-    collection, id, depth: 1, overrideAccess: true, data: { lastViewedAt: new Date().toISOString() },
+    collection, id, depth: 0, overrideAccess: true, data: { lastViewedAt: new Date().toISOString() },
   }).catch(() => null)
   if (!doc) return Response.json({ error: 'Не знайдено' }, { status: 404 })
 
   const d = doc as Record<string, unknown>
-  const assigned = d.assignedTo as { id?: unknown; title?: string } | null | undefined
-  const photos = kind === 'eval'
-    ? ((d.photos as { filename?: string }[] | undefined) || [])
-        .map((p) => (p?.filename ? mediaUrl(p.filename) : null))
+
+  let assignedToName = ''
+  if (d.assignedTo != null) {
+    const r = await payload.findByID({
+      collection: 'recipients', id: d.assignedTo as string | number, depth: 0, overrideAccess: true,
+    }).catch(() => null)
+    assignedToName = (r as { title?: string } | null)?.title || ''
+  }
+
+  let photos: string[] = []
+  if (kind === 'eval') {
+    const photoIds = (d.photos as (string | number)[] | undefined) || []
+    if (photoIds.length) {
+      const mediaRes = await payload.find({
+        collection: 'media', where: { id: { in: photoIds } }, limit: photoIds.length, depth: 0, overrideAccess: true,
+      })
+      photos = mediaRes.docs
+        .map((m) => String((m as unknown as { filename?: string }).filename || ''))
         .filter(Boolean)
-    : []
+        .map((filename) => mediaUrl(filename))
+    }
+  }
   const key = `${kind}:${id}`
 
   return Response.json({
@@ -143,8 +167,8 @@ export async function GET(req: Request) {
     comment: kind === 'eval' ? String(d.comment || '') : undefined,
     estimate: kind === 'eval' ? Number(d.estimate || 0) : undefined,
     photos,
-    assignedTo: (assigned?.id as string | number | undefined) ?? null,
-    assignedToName: assigned?.title || '',
+    assignedTo: (d.assignedTo as string | number | undefined) ?? null,
+    assignedToName,
     answeredBy: String(d.answeredBy || ''),
     thread: (d.thread as { from?: string; text?: string; at?: string }[] | undefined) || [],
     notes: ((d.notes as { from?: string; text?: string; mentions?: string; at?: string }[] | undefined) || [])
