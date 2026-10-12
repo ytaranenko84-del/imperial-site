@@ -118,7 +118,8 @@ export async function GET(req: Request) {
     payload.find({ collection: 'hotline-chats', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
     payload.find({ collection: 'bookings', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
     payload.find({ collection: 'recipients', limit: 200, depth: 0, overrideAccess: true }),
-    payload.find({ collection: 'branches', limit: 200, depth: 0, overrideAccess: true }),
+    // branches.address — локалізоване поле; без явного locale Payload не гарантує, яку мову підставить.
+    payload.find({ collection: 'branches', limit: 200, depth: 0, locale: 'uk', overrideAccess: true }),
   ])
   const names = new Map(
     recipientsRes.docs.map((r) => [String((r as { id: unknown }).id), String((r as { title?: string }).title || '')]),
