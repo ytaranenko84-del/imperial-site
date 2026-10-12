@@ -89,10 +89,20 @@ function isUnread(lastViewedAt: unknown, thread: unknown, createdAt: unknown): b
   return viewed < lastThreadAt(thread, createdAt)
 }
 
-function assignedFields(d: Record<string, unknown>): { assignedTo: string | number | null; assignedToName: string } {
-  const a = d.assignedTo as { id?: unknown; title?: string } | number | string | null | undefined
-  if (a && typeof a === 'object') return { assignedTo: (a.id as string | number) ?? null, assignedToName: a.title || '' }
-  return { assignedTo: (a as string | number) ?? null, assignedToName: '' }
+/*
+ * depth:0 нижче навмисно: за замовчуванням Payload на depth:1 підтягував
+ * би не лише assignedTo, а й повний масив photos з усіма даними кожного
+ * файлу — на кожен запис, на кожному з опитувань раз на 8 секунд, хоча
+ * список фото тут узагалі ніде не показується. Ім'я виконавця натомість
+ * береться з однієї дешевої мапи — замість вбудованого розгортання
+ * зв'язку на кожному окремому записі.
+ */
+function assignedFields(
+  d: Record<string, unknown>, names: Map<string, string>,
+): { assignedTo: string | number | null; assignedToName: string } {
+  const a = d.assignedTo as number | string | null | undefined
+  if (a == null) return { assignedTo: null, assignedToName: '' }
+  return { assignedTo: a, assignedToName: names.get(String(a)) || '' }
 }
 
 export async function GET(req: Request) {
@@ -103,11 +113,19 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const q = (url.searchParams.get('q') || '').trim().toLowerCase()
 
-  const [evalRes, hotlineRes, bookingRes] = await Promise.all([
-    payload.find({ collection: 'eval-requests', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'hotline-chats', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'bookings', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt' }),
+  const [evalRes, hotlineRes, bookingRes, recipientsRes, branchesRes] = await Promise.all([
+    payload.find({ collection: 'eval-requests', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'hotline-chats', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'bookings', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'recipients', limit: 200, depth: 0, overrideAccess: true }),
+    payload.find({ collection: 'branches', limit: 200, depth: 0, overrideAccess: true }),
   ])
+  const names = new Map(
+    recipientsRes.docs.map((r) => [String((r as { id: unknown }).id), String((r as { title?: string }).title || '')]),
+  )
+  const branchAddr = new Map(
+    branchesRes.docs.map((b) => [String((b as { id: unknown }).id), String((b as { address?: string }).address || '')]),
+  )
 
   const items: Item[] = []
 
@@ -131,7 +149,7 @@ export async function GET(req: Request) {
       waitingSince: isIncompleteDraft(d) ? null : waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
-      ...assignedFields(d),
+      ...assignedFields(d, names),
     })
   }
 
@@ -153,13 +171,13 @@ export async function GET(req: Request) {
       waitingSince: waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
-      ...assignedFields(d),
+      ...assignedFields(d, names),
     })
   }
 
   for (const raw of bookingRes.docs) {
     const d = raw as Record<string, unknown>
-    const branch = d.branch as { address?: string } | null
+    const branchAddress = d.branch != null ? branchAddr.get(String(d.branch)) : ''
     const amount = Number(d.amount || 0).toLocaleString('uk-UA')
     items.push({
       key: `booking:${d.id}`,
@@ -170,14 +188,14 @@ export async function GET(req: Request) {
       phone: String(d.phone || ''),
       status: String(d.status || 'new'),
       statusLabel: BOOKING_STATUS[String(d.status)] || String(d.status || ''),
-      snippet: `Бронь ${amount} ₴${branch?.address ? ` · ${branch.address}` : ''}`,
+      snippet: `Бронь ${amount} ₴${branchAddress ? ` · ${branchAddress}` : ''}`,
       // Бронь — не переписка: немає answeredBy/thread, тож ці позначки тут не застосовні.
       unread: false,
       unanswered: false,
       waitingSince: null,
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
-      ...assignedFields(d),
+      ...assignedFields(d, names),
     })
   }
 
