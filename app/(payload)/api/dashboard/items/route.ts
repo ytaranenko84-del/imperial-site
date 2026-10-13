@@ -105,13 +105,19 @@ function assignedFields(
   return { assignedTo: a, assignedToName: names.get(String(a)) || '' }
 }
 
-export async function GET(req: Request) {
-  const payload = await getPayload({ config })
-  const me = await recipientFromToken(payload, readCookie(req.headers.get('cookie'), SESSION_COOKIE))
-  if (!me) return Response.json({ error: 'Потрібен вхід' }, { status: 401 })
+/*
+ * Короткий кеш навколо найважчої частини відповіді: q — лише фільтр по вже
+ * завантажених даних (нижче), а не параметр SQL-запиту, тож сам набір
+ * items однаковий для будь-якого q і його можна ділити між усіма вкладками
+ * й усіма співробітниками, які зараз дивляться робочий стіл. Без цього
+ * кожна відкрита вкладка на кожному тику опитування била прямо в базу
+ * своїм окремим запитом по п'яти колекціях одразу.
+ */
+let itemsCache: { items: Item[]; ts: number } | null = null
+const ITEMS_CACHE_TTL_MS = 8000
 
-  const url = new URL(req.url)
-  const q = (url.searchParams.get('q') || '').trim().toLowerCase()
+async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Promise<Item[]> {
+  if (itemsCache && Date.now() - itemsCache.ts < ITEMS_CACHE_TTL_MS) return itemsCache.items
 
   const [evalRes, hotlineRes, bookingRes, recipientsRes, branchesRes] = await Promise.all([
     payload.find({ collection: 'eval-requests', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
@@ -200,6 +206,24 @@ export async function GET(req: Request) {
     })
   }
 
+  // Сортуємо за тим, коли заявка надійшла, а не коли її востаннє
+  // переглядали чи відповідали — інакше список стрибав би від власних дій.
+  items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+
+  itemsCache = { items, ts: Date.now() }
+  return items
+}
+
+export async function GET(req: Request) {
+  const payload = await getPayload({ config })
+  const me = await recipientFromToken(payload, readCookie(req.headers.get('cookie'), SESSION_COOKIE))
+  if (!me) return Response.json({ error: 'Потрібен вхід' }, { status: 401 })
+
+  const url = new URL(req.url)
+  const q = (url.searchParams.get('q') || '').trim().toLowerCase()
+
+  const items = await loadAllItems(payload)
+
   /*
    * Телефон шукаємо за останніми дев'ятьма цифрами (як і всюди в проєкті,
    * див. normalizePhone) — інакше "0770770997" не знайшов би той самий
@@ -212,10 +236,6 @@ export async function GET(req: Request) {
         `${it.title} ${it.phone} ${it.snippet}`.toLowerCase().includes(q)
         || (qDigits.length >= 3 && normalizePhone(it.phone).includes(qDigits)))
     : items
-
-  // Сортуємо за тим, коли заявка надійшла, а не коли її востаннє
-  // переглядали чи відповідали — інакше список стрибав би від власних дій.
-  filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 
   return Response.json({ me: { id: me.id, title: me.title }, items: filtered, version: process.env.BUILD_ID || '' })
 }
