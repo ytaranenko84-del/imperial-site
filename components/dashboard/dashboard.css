@@ -106,7 +106,7 @@
 .dw-item-body { min-width: 0; flex: 1; }
 .dw-item-top { display: flex; justify-content: space-between; gap: 6px; }
 .dw-item-top b { font-size: 13px; }
-.dw-item-top time { font-size: 11px; color: var(--dim); flex: none; }
+.dw-item-top time { font-size: 11px; color: var(--dim); flex: none; font-variant-numeric: tabular-nums; }
 .dw-snippet { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0 6px; }
 .dw-item.unanswered .dw-item-top b { font-weight: 800; }
 .dw-item.unanswered .dw-snippet { color: var(--ink); font-weight: 600; }
@@ -120,6 +120,7 @@
 .dw-tag--wait-ok { background: #f0f0f2; color: var(--dim); }
 .dw-tag--wait-warn { background: var(--warn-soft); color: var(--warn); }
 .dw-tag--wait-late { background: var(--late-soft); color: var(--late); font-weight: 800; }
+.dw-tag--answered { background: var(--ok-soft); color: var(--ok); }
 
 .dw-detail { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .dw-placeholder, .dw-empty { color: var(--dim); font-size: 13px; padding: 20px; text-align: center; margin: auto; }
@@ -144,6 +145,20 @@
 .dw-thread { display: flex; flex-direction: column; gap: 12px; }
 .dw-ctx { background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .dw-ctx b { display: block; font-size: 13px; } .dw-ctx span { font-size: 12px; color: var(--dim); }
+.dw-ctx time { display: block; margin-top: 4px; font-size: 10.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dw-day {
+  align-self: center; font-size: 11px; font-weight: 700; color: var(--dim); background: var(--surface2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; margin: 4px 0;
+}
+
+.dw-timing { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); background: #fcfcfd; }
+.dw-tcell { padding: 9px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
+.dw-tcell:last-child { border-right: 0; }
+.dw-tcell span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); font-weight: 700; }
+.dw-tcell b { font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.dw-tcell em { font-style: normal; font-weight: 600; color: var(--ok); }
+.dw-tcell em.late { color: var(--late); }
+.dw-tcell-dim { color: var(--dim); font-weight: 600; }
 .dw-photo { max-width: 220px; border-radius: 10px; }
 .dw-bubble { max-width: 68%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.45; }
 .dw-bubble.in { background: var(--surface2); align-self: flex-start; border-bottom-left-radius: 4px; }

@@ -160,6 +160,7 @@ export async function GET(req: Request) {
     name: String(d.name || ''),
     phone: String(d.phone || ''),
     status: String(d.status || 'new'),
+    createdAt: String(d.createdAt || ''),
     clientChat: String(d.clientChat || ''),
     category: kind === 'eval' ? String(d.category || '') : String(d.kind || ''),
     brand: kind === 'eval' ? String(d.brand || '') : undefined,

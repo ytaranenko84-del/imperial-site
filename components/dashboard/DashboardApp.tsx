@@ -24,6 +24,7 @@ type Item = {
   unread: boolean
   unanswered: boolean
   waitingSince: string | null
+  firstReplyAt: string | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -41,6 +42,7 @@ type Detail = {
   name: string
   phone: string
   status: string
+  createdAt?: string
   clientChat?: string
   category?: string
   brand?: string
@@ -78,16 +80,68 @@ const POLL_MS = 15000
 // щоб відрізнити вкладку на старому коді від справді нової версії.
 const BUILD_ID = process.env.BUILD_ID || ''
 
-function timeAgo(iso: string): string {
-  if (!iso) return ''
-  const ms = Date.now() - new Date(iso).getTime()
-  const min = Math.floor(ms / 60000)
-  if (min < 1) return 'щойно'
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+function validDate(iso?: string | null): Date | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function dayDiff(d: Date): number {
+  const today = new Date()
+  const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
+  const b = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.round((b - a) / 86_400_000)
+}
+
+function fmtTime(iso?: string | null): string {
+  const d = validDate(iso)
+  return d ? `${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''
+}
+
+/** «сьогодні 12:31», «вчора 18:05», «12.10 09:14», минулорічне — «12.10.25 09:14». */
+function fmtWhen(iso?: string | null): string {
+  const d = validDate(iso)
+  if (!d) return ''
+  const diff = dayDiff(d)
+  if (diff === 0) return `сьогодні ${fmtTime(iso)}`
+  if (diff === 1) return `вчора ${fmtTime(iso)}`
+  const yy = d.getFullYear() === new Date().getFullYear() ? '' : `.${String(d.getFullYear()).slice(2)}`
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}${yy} ${fmtTime(iso)}`
+}
+
+/** Розділювач днів у переписці: «Сьогодні», «Вчора», «12 жовтня». */
+function dayLabel(iso?: string | null): string {
+  const d = validDate(iso)
+  if (!d) return ''
+  const diff = dayDiff(d)
+  if (diff === 0) return 'Сьогодні'
+  if (diff === 1) return 'Вчора'
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('uk-UA', sameYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function dayKey(iso?: string | null): string {
+  const d = validDate(iso)
+  return d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : ''
+}
+
+/** «14 хв», «1 год 3 хв», «2 дн 4 год». */
+function fmtDur(ms: number): string {
+  const min = Math.max(0, Math.floor(ms / 60000))
+  if (min < 1) return 'менше хвилини'
   if (min < 60) return `${min} хв`
   const h = Math.floor(min / 60)
-  if (h < 24) return `${h} год`
-  return `${Math.floor(h / 24)} дн`
+  if (h < 24) return min % 60 ? `${h} год ${min % 60} хв` : `${h} год`
+  const days = Math.floor(h / 24)
+  return h % 24 ? `${days} дн ${h % 24} год` : `${days} дн`
 }
+
+const isClientEntry = (from?: string) => !from || from === 'клієнт'
+
+/** «Назар (робочий стіл)» → «Назар»: у шапці важливо хто, а не звідки. */
+const staffName = (from?: string) => String(from || '').replace(/\s*\([^)]*\)\s*$/, '')
 
 /** Короткий «дзвінок» через Web Audio — без файлу, синтезований на льоту. */
 function playPing() {
@@ -115,9 +169,42 @@ function waitingBadge(waitingSince: string | null): { label: string; level: 'ok'
   if (!waitingSince) return null
   const ms = Date.now() - new Date(waitingSince).getTime()
   const min = Math.floor(ms / 60000)
-  const label = min < 60 ? `${min} хв` : min < 1440 ? `${Math.floor(min / 60)} год` : `${Math.floor(min / 1440)} дн`
   const level = min >= 240 ? 'late' : min >= 30 ? 'warn' : 'ok'
-  return { label, level }
+  return { label: `чекає ${fmtDur(ms)}`, level }
+}
+
+/**
+ * Полоска під заголовком заявки: коли звернулись, коли й через скільки вперше
+ * відповіли (так само, як рахує звіт), хто відповів останнім.
+ */
+function renderTiming(d: Detail) {
+  if (!validDate(d.createdAt)) return null
+  const thread = d.thread || []
+  const firstStaff = thread.find((t) => !isClientEntry(t.from) && validDate(t.at))
+  const lastStaff = [...thread].reverse().find((t) => !isClientEntry(t.from) && validDate(t.at))
+  const created = new Date(d.createdAt!).getTime()
+  const closed = d.status === 'done' || d.status === 'reject'
+  return (
+    <div className="dw-timing">
+      <div className="dw-tcell"><span>Звернення</span><b>{fmtWhen(d.createdAt)}</b></div>
+      <div className="dw-tcell">
+        <span>Перша відповідь</span>
+        {firstStaff ? (
+          <b>{fmtWhen(firstStaff.at)} · <em>через {fmtDur(new Date(firstStaff.at!).getTime() - created)}</em></b>
+        ) : closed ? (
+          <b className="dw-tcell-dim">без відповіді · закрито</b>
+        ) : (
+          <b><em className="late">без відповіді · чекає {fmtDur(Date.now() - created)}</em></b>
+        )}
+      </div>
+      {lastStaff && (
+        <div className="dw-tcell">
+          <span>Остання відповідь</span>
+          <b>{fmtWhen(lastStaff.at)}{staffName(lastStaff.from) ? ` · ${staffName(lastStaff.from)}` : ''}</b>
+        </div>
+      )}
+    </div>
+  )
 }
 
 type Report = {
@@ -628,16 +715,20 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 {it.unread && <div className="dw-dot dw-dot--unread" title="Ніхто ще не відкривав" />}
                 {!it.unread && it.unanswered && <div className="dw-dot dw-dot--unanswered" title="Переглянуто, немає відповіді" />}
                 <div className="dw-item-body">
-                  <div className="dw-item-top"><b>{it.title}</b><time>{timeAgo(it.createdAt)}</time></div>
+                  <div className="dw-item-top"><b>{it.title}</b><time>{fmtWhen(it.createdAt)}</time></div>
                   <div className="dw-snippet">{it.snippet}</div>
                   <div className="dw-tags">
                     <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
                     {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
-                    {waitingBadge(it.waitingSince) && (
+                    {waitingBadge(it.waitingSince) ? (
                       <span className={`dw-tag dw-tag--wait-${waitingBadge(it.waitingSince)!.level}`}>
-                        ⏱ {waitingBadge(it.waitingSince)!.label}
+                        {waitingBadge(it.waitingSince)!.label}
                       </span>
-                    )}
+                    ) : it.firstReplyAt && validDate(it.createdAt) ? (
+                      <span className="dw-tag dw-tag--answered">
+                        відповіли за {fmtDur(new Date(it.firstReplyAt).getTime() - new Date(it.createdAt).getTime())}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </button>
@@ -718,6 +809,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 </div>
               </div>
 
+              {renderTiming(detail)}
+
               {detail.related && detail.related.length > 0 && (
                 <div className="dw-related">
                   У цього клієнта є ще {detail.related.length} {pluralUa(detail.related.length, 'заявка', 'заявки', 'заявок')}:
@@ -731,28 +824,49 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
               <div className="dw-d-body">
                 <div className="dw-thread">
-                  {detail.comment && (
-                    <div className="dw-ctx"><b>{[detail.brand, detail.model].filter(Boolean).join(' ') || 'Опис від клієнта'}</b><span>{detail.comment}</span></div>
-                  )}
-                  {(detail.photos || []).map((url) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={url} src={url} alt="" className="dw-photo" />
-                  ))}
-                  {mergedTimeline(detail).map((m, i) => (
-                    m.type === 'note' ? (
-                      <div key={i} className="dw-note-card">
-                        <div className="dw-note-tag">🔒 Нотатка · тільки команда</div>
-                        {renderNoteText(m.text || '')}
-                        <time>{m.from} · {m.at && new Date(m.at).toLocaleString('uk-UA')}</time>
-                      </div>
-                    ) : (
-                      <div key={i} className={`dw-bubble ${m.from === detail.answeredBy || (m.from || '').includes('робочого столу') || (m.from || '').includes(me.title) ? 'out' : 'in'}`}>
-                        {!((m.from || '').includes('робочого столу')) && m.from ? <span className="dw-who">{m.from}</span> : null}
-                        {m.text}
-                        {m.at && <time>{new Date(m.at).toLocaleString('uk-UA')}</time>}
-                      </div>
+                  {(() => {
+                    // Розділювач дня ставимо перед першим записом кожного нового дня,
+                    // включно з початковим описом клієнта (його час — створення заявки).
+                    let lastDay = ''
+                    const daySep = (iso: string | undefined, key: string) => {
+                      const k = dayKey(iso)
+                      if (!k || k === lastDay) return null
+                      lastDay = k
+                      return <div key={key} className="dw-day">{dayLabel(iso)}</div>
+                    }
+                    return (
+                      <>
+                        {detail.comment && daySep(detail.createdAt, 'day-ctx')}
+                        {detail.comment && (
+                          <div className="dw-ctx">
+                            <b>{[detail.brand, detail.model].filter(Boolean).join(' ') || 'Опис від клієнта'}</b>
+                            <span>{detail.comment}</span>
+                            {fmtTime(detail.createdAt) && <time>{fmtTime(detail.createdAt)}</time>}
+                          </div>
+                        )}
+                        {(detail.photos || []).map((url) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={url} src={url} alt="" className="dw-photo" />
+                        ))}
+                        {mergedTimeline(detail).map((m, i) => [
+                          daySep(m.at, `day-${i}`),
+                          m.type === 'note' ? (
+                            <div key={i} className="dw-note-card">
+                              <div className="dw-note-tag">🔒 Нотатка · тільки команда</div>
+                              {renderNoteText(m.text || '')}
+                              <time>{m.from}{m.at ? ` · ${fmtTime(m.at)}` : ''}</time>
+                            </div>
+                          ) : (
+                            <div key={i} className={`dw-bubble ${m.from === detail.answeredBy || (m.from || '').includes('робочого столу') || (m.from || '').includes(me.title) ? 'out' : 'in'}`}>
+                              {!((m.from || '').includes('робочого столу')) && m.from ? <span className="dw-who">{m.from}</span> : null}
+                              {m.text}
+                              {m.at && <time>{fmtTime(m.at)}</time>}
+                            </div>
+                          ),
+                        ])}
+                      </>
                     )
-                  ))}
+                  })()}
                   {!mergedTimeline(detail).length && !detail.comment && <p className="dw-empty">Ще немає переписки</p>}
                 </div>
               </div>

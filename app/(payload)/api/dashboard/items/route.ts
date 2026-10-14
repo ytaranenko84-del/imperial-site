@@ -42,6 +42,8 @@ type Item = {
   unanswered: boolean
   /** Відколи чекає на відповідь — для таймера прострочення. null, якщо вже відповіли. */
   waitingSince: string | null
+  /** Перша відповідь команди — так само, як рахує звіт (dashboard/report). */
+  firstReplyAt: string | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -80,6 +82,11 @@ function waitingSinceOf(thread: unknown, createdAt: unknown, unanswered: boolean
   if (!unanswered) return null
   const t = lastThreadAt(thread, createdAt)
   return t ? new Date(t).toISOString() : null
+}
+
+function firstReplyAtOf(thread: unknown): string | null {
+  const arr = Array.isArray(thread) ? (thread as { from?: string; at?: string }[]) : []
+  return arr.find((t) => t.from && t.from !== 'клієнт' && t.at)?.at || null
 }
 
 /** «Непрочитане» — окреме від «не відповідано»: ніхто не відкривав відтоді, як з'явилось останнє повідомлення. */
@@ -154,6 +161,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       unread: isIncompleteDraft(d) ? false : isUnread(d.lastViewedAt, d.thread, d.createdAt),
       unanswered: isIncompleteDraft(d) ? false : isUnanswered(d.thread, d.answeredBy, d.status),
       waitingSince: isIncompleteDraft(d) ? null : waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
+      firstReplyAt: isIncompleteDraft(d) ? null : firstReplyAtOf(d.thread),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
@@ -176,6 +184,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
       unanswered: isUnanswered(d.thread, d.answeredBy, d.status),
       waitingSince: waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
+      firstReplyAt: firstReplyAtOf(d.thread),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
@@ -200,6 +209,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       unread: false,
       unanswered: false,
       waitingSince: null,
+      firstReplyAt: null,
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
