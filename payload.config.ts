@@ -138,7 +138,10 @@ export default buildConfig({
           // мало: вони стають у чергу й не дочікуються. П'ять вистачає
           // сторінці й лишає запас транзакційному пулу.
           max: 5,
-          idleTimeoutMillis: 20_000,
+          // База тепер власна (VPS), ліміт Supabase у 15 підключень більше не
+          // діє. А нове підключення з TLS — це 5–6 рейсів через Атлантику
+          // (~0.5 с), тож тримаємо його довше замість 20 с.
+          idleTimeoutMillis: 300_000,
           connectionTimeoutMillis: 15_000,
         },
         // Схема потрібна лише тоді, коли база спільна з іншими сервісами.
@@ -150,4 +153,13 @@ export default buildConfig({
         client: { url: process.env.DATABASE_URI || 'file:./imperial.db' },
       }),
   sharp,
+  /*
+   * Обрив простою підключення (перезапуск бази, мережа) пул повідомляє подією
+   * 'error'; без слухача Node вважає її необробленою і валить функцію.
+   * Битий клієнт пул і так викидає сам — лишається тільки записати в лог.
+   */
+  onInit: (payload) => {
+    const pool = (payload.db as unknown as { pool?: { on?: (e: 'error', cb: (err: Error) => void) => void } }).pool
+    pool?.on?.('error', (err) => console.error('pg pool idle client error:', err.message))
+  },
 })
