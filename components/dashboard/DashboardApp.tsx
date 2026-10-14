@@ -375,11 +375,25 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     }
   }, [])
 
-  const loadDetail = useCallback(async (key: string) => {
+  /*
+   * Відкриті (і підвантажені наведенням) заявки тримаємо в пам'яті: повторне
+   * відкриття показує їх миттєво, а свіжа версія тихо підтягується слідом.
+   * selectedKeyRef — щоб відповідь на давно покинуту заявку не перекрила ту,
+   * яку вже відкрили після неї.
+   */
+  const detailCacheRef = useRef(new Map<string, Detail>())
+  const prefetchingRef = useRef(new Set<string>())
+  const selectedKeyRef = useRef<string | null>(null)
+
+  const loadDetail = useCallback(async (key: string, opts?: { peek?: boolean }) => {
     const [kind, id] = key.split(':')
-    const res = await fetch(`/api/dashboard/item?kind=${kind}&id=${id}`)
-    const json = await res.json().catch(() => null)
-    if (json && !json.error) setDetail(json)
+    const res = await fetch(`/api/dashboard/item?kind=${kind}&id=${id}${opts?.peek ? '&peek=1' : ''}`).catch(() => null)
+    const json = res ? await res.json().catch(() => null) : null
+    if (json && !json.error) {
+      detailCacheRef.current.set(key, json)
+      if (selectedKeyRef.current === key) setDetail(json)
+    }
+    if (opts?.peek) return
     /*
      * Відкриття картки саме зараз позначило її переглянутою на сервері —
      * без цього лічильники й кольори точок зліва лишались би старими до
@@ -407,8 +421,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   }, [q, loadItems])
 
   useEffect(() => {
-    if (selectedKey) loadDetail(selectedKey)
-    else setDetail(null)
+    selectedKeyRef.current = selectedKey
+    if (selectedKey) {
+      setDetail(detailCacheRef.current.get(selectedKey) || null)
+      loadDetail(selectedKey)
+    } else setDetail(null)
     // Чернетка відповіді чи нотатки для попередньої заявки не має «перетікати» в наступну.
     setComposer('')
     setNoteText('')
@@ -544,6 +561,13 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   function pickPeriod(p: typeof period) {
     setPeriod(p)
     setRailOpen(false)
+  }
+
+  /** Наведення на рядок — завантажуємо заявку заздалегідь, щоб клік відкривав її миттєво. */
+  function prefetchItem(key: string) {
+    if (key.startsWith('booking:') || detailCacheRef.current.has(key) || prefetchingRef.current.has(key)) return
+    prefetchingRef.current.add(key)
+    loadDetail(key, { peek: true }).finally(() => prefetchingRef.current.delete(key))
   }
 
   function openItem(key: string) {
@@ -710,6 +734,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 key={it.key}
                 className={`dw-item ${selectedKey === it.key ? 'sel' : ''} ${it.unanswered ? 'unanswered' : ''}`}
                 onClick={() => openItem(it.key)}
+                onMouseEnter={() => prefetchItem(it.key)}
               >
                 <div className={`dw-ico dw-ico--${it.channel}`}>{CHANNEL_ICON[it.channel]}</div>
                 {it.unread && <div className="dw-dot dw-dot--unread" title="Ніхто ще не відкривав" />}
@@ -738,7 +763,32 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
         </section>
 
         <section className="dw-detail">
-          {!detail && <div className="dw-placeholder">Оберіть заявку зі списку</div>}
+          {!detail && (() => {
+            // Поки переписка вантажиться — одразу показуємо те, що вже відомо зі списку.
+            const sel = selectedKey ? (items || []).find((i) => i.key === selectedKey) : undefined
+            if (!sel) return <div className="dw-placeholder">Оберіть заявку зі списку</div>
+            return (
+              <>
+                <div className="dw-d-head">
+                  <button type="button" className="dw-back" onClick={() => setSelectedKey(null)} aria-label="Назад до списку">←</button>
+                  <div>
+                    <h3>{sel.title}{sel.phone ? ` · ${sel.phone}` : ''}</h3>
+                    <p>{sel.kind === 'eval' ? 'Оцінка' : sel.kind === 'hotline' ? 'Гаряча лінія' : 'Бронь'} · заявка №{sel.id}</p>
+                  </div>
+                </div>
+                {sel.kind !== 'booking' && (
+                  <div className="dw-timing"><div className="dw-tcell"><span>Звернення</span><b>{fmtWhen(sel.createdAt)}</b></div></div>
+                )}
+                <div className="dw-d-body">
+                  <div className="dw-thread" aria-busy="true">
+                    <div className="dw-skel dw-skel--in" />
+                    <div className="dw-skel dw-skel--out" />
+                    <div className="dw-skel dw-skel--in dw-skel--short" />
+                  </div>
+                </div>
+              </>
+            )
+          })()}
           {detail && detail.kind === 'booking' && (
             <>
               <div className="dw-d-head">

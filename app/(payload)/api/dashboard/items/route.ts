@@ -127,12 +127,12 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
   if (itemsCache && Date.now() - itemsCache.ts < ITEMS_CACHE_TTL_MS) return itemsCache.items
 
   const [evalRes, hotlineRes, bookingRes, recipientsRes, branchesRes] = await Promise.all([
-    payload.find({ collection: 'eval-requests', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'hotline-chats', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'bookings', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'recipients', limit: 200, depth: 0, overrideAccess: true }),
+    payload.find({ collection: 'eval-requests', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
+    payload.find({ collection: 'hotline-chats', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
+    payload.find({ collection: 'bookings', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
+    payload.find({ collection: 'recipients', limit: 200, depth: 0, overrideAccess: true, pagination: false }),
     // branches.address — локалізоване поле; без явного locale Payload не гарантує, яку мову підставить.
-    payload.find({ collection: 'branches', limit: 200, depth: 0, locale: 'uk', overrideAccess: true }),
+    payload.find({ collection: 'branches', limit: 200, depth: 0, locale: 'uk', overrideAccess: true, pagination: false }),
   ])
   const names = new Map(
     recipientsRes.docs.map((r) => [String((r as { id: unknown }).id), String((r as { title?: string }).title || '')]),

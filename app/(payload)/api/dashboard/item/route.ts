@@ -1,4 +1,5 @@
 import { getPayload } from 'payload'
+import { sql } from '@payloadcms/db-postgres'
 import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
@@ -27,9 +28,9 @@ async function relatedByPhone(
   // це й було справжньою причиною затримки при відкритті картки.
   const where = { phone: { contains: digits } }
   const [evalRes, hotlineRes, bookingRes] = await Promise.all([
-    payload.find({ collection: 'eval-requests', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'hotline-chats', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt' }),
-    payload.find({ collection: 'bookings', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt' }),
+    payload.find({ collection: 'eval-requests', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
+    payload.find({ collection: 'hotline-chats', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
+    payload.find({ collection: 'bookings', where, limit: 20, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
   ])
 
   const related: Related[] = []
@@ -67,6 +68,35 @@ async function relatedByPhone(
 
   related.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
   return related.slice(0, 10)
+}
+
+/*
+ * «Прочитано» — одне поле. payload.update заради нього в транзакції видаляв і
+ * заново вставляв усю переписку, нотатки й фото-зв'язки заявки: ~9 запитів
+ * поспіль, кожен — рейс через Атлантику (функції в Огайо, база в Європі), тобто
+ * ~0.8 с на кожне відкриття. До того ж перезапис переписки з прочитаної копії
+ * міг загубити повідомлення клієнта, що прийшло в ту саму мить.
+ * На Postgres — один прямий UPDATE; на локальній SQLite — як раніше.
+ */
+async function markViewed(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  collection: 'eval-requests' | 'hotline-chats',
+  id: string,
+): Promise<void> {
+  const db = payload.db as unknown as {
+    name?: string
+    schemaName?: string
+    drizzle?: { execute: (query: unknown) => Promise<unknown> }
+  }
+  const numId = Number(id)
+  if (db.name === 'postgres' && db.drizzle && Number.isInteger(numId)) {
+    const table = collection === 'eval-requests' ? 'eval_requests' : 'hotline_chats'
+    await db.drizzle.execute(
+      sql`update ${sql.identifier(db.schemaName || 'public')}.${sql.identifier(table)} set last_viewed_at = now() where id = ${numId}`,
+    )
+    return
+  }
+  await payload.update({ collection, id, depth: 0, overrideAccess: true, data: { lastViewedAt: new Date().toISOString() } })
 }
 
 export async function GET(req: Request) {
@@ -111,46 +141,36 @@ export async function GET(req: Request) {
   }
 
   const collection = kind === 'eval' ? 'eval-requests' : 'hotline-chats'
-  /*
-   * Відкрили картку — значить, хтось із команди її побачив: знімаємо
-   * «непрочитане» тим самим запитом, що й читає дані — замість окремих
-   * findByID + update (зайвий зворотний рейс на кожен клік).
-   *
-   * depth:0 навмисно: на depth:1 Payload розгортав би ВСІ фото заявки
-   * повними документами медіатеки за одне розгортання зв'язку — для
-   * заявки з 5-7 фото це і була справжня причина "відкривається секунд
-   * 5". Натомість — один прицільний запит лише за filename потрібних
-   * фото, нижче.
-   */
-  const doc = await payload.update({
-    collection, id, depth: 0, overrideAccess: true, data: { lastViewedAt: new Date().toISOString() },
-  }).catch(() => null)
+  const key = `${kind}:${id}`
+  // peek=1 — попереднє завантаження при наведенні: дані потрібні, а «прочитано» ще ні.
+  const peek = url.searchParams.get('peek') === '1'
+
+  // depth:0 — фото не розгортаються повними документами медіатеки (див. нижче).
+  const [doc] = await Promise.all([
+    payload.findByID({ collection, id, depth: 0, overrideAccess: true }).catch(() => null),
+    peek ? null : markViewed(payload, collection, id).catch((e) => console.error('markViewed', e)),
+  ])
   if (!doc) return Response.json({ error: 'Не знайдено' }, { status: 404 })
 
   const d = doc as Record<string, unknown>
+  const photoIds = kind === 'eval' ? ((d.photos as (string | number)[] | undefined) || []) : []
 
-  let assignedToName = ''
-  if (d.assignedTo != null) {
-    const r = await payload.findByID({
-      collection: 'recipients', id: d.assignedTo as string | number, depth: 0, overrideAccess: true,
-    }).catch(() => null)
-    assignedToName = (r as { title?: string } | null)?.title || ''
-  }
-
-  let photos: string[] = []
-  if (kind === 'eval') {
-    const photoIds = (d.photos as (string | number)[] | undefined) || []
-    if (photoIds.length) {
-      const mediaRes = await payload.find({
-        collection: 'media', where: { id: { in: photoIds } }, limit: photoIds.length, depth: 0, overrideAccess: true,
-      })
-      photos = mediaRes.docs
+  const [assignedToName, photos, related] = await Promise.all([
+    d.assignedTo != null
+      ? payload.findByID({ collection: 'recipients', id: d.assignedTo as string | number, depth: 0, overrideAccess: true })
+        .then((r) => (r as { title?: string }).title || '')
+        .catch(() => '')
+      : '',
+    photoIds.length
+      ? payload.find({
+        collection: 'media', where: { id: { in: photoIds } }, limit: photoIds.length, depth: 0, overrideAccess: true, pagination: false,
+      }).then((res) => res.docs
         .map((m) => String((m as unknown as { filename?: string }).filename || ''))
         .filter(Boolean)
-        .map((filename) => mediaUrl(filename))
-    }
-  }
-  const key = `${kind}:${id}`
+        .map((filename) => mediaUrl(filename)))
+      : [] as string[],
+    relatedByPhone(payload, String(d.phone || ''), key),
+  ])
 
   return Response.json({
     key,
@@ -177,6 +197,6 @@ export async function GET(req: Request) {
         from: n.from, text: n.text, at: n.at,
         mentions: (() => { try { return JSON.parse(n.mentions || '[]') as string[] } catch { return [] } })(),
       })),
-    related: await relatedByPhone(payload, String(d.phone || ''), key),
+    related,
   })
 }
