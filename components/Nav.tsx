@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { localePair, withLocale } from '@/lib/locale-utils.ts'
@@ -22,6 +22,23 @@ export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[
   const pathname = usePathname()
   const panelRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const [panelTop, setPanelTop] = useState<number | null>(null)
+
+  /*
+   * Панель починається там, де шапка закінчується насправді. Стрічка акції
+   * над шапкою зсуває її вниз на свою висоту (на вузькому екрані — два-три
+   * рядки), і з фіксованим відступом перший пункт меню залазив під логотип.
+   * Міряємо до показу кадру, щоб панель не смикалась.
+   */
+  useLayoutEffect(() => {
+    if (!open) return
+    const header = btnRef.current?.closest('header')
+    if (!header) return
+    const measure = () => setPanelTop(Math.max(0, Math.round(header.getBoundingClientRect().bottom)))
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -61,7 +78,7 @@ export default function Nav({ items, hotline, locale = 'uk' }: { items: NavItem[
       </button>
 
       {open && createPortal(
-        <div className="mnav" ref={panelRef} role="dialog" aria-modal="true" aria-label="Меню">
+        <div className="mnav" ref={panelRef} role="dialog" aria-modal="true" aria-label="Меню" style={panelTop != null ? { top: panelTop } : undefined}>
           <div className="mnav__links">
             {items.map((i) => (
               <a key={i.href} href={withLocale(i.href, locale)} onClick={() => { setOpen(false); if (i.href === '/calc') trackCta('nav_mobile') }}>
