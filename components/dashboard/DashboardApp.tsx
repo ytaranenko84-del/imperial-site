@@ -28,6 +28,7 @@ type Item = {
   thanked?: boolean
   replyToEstimate?: boolean
   noReply?: boolean
+  client?: { tier: TierKey; tierLabel: string; discount: number | null; networks: string[] } | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -36,6 +37,23 @@ type Item = {
 
 type Note = { from?: string; text?: string; at?: string; mentions?: string[] }
 type Staff = { id: string; title: string }
+
+type TierKey = 'diamond' | 'ruby' | 'emerald' | 'new' | 'plain'
+type OnixNet = {
+  network: string; networkLabel: string; customerId: number; url: string; tier: TierKey; tierLabel: string
+  discount: number | null; totalBails: number; activeBails: number; boughtBails: number; soldBails: number
+  fineBails: number; clientSince: string | null; lastBailAt: string | null; lastBranch: string | null
+}
+type OnixClientUI = { tier: TierKey; tierLabel: string; discount: number | null; networks: OnixNet[] }
+type HistoryBail = {
+  network: string; networkLabel: string; id: number; createdAt: string; loan: number; product: string
+  statusLabel: string; statusKind: 'active' | 'redeemed' | 'overdue' | 'sold' | 'other'; branch: string
+}
+type ClientHistory = {
+  phone: string; name: string; client: OnixClientUI | null; historyEnabled: boolean; onixError: string
+  bails: HistoryBail[]; hasMore: boolean; nextOffset: number
+  ours: { key: string; channel: Channel; title: string; createdAt: string; status: string }[]
+}
 
 type Detail = {
   key: string
@@ -69,6 +87,7 @@ type Detail = {
   expiresAt?: string
   note?: string
   related?: { key: string; channel: Channel; title: string; createdAt: string; mergedInto?: number | null }[]
+  client?: OnixClientUI | null
 }
 
 type Template = { code: string; title: string; text: string }
@@ -181,6 +200,50 @@ function waitingBadge(waitingSince: string | null): { label: string; level: 'ok'
  * Полоска під заголовком заявки: коли звернулись, коли й через скільки вперше
  * відповіли (так само, як рахує звіт), хто відповів останнім.
  */
+const TIER_EMOJI: Record<TierKey, string> = { diamond: '💎', ruby: '❤️', emerald: '♦️', new: '', plain: '' }
+
+/** Значок статусу з Оникса: «💎 Діамантовий 22%»; немає в базі — пунктирний «Немає в Ониксі». */
+function TierBadge({ client, big }: { client: { tier: TierKey; tierLabel: string; discount: number | null } | null | undefined; big?: boolean }) {
+  if (!client) return <span className={`dw-tier dw-tier--none ${big ? 'dw-tier--big' : ''}`}>Немає в Ониксі</span>
+  return (
+    <span className={`dw-tier dw-tier--${client.tier} ${big ? 'dw-tier--big' : ''}`}>
+      {TIER_EMOJI[client.tier] ? `${TIER_EMOJI[client.tier]} ` : ''}{client.tierLabel}{client.discount ? ` · ${client.discount}%` : ''}
+    </span>
+  )
+}
+
+const fmtDateShort = (iso?: string | null) => {
+  const d = validDate(iso)
+  return d ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${String(d.getFullYear()).slice(2)}` : ''
+}
+
+/**
+ * Рядок клієнта під заголовком заявки: статус, мережа, скільки застав, де був
+ * востаннє, кнопки «Відкрити в Ониксі» (по мережі) й «Історія клієнта».
+ */
+function renderClientBar(d: Detail, openHistory: (phone: string) => void) {
+  if (!d.phone) return null
+  const c = d.client
+  const best = c?.networks[0]
+  return (
+    <div className="dw-clientbar">
+      <TierBadge client={c} big />
+      {c?.networks.map((n) => (
+        <a key={n.network} className="dw-net" href={n.url} target="_blank" rel="noopener noreferrer" title="Відкрити картку клієнта в Ониксі">
+          {n.networkLabel}{c.networks.length > 1 && n.tier !== c.tier ? ` · ${n.tierLabel}` : ''} ↗
+        </a>
+      ))}
+      {best && (
+        <span className="dw-clientbar-meta">
+          <b>{best.totalBails}</b> застав · активних <b>{best.activeBails}</b>
+          {best.lastBailAt ? <> · востаннє <b>{fmtWhen(best.lastBailAt)}</b>{best.lastBranch ? `, ${best.lastBranch}` : ''}</> : null}
+        </span>
+      )}
+      <button type="button" className="dw-btn dw-btn--history" onClick={() => openHistory(d.phone)}>Історія клієнта</button>
+    </div>
+  )
+}
+
 function renderTiming(d: Detail) {
   if (!validDate(d.createdAt)) return null
   const thread = d.thread || []
@@ -282,6 +345,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [splitPhotos, setSplitPhotos] = useState<Set<string>>(new Set())
   // Стрічка відкривається на останніх повідомленнях, як у месенджері, а не з самого початку.
   const threadBodyRef = useRef<HTMLDivElement | null>(null)
+  // Вікно «Історія клієнта»: статус і застави з Оникса + наші звернення за номером
+  const [history, setHistory] = useState<ClientHistory | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
   // Лише для телефону: рейка-фільтри як шторка поверх екрана, а не колонка
   // поруч — там і так тісно. Список/деталі перемикаються повноекранно.
   const [railOpen, setRailOpen] = useState(false)
@@ -576,6 +642,27 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     openItem(json.key)
   }
 
+  async function openHistory(phone: string) {
+    if (!phone) return
+    setHistoryLoading(true)
+    setHistory({ phone, name: '', client: null, historyEnabled: true, onixError: '', bails: [], hasMore: false, nextOffset: 0, ours: [] })
+    const res = await fetch(`/api/dashboard/client-history?phone=${encodeURIComponent(phone)}`).catch(() => null)
+    const json = res ? await res.json().catch(() => null) : null
+    setHistoryLoading(false)
+    if (!json || json.error) { setHistory(null); setNote(json?.error || 'Не вдалося завантажити історію'); return }
+    setHistory(json)
+  }
+
+  async function moreHistory() {
+    if (!history) return
+    setHistoryLoading(true)
+    const res = await fetch(`/api/dashboard/client-history?phone=${encodeURIComponent(history.phone)}&offset=${history.nextOffset}`).catch(() => null)
+    const json = res ? await res.json().catch(() => null) : null
+    setHistoryLoading(false)
+    if (!json || json.error) return
+    setHistory((h) => h && { ...h, bails: [...h.bails, ...json.bails], hasMore: json.hasMore, nextOffset: json.nextOffset, onixError: json.onixError })
+  }
+
   function toggleIn<T>(set: Set<T>, v: T): Set<T> {
     const next = new Set(set)
     if (next.has(v)) next.delete(v)
@@ -829,6 +916,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   <div className="dw-item-top"><b>{it.title}</b><time>{fmtWhen(it.createdAt)}</time></div>
                   <div className="dw-snippet">{it.snippet}</div>
                   <div className="dw-tags">
+                    {it.client && ['diamond', 'ruby', 'emerald'].includes(it.client.tier) && <TierBadge client={it.client} />}
+                    {it.client && <span className="dw-net dw-net--small">{it.client.networks[0]}{it.client.networks.length > 1 ? ` +${it.client.networks.length - 1}` : ''}</span>}
                     <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
                     {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
                     {waitingBadge(it.waitingSince) && it.replyToEstimate ? (
@@ -888,7 +977,10 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
               <div className="dw-d-head">
                 <button type="button" className="dw-back" onClick={() => setSelectedKey(null)} aria-label="Назад до списку">←</button>
                 <div>
-                  <h3>{detail.name}{detail.phone ? ` · ${detail.phone}` : ''}</h3>
+                  <h3>
+                    <button type="button" className="dw-name-link" onClick={() => openHistory(detail.phone)}>{detail.name}</button>
+                    {detail.phone ? ` · ${detail.phone}` : ''}
+                  </h3>
                   <p>Бронь суми{detail.branchName ? ` · ${detail.branchName}` : ''} · №{detail.id}</p>
                 </div>
                 <div className="dw-actions">
@@ -900,6 +992,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   )}
                 </div>
               </div>
+              {renderClientBar(detail, openHistory)}
               {detail.related && detail.related.length > 0 && (
                 <div className="dw-related">
                   У цього клієнта є ще {detail.related.length} {pluralUa(detail.related.length, 'заявка', 'заявки', 'заявок')}:
@@ -931,7 +1024,10 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
               <div className="dw-d-head">
                 <button type="button" className="dw-back" onClick={() => setSelectedKey(null)} aria-label="Назад до списку">←</button>
                 <div>
-                  <h3>{detail.name || detail.title}{detail.phone ? ` · ${detail.phone}` : ''}</h3>
+                  <h3>
+                    <button type="button" className="dw-name-link" onClick={() => openHistory(detail.phone)}>{detail.name || detail.title}</button>
+                    {detail.phone ? ` · ${detail.phone}` : ''}
+                  </h3>
                   <p>
                     {detail.kind === 'eval' ? 'Оцінка' : 'Гаряча лінія'}
                     {detail.brand || detail.model ? ` · ${[detail.brand, detail.model].filter(Boolean).join(' ')}` : ''}
@@ -970,6 +1066,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 </div>
               </div>
 
+              {renderClientBar(detail, openHistory)}
               {renderTiming(detail)}
 
               {detail.mergedInto != null && (
@@ -1167,6 +1264,98 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
           )}
         </section>
       </div>
+
+      {history && (
+        <div className="dw-report-backdrop" onClick={() => setHistory(null)}>
+          <div className="dw-history" onClick={(e) => e.stopPropagation()}>
+            <div className="dw-history-head">
+              <div>
+                <h2>{history.name || 'Історія клієнта'}</h2>
+                <p>
+                  {history.phone}
+                  {history.client?.networks[0]?.clientSince ? ` · клієнт з ${fmtDateShort(history.client.networks[0].clientSince)}` : ''}
+                </p>
+              </div>
+              <button type="button" className="dw-report-close" onClick={() => setHistory(null)} aria-label="Закрити">✕</button>
+            </div>
+
+            {history.client ? (
+              <div className="dw-history-nets">
+                {history.client.networks.map((n) => (
+                  <div key={n.network} className="dw-history-net">
+                    <TierBadge client={n} />
+                    <b>{n.networkLabel}</b>
+                    <span className="dw-dim">клієнт №{n.customerId} · {n.totalBails} застав</span>
+                    <a className="dw-net dw-net--btn" href={n.url} target="_blank" rel="noopener noreferrer">↗ Відкрити в Ониксі</a>
+                  </div>
+                ))}
+              </div>
+            ) : !historyLoading && (
+              <p className="dw-history-empty">Цього номера немає в жодній базі Оникса — клієнт у нас ще не закладався (або записаний на інший номер).</p>
+            )}
+
+            {history.client && (() => {
+              const sum = (k: keyof OnixNet) => history.client!.networks.reduce((a, n) => a + Number(n[k] || 0), 0)
+              const last = history.client.networks.map((n) => n.lastBailAt).filter(Boolean).sort().pop()
+              return (
+                <div className="dw-history-stats">
+                  <div><b>{sum('totalBails')}</b><span>усього застав</span></div>
+                  <div><b>{sum('activeBails')}</b><span>активні</span></div>
+                  <div><b>{sum('boughtBails')}</b><span>викуплено</span></div>
+                  <div><b>{sum('fineBails')}</b><span>прострочено</span></div>
+                  <div><b>{sum('soldBails')}</b><span>продано</span></div>
+                  <div><b>{last ? fmtDateShort(last) : '—'}</b><span>останній візит</span></div>
+                </div>
+              )
+            })()}
+
+            {history.client && (
+              <>
+                <div className="dw-history-sec"><span>Останні застави</span>{history.bails.length ? <span>показано {history.bails.length}</span> : null}</div>
+                {!history.historyEnabled && <p className="dw-history-empty">Історія застав ще не підключена — статус і лічильники вище з нічного оновлення.</p>}
+                {history.onixError && <p className="dw-history-empty">{history.onixError}</p>}
+                {history.bails.length > 0 && (
+                  <div className="dw-history-table">
+                    <table>
+                      <tbody>
+                        {history.bails.map((b) => (
+                          <tr key={`${b.network}-${b.id}`}>
+                            <td>{fmtDateShort(b.createdAt)}</td>
+                            <td className="dw-history-product">{b.product || '—'}</td>
+                            <td className="dw-history-amt">{b.loan.toLocaleString('uk-UA')} ₴</td>
+                            <td><span className={`dw-bail dw-bail--${b.statusKind}`}>{b.statusLabel}</span></td>
+                            <td>{b.branch}</td>
+                            {history.client!.networks.length > 1 && <td className="dw-dim">{b.networkLabel}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {history.hasMore && (
+                  <button type="button" className="dw-history-more" disabled={historyLoading} onClick={moreHistory}>
+                    {historyLoading ? 'Завантажуємо…' : 'Показати ще 20'}
+                  </button>
+                )}
+              </>
+            )}
+            {historyLoading && !history.bails.length && <p className="dw-history-empty">Завантажуємо…</p>}
+
+            {history.ours.length > 0 && (
+              <>
+                <div className="dw-history-sec"><span>Звернення до нас</span><span>сайт і бот</span></div>
+                <div className="dw-history-ours">
+                  {history.ours.map((o) => (
+                    <button type="button" key={o.key} className="dw-related-link" onClick={() => { setHistory(null); openItem(o.key) }}>
+                      {CHANNEL_ICON[o.channel]} №{o.key.split(':')[1]} · {o.title} · {fmtDateShort(o.createdAt)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {showReport && (
         <div className="dw-report-backdrop" onClick={() => setShowReport(false)}>

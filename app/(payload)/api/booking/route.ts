@@ -2,6 +2,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { bookingCard, send, token as botToken } from '@/lib/telegram.ts'
 import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
+import { onixClientLine } from '@/lib/onix.ts'
 
 /**
  * Бронь суми: POST JSON із вікна на головній.
@@ -109,6 +110,7 @@ export async function POST(req: Request) {
           { id: doc.id, amount, purity, weight, days, tier, name, phone },
           String(branch.address ?? ''),
           till,
+          await onixClientLine(payload, phone),
         )
 
         const results = await Promise.all(chats.map(async (chat) => {

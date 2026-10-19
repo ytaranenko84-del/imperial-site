@@ -5,6 +5,7 @@ import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { mediaUrl, normalizePhone } from '@/lib/telegram.ts'
 import { isEmptyEval } from '@/lib/evalFlow.ts'
+import { onixClientByPhone } from '@/lib/onix.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
@@ -140,6 +141,7 @@ export async function GET(req: Request) {
       assignedTo: (assigned?.id as string | number | undefined) ?? null,
       assignedToName: assigned?.title || '',
       related: await relatedByPhone(payload, String(d.phone || ''), key),
+      client: await onixClientByPhone(payload, d.phone).catch(() => null),
     })
   }
 
@@ -164,7 +166,7 @@ export async function GET(req: Request) {
     ? Array.from(new Set([...(((d.photos as (string | number)[] | undefined) || []).map(String)), ...inThread]))
     : []
 
-  const [assignedToName, photoUrls, related] = await Promise.all([
+  const [assignedToName, photoUrls, related, client] = await Promise.all([
     d.assignedTo != null
       ? payload.findByID({ collection: 'recipients', id: d.assignedTo as string | number, depth: 0, overrideAccess: true })
         .then((r) => (r as { title?: string }).title || '')
@@ -178,6 +180,7 @@ export async function GET(req: Request) {
         .map((m) => [String(m.id), mediaUrl(String((m as unknown as { filename?: string }).filename))])))
       : new Map<string, string>(),
     relatedByPhone(payload, String(d.phone || ''), key),
+    onixClientByPhone(payload, d.phone).catch(() => null),
   ])
 
   return Response.json({
@@ -211,5 +214,6 @@ export async function GET(req: Request) {
         mentions: (() => { try { return JSON.parse(n.mentions || '[]') as string[] } catch { return [] } })(),
       })),
     related,
+    client,
   })
 }

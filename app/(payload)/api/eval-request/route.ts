@@ -1,5 +1,6 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { onixClientLine } from '@/lib/onix.ts'
 import { EVAL_CATEGORIES } from '@/collections/EvalRequests.ts'
 import { randomBytes } from 'node:crypto'
 import { evalCard, mediaUrl, normalizePhone, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
@@ -225,7 +226,7 @@ export async function POST(req: Request) {
       if (!chats.size) {
         sent = 'отримувачів не задано'
       } else {
-        const card = evalCard({ ...doc, id: doc.id }, { clientInBot: false })
+        const card = evalCard({ ...doc, id: doc.id }, { clientInBot: false, clientLine: await onixClientLine(payload, doc.phone) })
         const okTo: string[] = []
         const problems: string[] = []
         for (const [chat, info] of chats) {

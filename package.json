@@ -20,6 +20,7 @@
     "heic-convert": "^2.1.0",
     "leaflet": "^1.9.4",
     "libheif-js": "^1.23.2",
+    "mysql2": "^3.24.6",
     "next": "16.3.4",
     "payload": "^3.88.0",
     "react": "19.2.8",

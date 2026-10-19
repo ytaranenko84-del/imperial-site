@@ -4,6 +4,7 @@ import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
 import { isCourtesy, isEmptyEval } from '@/lib/evalFlow.ts'
+import { onixClientsByPhones, phone9, type TierKey } from '@/lib/onix.ts'
 
 /** Єдина стрічка для робочого столу: оцінка + гаряча лінія + відгуки + бронь. */
 
@@ -39,6 +40,8 @@ type Item = {
   replyToEstimate: boolean
   /** Позначено «Не потребує відповіді» після останнього слова клієнта. */
   noReply: boolean
+  /** Клієнт в Ониксі за телефоном: найкращий статус і мережі. null — немає в базі. */
+  client?: { tier: TierKey; tierLabel: string; discount: number | null; networks: string[] } | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -238,6 +241,13 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
   // Сортуємо за тим, коли заявка надійшла, а не коли її востаннє
   // переглядали чи відповідали — інакше список стрибав би від власних дій.
   items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+
+  // Статус з Оникса — одним запитом до нічного довідника на весь список, Оникс не чіпаємо.
+  const clients = await onixClientsByPhones(payload, items.map((it) => it.phone))
+  for (const it of items) {
+    const c = clients.get(phone9(it.phone))
+    it.client = c ? { tier: c.tier, tierLabel: c.tierLabel, discount: c.discount, networks: c.networks.map((n) => n.networkLabel) } : null
+  }
 
   itemsCache = { items, ts: Date.now() }
   return items

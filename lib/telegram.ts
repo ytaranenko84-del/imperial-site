@@ -159,7 +159,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 
 /** Картка заявки на оцінку — те, що бачить оцінювач у чаті. */
-export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: boolean }) {
+export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: boolean; clientLine?: string }) {
   const lines = [
     `<b>Заявка №${doc.id}</b> · ${esc(CATEGORY_LABEL[String(doc.category)] || doc.category)}`,
     esc([doc.brand, doc.model].filter(Boolean).join(' ')),
@@ -168,6 +168,7 @@ export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: bool
       : '',
     doc.comment ? `\n${esc(doc.comment)}` : '',
     `\nКлієнт: ${esc(doc.name)}, ${esc(doc.phone)}`,
+    opts.clientLine || '',
     opts.clientInBot
       ? 'Клієнт у боті: ✅ можна відповідати тут'
       : 'Клієнт у боті: ❌ відповідь лише дзвінком або SMS',
@@ -176,10 +177,11 @@ export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: bool
 }
 
 /** Картка звернення (гаряча лінія чи відгук) — те, що бачить отримувач у чаті. */
-export function hotlineCard(doc: Record<string, unknown>, text: string, label = 'Гаряча лінія') {
+export function hotlineCard(doc: Record<string, unknown>, text: string, label = 'Гаряча лінія', clientLine = '') {
   return [
     `<b>${esc(label)} №${doc.id}</b>`,
     `Клієнт: ${esc(doc.name)}, ${esc(doc.phone)}`,
+    clientLine,
     text ? `\n${esc(text)}` : '',
     '\nЩоб відповісти — натисніть на це повідомлення → Reply',
   ].filter(Boolean).join('\n')
@@ -306,7 +308,7 @@ export async function resolveTemplate(
 }
 
 /** Картка броні — те, що бачить відділення. */
-export function bookingCard(doc: Record<string, unknown>, branchName: string, till: string) {
+export function bookingCard(doc: Record<string, unknown>, branchName: string, till: string, clientLine = '') {
   const amount = Number(doc.amount || 0).toLocaleString('uk-UA')
   const parts = [String(doc.purity || ''), doc.weight ? `${doc.weight} г` : '', doc.days ? `${doc.days} дн.` : '']
     .filter(Boolean).join(', ')
@@ -315,6 +317,7 @@ export function bookingCard(doc: Record<string, unknown>, branchName: string, ti
     `Сума: <b>${amount} грн</b>${parts ? ` · ${esc(parts)}` : ''}`,
     doc.tier ? `Статус: ${esc(doc.tier)}` : '',
     `Клієнт: ${esc(doc.name)}, ${esc(doc.phone)}`,
+    clientLine,
     `Відділення: ${esc(branchName)}`,
     `Діє до: ${esc(till)}`,
   ].filter(Boolean).join('\n')

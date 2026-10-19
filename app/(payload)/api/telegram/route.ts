@@ -8,6 +8,7 @@ import { logBotEvent } from '@/lib/botEvents.ts'
 import {
   currentEvalFor, isCourtesy, isEmptyEval, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
 } from '@/lib/evalFlow.ts'
+import { onixClientByPhone, onixClientLine, tierEmoji, tierLabel } from '@/lib/onix.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -861,7 +862,7 @@ export async function POST(req: Request) {
       const known = await getKnownPhone(payload, chatKey)
       const menu = (await isAdminChat(payload, chatKey)) ? ADMIN_MENU_KEYBOARD : MENU_KEYBOARD
       if (known) {
-        await send({ chat: chatKey, text: HELLO_KNOWN, replyMarkup: menu })
+        await send({ chat: chatKey, text: await helloKnown(payload, known), replyMarkup: menu })
       } else {
         await send({ chat: chatKey, text: HELLO_NEW, replyMarkup: CONTACT_KEYBOARD })
       }
@@ -1346,8 +1347,9 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
 
   const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, 'other')
+  const clientLine = await onixClientLine(payload, doc.phone)
   for (const target of chats.keys()) {
-    await send({ chat: target, text: evalCard({ ...(created as Record<string, unknown>) }, { clientInBot: true }) }).catch(() => {})
+    await send({ chat: target, text: evalCard({ ...(created as Record<string, unknown>) }, { clientInBot: true, clientLine }) }).catch(() => {})
   }
   await notifyRecipients(payload, chats, { title: 'Нова заявка на оцінку', body: movedText || `Окрема річ із заявки №${doc.id}` })
   if (movedPhotos.length) {
@@ -1526,7 +1528,23 @@ async function handleContact(
     return
   }
 
-  await send({ chat, text: 'Дякуємо! Ось що я вмію:', replyMarkup: MENU_KEYBOARD })
+  const status = await statusGreeting(payload, phone)
+  await send({ chat, text: status ? `Дякуємо! ${status}\nОсь що я вмію:` : 'Дякуємо! Ось що я вмію:', replyMarkup: MENU_KEYBOARD })
+}
+
+/**
+ * Постійному клієнту — його статус з Оникса. Лише в боті: номер тут підтвердив
+ * сам Telegram, тож чужого статусу ніхто не підгляне (на сайті — ні).
+ */
+async function statusGreeting(payload: Awaited<ReturnType<typeof getPayload>>, phone: string): Promise<string> {
+  const c = await onixClientByPhone(payload, phone).catch(() => null)
+  if (!c || !['diamond', 'ruby', 'emerald'].includes(c.tier)) return ''
+  return `${tierEmoji(c.tier)} Ваш статус — <b>${tierLabel(c.tier)}</b>${c.discount ? `, знижка <b>${c.discount}%</b>` : ''}.`
+}
+
+async function helloKnown(payload: Awaited<ReturnType<typeof getPayload>>, phone: string): Promise<string> {
+  const status = await statusGreeting(payload, phone)
+  return status ? `Раді бачити знову! ${status}\nОберіть, будь ласка, що вас цікавить 👇` : HELLO_KNOWN
 }
 
 async function bindSiteRequestsByPhone(payload: Awaited<ReturnType<typeof getPayload>>, chat: string, digits: string) {
@@ -1895,10 +1913,11 @@ async function appendHotline(
 
   const { hotlineCard, sendPhoto } = await import('@/lib/telegram.ts')
   const chats = await hotlineRecipientsFor(payload)
+  const clientLine = isFirst ? await onixClientLine(payload, doc.phone) : ''
 
   for (const target of chats.keys()) {
     const text2 = isFirst
-      ? hotlineCard({ id: doc.id, name: doc.name, phone: doc.phone }, text, label)
+      ? hotlineCard({ id: doc.id, name: doc.name, phone: doc.phone }, text, label, clientLine)
       : `<b>${esc(label)} №${doc.id}</b> · клієнт додав:\n${esc(entryText)}`
     await send({ chat: target, text: text2 }).catch(() => {})
     if (photo) await sendPhoto(target, photo.fileId).catch(() => {})
@@ -1965,10 +1984,11 @@ async function appendOtsinka(
 
   const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, 'other')
+  const clientLine = isFirst ? await onixClientLine(payload, doc.phone) : ''
 
   for (const target of chats.keys()) {
     const cardText = isFirst
-      ? evalCard({ ...doc, comment, photos }, { clientInBot: true })
+      ? evalCard({ ...doc, comment, photos }, { clientInBot: true, clientLine })
       : `<b>Заявка №${doc.id}</b> · клієнт додав:\n${esc(text || '[фото]')}`
     await send({ chat: target, text: cardText }).catch(() => {})
   }
