@@ -304,4 +304,36 @@
   .dw-burger { min-width: 40px; min-height: 40px; font-size: 20px; }
   .dw-rail-close { min-width: 36px; min-height: 36px; font-size: 18px; }
   .dw-back { min-width: 36px; min-height: 36px; font-size: 22px; display: flex; align-items: center; justify-content: center; }
+
+  /*
+   * Над перепискою на телефоні збирались кнопки (2–3 ряди), час звернення
+   * (3 рядки) і плашка інших заявок клієнта (кілька рядів) — самій переписці
+   * лишалась щілина. Кожен блок тепер — один рядок, що гортається пальцем убік.
+   */
+  .dw-d-head { padding: 8px 12px; gap: 6px 8px; }
+  .dw-d-head h3 { font-size: 14.5px; }
+  .dw-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; padding-bottom: 2px; }
+  .dw-actions::-webkit-scrollbar { display: none; }
+  .dw-actions .dw-btn { flex: none; padding: 8px 13px; font-size: 12.5px; }
+  .dw-btn--danger { margin-left: 0; }
+
+  .dw-timing { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .dw-timing::-webkit-scrollbar { display: none; }
+  .dw-tcell { flex: none; padding: 5px 12px; }
+  .dw-tcell span { font-size: 9.5px; }
+  .dw-tcell b { font-size: 12.5px; white-space: nowrap; }
+
+  .dw-related, .dw-merged-note { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; padding: 7px 12px; scrollbar-width: none; }
+  .dw-related::-webkit-scrollbar, .dw-merged-note::-webkit-scrollbar { display: none; }
+  .dw-related-chip, .dw-related > .dw-related-link { flex: none; }
+
+  .dw-d-body { padding: 10px 12px; }
+  .dw-bubble { max-width: 86%; }
+
+  .dw-composer { padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .dw-mode-tabs { margin-bottom: 6px; }
+  .dw-templates { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 6px; }
+  .dw-templates::-webkit-scrollbar { display: none; }
+  .dw-tpl { flex: none; padding: 7px 12px; }
+  .dw-split-bar { padding: 8px 12px; }
 }

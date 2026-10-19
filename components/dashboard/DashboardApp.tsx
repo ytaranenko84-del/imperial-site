@@ -280,6 +280,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [splitMode, setSplitMode] = useState(false)
   const [splitEntries, setSplitEntries] = useState<Set<number>>(new Set())
   const [splitPhotos, setSplitPhotos] = useState<Set<string>>(new Set())
+  // Стрічка відкривається на останніх повідомленнях, як у месенджері, а не з самого початку.
+  const threadBodyRef = useRef<HTMLDivElement | null>(null)
   // Лише для телефону: рейка-фільтри як шторка поверх екрана, а не колонка
   // поруч — там і так тісно. Список/деталі перемикаються повноекранно.
   const [railOpen, setRailOpen] = useState(false)
@@ -447,6 +449,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     setSplitPhotos(new Set())
     setMergeAsk(null)
   }, [selectedKey, loadDetail])
+
+  useEffect(() => {
+    const el = threadBodyRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [detail?.key, detail?.thread?.length, detail?.notes?.length])
 
   function periodCutoff(): number {
     const now = new Date()
@@ -990,7 +997,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 </div>
               )}
 
-              <div className="dw-d-body">
+              <div className="dw-d-body" ref={threadBodyRef}>
                 <div className="dw-thread">
                   {(() => {
                     // Розділювач дня ставимо перед першим записом кожного нового дня,
@@ -1045,7 +1052,10 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={m.photo} alt="" className="dw-photo dw-photo--in-bubble" />
                               )}
-                              {m.photo && m.text === '[фото]' ? null : (m.text || '').replace(/\s*\[фото\]$/, '')}
+                              {m.photo
+                                ? (m.text === '[фото]' ? null : (m.text || '').replace(/\s*\[фото\]$/, ''))
+                                // старі повідомлення: фото лише пересилалось у Telegram, у заявці лишилась позначка
+                                : (m.text || '').replace(/\[фото\]/g, '📷 фото')}
                               {m.at && <time>{fmtTime(m.at)}</time>}
                             </div>
                           ),
