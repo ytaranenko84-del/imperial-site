@@ -3,6 +3,7 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
+import { isCourtesy, isEmptyEval } from '@/lib/evalFlow.ts'
 
 /** Єдина стрічка для робочого столу: оцінка + гаряча лінія + відгуки + бронь. */
 
@@ -12,19 +13,7 @@ const BOOKING_STATUS: Record<string, string> = {
   new: 'Новий', came: 'Клієнт прийшов', done: 'Оформлено', missed: 'Не прийшов',
 }
 
-type Channel = 'eval' | 'hotline' | 'review' | 'booking' | 'incomplete'
-
-/**
- * Клієнт натиснув «Оцінка» в боті, отримав інструкцію — і на цьому зупинився,
- * нічого не написавши. Записи не порожні в базі, але надсилати їх у Telegram
- * нема чого: recipientsFor тут ніколи не викликався. Показувати їх поруч зі
- * справжніми заявками на оцінку тільки заплутає — ховаємо в окремий розділ,
- * доки клієнт не допише опис чи не надішле фото (тоді сама впаде в «Оцінка»).
- */
-function isIncompleteDraft(d: Record<string, unknown>): boolean {
-  const photos = d.photos as unknown[] | undefined
-  return d.source === 'bot' && d.category === 'other' && !d.comment && !(photos && photos.length)
-}
+type Channel = 'eval' | 'hotline' | 'review' | 'booking'
 
 type Item = {
   key: string
@@ -44,6 +33,12 @@ type Item = {
   waitingSince: string | null
   /** Перша відповідь команди — так само, як рахує звіт (dashboard/report). */
   firstReplyAt: string | null
+  /** Після оцінки чи відмови клієнт лише подякував — заявка лишається закритою. */
+  thanked: boolean
+  /** Клієнт відповів на вже надану оцінку («мало», питання, фото) — це торг, а не новий клієнт. */
+  replyToEstimate: boolean
+  /** Позначено «Не потребує відповіді» після останнього слова клієнта. */
+  noReply: boolean
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -64,17 +59,30 @@ function lastThreadAt(thread: unknown, fallback: unknown): number {
 }
 
 /**
- * «Не відповідані» — без окремого поля: останній запис у переписці не
- * належить тому, хто востаннє відповідав, тобто останнє слово за клієнтом.
- * Закрите чи відхилене вручну (без жодної відповіді — сміття, дублі тощо)
- * не має вічно висіти як «не відповідано»: рішення вже прийняте статусом.
+ * «Не відповідані» — останнє слово за клієнтом (чи переписки ще нема).
+ * Закрите статусом («Оцінено», «Відмова») не висить як невідповідане: рішення
+ * вже прийняте; якщо клієнт напише щось по суті — бот сам знову відкриє заявку.
+ * «Не потребує відповіді» знімає позначку до наступного слова клієнта.
  */
-function isUnanswered(thread: unknown, answeredBy: unknown, status: unknown): boolean {
+function isUnanswered(thread: unknown, status: unknown, noReplyAt: unknown, createdAt: unknown): boolean {
   if (status === 'done' || status === 'reject') return false
-  const arr = Array.isArray(thread) ? thread : []
-  if (!arr.length) return true
-  const last = arr[arr.length - 1] as { from?: string }
-  return String(last?.from || '') !== String(answeredBy || '')
+  const arr = Array.isArray(thread) ? (thread as { from?: string }[]) : []
+  const clientLast = !arr.length || arr[arr.length - 1]?.from === 'клієнт'
+  if (!clientLast) return false
+  const marked = noReplyAt ? new Date(String(noReplyAt)).getTime() : 0
+  return !(marked && marked >= lastThreadAt(thread, createdAt))
+}
+
+function lastIsClientCourtesy(thread: unknown): boolean {
+  const arr = Array.isArray(thread) ? (thread as { from?: string; text?: string }[]) : []
+  const last = arr[arr.length - 1]
+  return Boolean(last && last.from === 'клієнт' && isCourtesy(last.text))
+}
+
+function noReplyMarked(thread: unknown, noReplyAt: unknown, createdAt: unknown): boolean {
+  if (!noReplyAt) return false
+  const t = new Date(String(noReplyAt)).getTime()
+  return Number.isFinite(t) && t >= lastThreadAt(thread, createdAt)
 }
 
 /** Мить, відколи «тікає» таймер очікування — час останнього слова клієнта (чи створення, якщо переписки ще нема). */
@@ -145,23 +153,26 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
 
   for (const raw of evalRes.docs) {
     const d = raw as Record<string, unknown>
+    // Порожні чернетки з бота й приєднані дублі команді не показуємо зовсім.
+    if (isEmptyEval(d) || d.mergedInto != null) continue
+    const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt)
     items.push({
       key: `eval:${d.id}`,
       kind: 'eval',
-      channel: isIncompleteDraft(d) ? 'incomplete' : 'eval',
+      channel: 'eval',
       id: d.id as string | number,
       title: String(d.title || d.name || 'Заявка'),
       phone: String(d.phone || ''),
       status: String(d.status || 'new'),
       statusLabel: EVAL_STATUS[String(d.status)] || String(d.status || ''),
-      snippet: isIncompleteDraft(d)
-        ? 'Клієнт ще не написав опис товару'
-        : lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
-      // Незавершений чернетковий запис — нема чого «відповідати» чи «читати», доки клієнт нічого не написав.
-      unread: isIncompleteDraft(d) ? false : isUnread(d.lastViewedAt, d.thread, d.createdAt),
-      unanswered: isIncompleteDraft(d) ? false : isUnanswered(d.thread, d.answeredBy, d.status),
-      waitingSince: isIncompleteDraft(d) ? null : waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
-      firstReplyAt: isIncompleteDraft(d) ? null : firstReplyAtOf(d.thread),
+      snippet: lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
+      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
+      unanswered,
+      waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered),
+      firstReplyAt: firstReplyAtOf(d.thread),
+      thanked: (d.status === 'done' || d.status === 'reject') && lastIsClientCourtesy(d.thread),
+      replyToEstimate: unanswered && Number(d.estimate || 0) > 0 && Boolean(firstReplyAtOf(d.thread)),
+      noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
@@ -170,7 +181,9 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
 
   for (const raw of hotlineRes.docs) {
     const d = raw as Record<string, unknown>
+    if (d.mergedInto != null) continue
     const isReview = d.kind === 'review'
+    const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt)
     items.push({
       key: `hotline:${d.id}`,
       kind: 'hotline',
@@ -182,9 +195,12 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       statusLabel: HOTLINE_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || (isReview ? 'Відгук / скарга' : 'Гаряча лінія'),
       unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
-      unanswered: isUnanswered(d.thread, d.answeredBy, d.status),
-      waitingSince: waitingSinceOf(d.thread, d.createdAt, isUnanswered(d.thread, d.answeredBy, d.status)),
+      unanswered,
+      waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered),
       firstReplyAt: firstReplyAtOf(d.thread),
+      thanked: d.status === 'done' && lastIsClientCourtesy(d.thread),
+      replyToEstimate: false,
+      noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
@@ -210,6 +226,9 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       unanswered: false,
       waitingSince: null,
       firstReplyAt: null,
+      thanked: false,
+      replyToEstimate: false,
+      noReply: false,
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),

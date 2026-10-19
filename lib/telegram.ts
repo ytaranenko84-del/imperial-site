@@ -8,7 +8,9 @@ import type { Payload } from 'payload'
  * цього ділиться номером, і ми звіряємо його з переліком отримувачів.
  */
 
-const API = 'https://api.telegram.org/bot'
+// Адресу можна підмінити лише для тестів (локальний «Telegram»); на сайті змінна не задана.
+const TG_ORIGIN = process.env.TELEGRAM_API_ORIGIN || 'https://api.telegram.org'
+const API = `${TG_ORIGIN}/bot`
 
 export const token = () => process.env.TELEGRAM_BOT_TOKEN || ''
 
@@ -133,7 +135,7 @@ export async function downloadTelegramFile(fileId: string): Promise<{ data: Buff
     const info = await infoRes.json().catch(() => null)
     const path = info?.result?.file_path as string | undefined
     if (!path) return null
-    const fileRes = await fetch(`https://api.telegram.org/file/bot${t}/${path}`)
+    const fileRes = await fetch(`${TG_ORIGIN}/file/bot${t}/${path}`)
     if (!fileRes.ok) return null
     const data = Buffer.from(await fileRes.arrayBuffer())
     const name = path.split('/').pop() || `telegram-${Date.now()}.jpg`
@@ -261,7 +263,7 @@ export function sumFromText(
 export async function resolveTemplate(
   payload: Payload,
   raw: string,
-): Promise<{ text: string; amount?: string } | { warn: string }> {
+): Promise<{ text: string; amount?: string; title?: string } | { warn: string }> {
   const trimmed = (raw || '').trim()
 
   const withDot = trimmed.match(/^(\d+)\.\s*([\s\S]*)$/)
@@ -271,7 +273,7 @@ export async function resolveTemplate(
       collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
       where: { code: { equals: code } },
     })
-    const tpl = docs[0] as { text?: string } | undefined
+    const tpl = docs[0] as { text?: string; title?: string } | undefined
     if (tpl?.text) {
       /*
        * Без «грн» сума в готовому тексті («…становитиме 1200-1500. Чекаємо…
@@ -284,7 +286,7 @@ export async function resolveTemplate(
       const text = tpl.text.includes('{сума}') ? tpl.text.split('{сума}').join(amount) : tpl.text
       // amount лише для шаблону з сумою: підтвердження оцінювачу показує те,
       // що написано («2000-2500 грн»), а не звужене до однієї цифри число.
-      return { text, ...(tpl.text.includes('{сума}') ? { amount } : {}) }
+      return { text, title: tpl.title || '', ...(tpl.text.includes('{сума}') ? { amount } : {}) }
     }
     return { text: trimmed }
   }

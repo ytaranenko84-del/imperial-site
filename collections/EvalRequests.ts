@@ -57,10 +57,12 @@ export const EvalRequests: CollectionConfig = {
      * а імʼя разом із фото речі вже дозволяє впізнати людину.
      */
     afterChange: [
-      async ({ doc, previousDoc, req }) => {
+      async ({ doc, previousDoc, req, context }) => {
         const estimate = Number(doc.estimate || 0)
         const prevEstimate = Number(previousDoc?.estimate || 0)
         if (estimate <= 0 || estimate === prevEstimate) return doc
+        // Об'єднання дублів переносить уже надіслану в групу оцінку — повторна картка не потрібна.
+        if ((context as { skipGroupCard?: boolean } | undefined)?.skipGroupCard) return doc
 
         // Не всередині збереження: картка з 8 фото тримала транзакцію доти,
         // доки Netlify не обривав функцію, і відповідь співробітника
@@ -143,6 +145,9 @@ export const EvalRequests: CollectionConfig = {
           description: 'Копія пішла у спільну групу відділень. Заповнюється само' } },
         { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true,
           date: { pickerAppearance: 'dayAndTime' } } },
+        { name: 'mergedInto', type: 'number', label: 'Об’єднано в заявку №', admin: { readOnly: true,
+          description: 'Дубль, приєднаний до іншої заявки з робочого столу. Дані тут лишаються як були' } },
+        { name: 'noReplyAt', type: 'date', label: 'Позначено «не потребує відповіді»', admin: { readOnly: true, hidden: true } },
       ],
     },
     {
@@ -154,6 +159,10 @@ export const EvalRequests: CollectionConfig = {
         { name: 'from', type: 'text', label: 'Хто' },
         { name: 'text', type: 'textarea', label: 'Повідомлення' },
         { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
+        // id фото з медіатеки, надісланого цим повідомленням, — щоб показати його в стрічці на своєму місці
+        { name: 'photo', type: 'number', label: 'Фото (службове)', admin: { hidden: true } },
+        // з якої заявки перенесено кнопкою «Приєднати сюди»
+        { name: 'mergedFrom', type: 'number', label: 'Із заявки №', admin: { hidden: true } },
       ],
     },
     { name: 'note', type: 'textarea', label: 'Нотатка оцінювача' },

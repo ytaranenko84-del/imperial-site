@@ -24,7 +24,8 @@ const MAX_HEIC_PIXELS = 40_000_000
 const KEYS = EVAL_CATEGORIES.map((c) => c.value) as string[]
 // 5 хвилин — досить, щоб накрити і подвійний тап, і переляк "не надіслалося,
 // спробую ще раз", але не накрити справді другу заявку, надіслану пізніше
-const DUPLICATE_WINDOW_MS = 5 * 60 * 1000
+// Повторна форма з того самого телефону про ту саму річ протягом години — дописуємо в наявну заявку.
+const DUPLICATE_WINDOW_MS = 60 * 60 * 1000
 
 const text = (v: FormDataEntryValue | null, max = 200) =>
   typeof v === 'string' ? v.trim().slice(0, max) : ''
@@ -51,10 +52,13 @@ async function findRecentDuplicate(
     overrideAccess: true,
   })
   const phoneDigits = normalizePhone(phone)
+  // Марка й модель: збігаються або одна з них порожня. Інша марка — інша річ, окрема заявка.
+  const compatible = (a: string, b: string) => !norm(a) || !norm(b) || norm(a) === norm(b)
   const found = (docs as Record<string, unknown>[]).find((d) =>
-    normalizePhone(String(d.phone || '')) === phoneDigits
-    && norm(String(d.brand || '')) === norm(brand)
-    && norm(String(d.model || '')) === norm(model))
+    d.mergedInto == null
+    && normalizePhone(String(d.phone || '')) === phoneDigits
+    && compatible(String(d.brand || ''), brand)
+    && compatible(String(d.model || ''), model))
   return found || null
 }
 
@@ -191,6 +195,9 @@ export async function POST(req: Request) {
           sent: [dup.sent, 'повторне звернення — без нового сповіщення'].filter(Boolean).join(' · '),
           // клієнт повернувся по той самий товар — закрита заявка знову потребує уваги
           ...(dup.status === 'done' || dup.status === 'reject' ? { status: 'new' } : {}),
+          // уперше вказав марку чи модель — дописуємо, а не губимо
+          ...(!String(dup.brand || '').trim() && brand ? { brand } : {}),
+          ...(!String(dup.model || '').trim() && model ? { model } : {}),
         },
       }) as Record<string, unknown>
     } else {

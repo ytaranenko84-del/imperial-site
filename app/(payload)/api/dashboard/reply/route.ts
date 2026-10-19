@@ -5,6 +5,7 @@ import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { esc, hotlineRecipients, recipientsFor, resolveTemplate, send, sumFromText } from '@/lib/telegram.ts'
 import { sendSms } from '@/lib/sms.ts'
 import { runAfterResponse } from '@/lib/groupCard.ts'
+import { NEW_ITEM_HINT, statusAfterStaffReply } from '@/lib/evalFlow.ts'
 
 /**
  * Відповідь клієнту з веб-робочого столу — той самий канал доставки
@@ -42,6 +43,15 @@ export async function POST(req: Request) {
   if ('warn' in resolved) return Response.json({ warn: resolved.warn })
   const replyText = resolved.text
 
+  // Сума й статус — так само, як у відповіді з бота (lib/evalFlow.ts).
+  const already = Number((doc as { estimate?: number }).estimate || 0)
+  const own = [doc.brand, doc.model, doc.year].filter(Boolean).join(' ')
+  const sum = kind === 'eval' ? sumFromText(replyText, own, { requireCurrency: already > 0 }) : null
+  const newStatus = kind === 'eval'
+    ? statusAfterStaffReply({ templateTitle: resolved.title, hasAmount: Boolean(resolved.amount), sumDetected: sum != null })
+    : 'work'
+  const clientText = newStatus === 'done' ? `${replyText}\n\n${NEW_ITEM_HINT}` : replyText
+
   const clientChat = String((doc as { clientChat?: string }).clientChat || '')
   const phone = String((doc as { phone?: string }).phone || '')
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
@@ -55,7 +65,7 @@ export async function POST(req: Request) {
     // це валило весь запит: відповідь не зберігалась, а співробітник бачив
     // лише «Помилка мережі». Тепер — збережено, і видно справжню причину.
     try {
-      await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(replyText)}` })
+      await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(clientText)}` })
       deliveredVia = 'telegram'
     } catch (e) {
       deliveryNote = `Telegram: ${(e as Error).message || 'помилка'}`
@@ -72,7 +82,7 @@ export async function POST(req: Request) {
 
   const now = new Date().toISOString()
   const data: Record<string, unknown> = {
-    status: 'work',
+    status: newStatus,
     answeredBy: who,
     answeredAt: now,
     // Хто відповідає — той і бачив заявку, тож заразом знімаємо «непрочитане».
@@ -80,12 +90,7 @@ export async function POST(req: Request) {
     thread: [...thread, { from: who, text: replyText, at: now }],
   }
 
-  if (kind === 'eval') {
-    const already = Number((doc as { estimate?: number }).estimate || 0)
-    const own = [doc.brand, doc.model, doc.year].filter(Boolean).join(' ')
-    const sum = sumFromText(replyText, own, { requireCurrency: already > 0 })
-    if (sum != null && sum !== already) data.estimate = sum
-  }
+  if (kind === 'eval' && sum != null && sum !== already) data.estimate = sum
 
   await payload.update({ collection, id, overrideAccess: true, data })
 

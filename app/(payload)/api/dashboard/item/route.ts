@@ -4,10 +4,11 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { mediaUrl, normalizePhone } from '@/lib/telegram.ts'
+import { isEmptyEval } from '@/lib/evalFlow.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
-type Related = { key: string; channel: string; title: string; createdAt: string }
+type Related = { key: string; channel: string; title: string; createdAt: string; mergedInto?: number | null }
 
 /**
  * Інші заявки того самого клієнта за номером телефону — щоб оцінювач бачив,
@@ -38,11 +39,12 @@ async function relatedByPhone(
   for (const raw of evalRes.docs) {
     const d = raw as Record<string, unknown>
     const key = `eval:${d.id}`
-    if (key === excludeKey || normalizePhone(d.phone) !== digits) continue
+    if (key === excludeKey || normalizePhone(d.phone) !== digits || isEmptyEval(d)) continue
     related.push({
       key, channel: 'eval',
       title: [d.brand, d.model].filter(Boolean).join(' ') || String(d.title || 'Заявка'),
       createdAt: String(d.createdAt || ''),
+      mergedInto: (d.mergedInto as number | null | undefined) ?? null,
     })
   }
 
@@ -55,6 +57,7 @@ async function relatedByPhone(
       key, channel: isReview ? 'review' : 'hotline',
       title: isReview ? 'Відгук' : 'Гаряча лінія',
       createdAt: String(d.createdAt || ''),
+      mergedInto: (d.mergedInto as number | null | undefined) ?? null,
     })
   }
 
@@ -153,9 +156,15 @@ export async function GET(req: Request) {
   if (!doc) return Response.json({ error: 'Не знайдено' }, { status: 404 })
 
   const d = doc as Record<string, unknown>
-  const photoIds = kind === 'eval' ? ((d.photos as (string | number)[] | undefined) || []) : []
+  type ThreadRow = { from?: string; text?: string; at?: string; photo?: number | null; mergedFrom?: number | null }
+  const threadRows = ((d.thread as ThreadRow[] | undefined) || [])
+  // Фото, надіслані повідомленнями, показуємо в стрічці на своєму місці; решта — блоком згори.
+  const inThread = new Set(threadRows.map((t) => t.photo).filter((x) => x != null).map(String))
+  const photoIds = kind === 'eval'
+    ? Array.from(new Set([...(((d.photos as (string | number)[] | undefined) || []).map(String)), ...inThread]))
+    : []
 
-  const [assignedToName, photos, related] = await Promise.all([
+  const [assignedToName, photoUrls, related] = await Promise.all([
     d.assignedTo != null
       ? payload.findByID({ collection: 'recipients', id: d.assignedTo as string | number, depth: 0, overrideAccess: true })
         .then((r) => (r as { title?: string }).title || '')
@@ -163,12 +172,11 @@ export async function GET(req: Request) {
       : '',
     photoIds.length
       ? payload.find({
-        collection: 'media', where: { id: { in: photoIds } }, limit: photoIds.length, depth: 0, overrideAccess: true, pagination: false,
-      }).then((res) => res.docs
-        .map((m) => String((m as unknown as { filename?: string }).filename || ''))
-        .filter(Boolean)
-        .map((filename) => mediaUrl(filename)))
-      : [] as string[],
+        collection: 'media', where: { id: { in: photoIds.map((x) => (/^\d+$/.test(x) ? Number(x) : x)) } }, limit: photoIds.length, depth: 0, overrideAccess: true, pagination: false,
+      }).then((res) => new Map(res.docs
+        .filter((m) => (m as unknown as { filename?: string }).filename)
+        .map((m) => [String(m.id), mediaUrl(String((m as unknown as { filename?: string }).filename))])))
+      : new Map<string, string>(),
     relatedByPhone(payload, String(d.phone || ''), key),
   ])
 
@@ -187,11 +195,16 @@ export async function GET(req: Request) {
     model: kind === 'eval' ? String(d.model || '') : undefined,
     comment: kind === 'eval' ? String(d.comment || '') : undefined,
     estimate: kind === 'eval' ? Number(d.estimate || 0) : undefined,
-    photos,
+    photos: photoIds.filter((pid) => !inThread.has(pid)).map((pid) => photoUrls.get(pid)).filter(Boolean),
     assignedTo: (d.assignedTo as string | number | undefined) ?? null,
     assignedToName,
     answeredBy: String(d.answeredBy || ''),
-    thread: (d.thread as { from?: string; text?: string; at?: string }[] | undefined) || [],
+    mergedInto: (d.mergedInto as number | null | undefined) ?? null,
+    thread: threadRows.map((t) => ({
+      from: t.from, text: t.text, at: t.at,
+      ...(t.photo != null && photoUrls.get(String(t.photo)) ? { photo: photoUrls.get(String(t.photo)) } : {}),
+      ...(t.mergedFrom != null ? { mergedFrom: t.mergedFrom } : {}),
+    })),
     notes: ((d.notes as { from?: string; text?: string; mentions?: string; at?: string }[] | undefined) || [])
       .map((n) => ({
         from: n.from, text: n.text, at: n.at,

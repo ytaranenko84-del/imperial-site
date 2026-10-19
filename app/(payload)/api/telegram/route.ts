@@ -5,6 +5,9 @@ import { answerCallback, esc, normalizePhone, resolveTemplate, send, sumFromText
 import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 import { logBotEvent } from '@/lib/botEvents.ts'
+import {
+  currentEvalFor, isCourtesy, isEmptyEval, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
+} from '@/lib/evalFlow.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -724,6 +727,8 @@ export async function POST(req: Request) {
       const cqData = update.callback_query.data || ''
       if (cqData.startsWith('del:')) {
         await handleDeleteCallback(payload, update.callback_query)
+      } else if (/^ev(s|n|ps|pn):/.test(cqData)) {
+        await handleItemChoice(payload, update.callback_query)
       } else if (cqData.startsWith('authok:')) {
         await handleLoginConfirm(payload, update.callback_query)
       } else {
@@ -843,7 +848,7 @@ export async function POST(req: Request) {
           }
           await send({
             chat: chatKey,
-            text: `Ваша заявка №${id} прийнята. Відповідь оцінювача прийде сюди.`,
+            text: `Ваша заявка №${id} прийнята. Надсилайте сюди фото й уточнення — додамо до неї. Відповідь оцінювача прийде сюди.`,
             replyMarkup: MENU_KEYBOARD,
           })
         } else {
@@ -891,7 +896,7 @@ export async function POST(req: Request) {
     }
 
     // ── звичайне повідомлення без Reply: текст і/або фото ──
-    if (msg.chat.type === 'private' && (msg.text || msg.caption || msg.photo)) {
+    if (msg.chat.type === 'private' && (msg.text || msg.caption || msg.photo || pickPhoto(msg))) {
       /*
        * Співробітник написав напряму, не через Reply на конкретне повідомлення
        * клієнта, — бот не вгадає, кому це адресовано. Раніше таке повідомлення
@@ -1228,14 +1233,129 @@ async function startIntent(
   if (intent === 'otsinka') {
     // Клієнт явно переходить в інший сценарій — старе звернення більше не має «перехоплювати» його повідомлення
     await closeOpenHotline(payload, chat)
-    await payload.create({
-      collection: 'eval-requests', overrideAccess: true,
-      data: {
-        category: 'other', source: 'bot', clientChat: chat,
-        name: displayName(from), phone, status: 'new', comment: '', photos: [],
-      },
-    })
+
+    /*
+     * Раніше кожне натискання створювало нову заявку — звідси дублі й
+     * порожні заявки (третина всіх). Тепер: є свіжа заявка — питаємо, про ту
+     * саму річ чи про іншу; порожня чернетка вже є — просто ще раз підказка.
+     */
+    const current = await currentEvalFor(payload, chat)
+    if (current && isEmptyEval(current)) {
+      await send({ chat, text: OTSINKA_GUIDE, replyMarkup: MENU_KEYBOARD })
+      return
+    }
+    if (current) {
+      await send({
+        chat,
+        text: `У вас уже є заявка <b>№${current.id}</b> — ${esc(itemLabel(current))}.\nЦе про ту саму річ чи про іншу?`,
+        replyMarkup: { inline_keyboard: [[
+          { text: 'Та сама річ', callback_data: `evs:${current.id}` },
+          { text: 'Інша річ', callback_data: `evn:${current.id}` },
+        ]] },
+      })
+      return
+    }
+    await createEvalDraft(payload, chat, displayName(from), phone)
     await send({ chat, text: OTSINKA_GUIDE, replyMarkup: MENU_KEYBOARD })
+  }
+}
+
+/**
+ * Чернетка — місце, куди ляже перше фото чи опис. У робочому столі порожніх
+ * не видно: заявкою для команди вона стає лише з першим вмістом.
+ */
+async function createEvalDraft(payload: Awaited<ReturnType<typeof getPayload>>, chat: string, name: string, phone: string) {
+  return payload.create({
+    collection: 'eval-requests', overrideAccess: true,
+    data: {
+      category: 'other', source: 'bot', clientChat: chat,
+      name, phone, status: 'new', comment: '', photos: [],
+    },
+  })
+}
+
+/**
+ * Кнопки «Та сама річ» / «Інша річ»:
+ *   evs/evn — після повторного натискання «Оцінка»;
+ *   evps/evpn — після нових фото до вже оціненої заявки (evpn переносить ці фото в нову заявку).
+ */
+async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>, cq: TgCallbackQuery) {
+  const msg = cq.message
+  if (!msg) return
+  const chat = chatKeyOf(msg)
+  const [kind, idStr, photoFromStr, threadFromStr] = (cq.data || '').split(':')
+  const doc = await payload.findByID({ collection: 'eval-requests', id: idStr, depth: 0, overrideAccess: true })
+    .catch(() => null) as EvalDoc | null
+  if (!doc || String(doc.clientChat || '') !== chat) {
+    await answerCallback(cq.id, 'Заявка вже недоступна')
+    return
+  }
+  await answerCallback(cq.id)
+
+  if (kind === 'evs' || kind === 'evps') {
+    await send({
+      chat,
+      text: kind === 'evs'
+        ? `Добре — надсилайте, додамо до заявки <b>№${doc.id}</b>.`
+        : `Добре, це до заявки <b>№${doc.id}</b>.`,
+      replyMarkup: MENU_KEYBOARD,
+    })
+    return
+  }
+
+  if (kind === 'evn') {
+    const current = await currentEvalFor(payload, chat)
+    if (!current || !isEmptyEval(current)) await createEvalDraft(payload, chat, String(doc.name || 'клієнт'), String(doc.phone || ''))
+    await send({ chat, text: 'Добре, це нова річ. Опишіть її й надішліть фото — створимо окрему заявку.', replyMarkup: MENU_KEYBOARD })
+    return
+  }
+
+  // evpn — фото, що прийшли після оцінки, насправді про іншу річ: виносимо їх в окрему заявку
+  const photoFrom = Number(photoFromStr) || 0
+  const threadFrom = Number(threadFromStr) || 0
+  const photos = ((doc.photos || []) as (string | number)[])
+  const thread = doc.thread || []
+  const movedPhotos = photos.slice(photoFrom)
+  const movedEntries = thread.slice(threadFrom).filter((t) => t.from === 'клієнт')
+  if (!movedPhotos.length && !movedEntries.length) {
+    await send({ chat, text: 'Добре, це нова річ. Опишіть її й надішліть фото — створимо окрему заявку.', replyMarkup: MENU_KEYBOARD })
+    await createEvalDraft(payload, chat, String(doc.name || 'клієнт'), String(doc.phone || ''))
+    return
+  }
+  const movedText = movedEntries.map((t) => String(t.text || '').replace(/\s*\[фото\]$/, '').replace(/^\[фото\]$/, '')).filter(Boolean).join('\n')
+  const keptThread = thread.slice(0, threadFrom).concat(thread.slice(threadFrom).filter((t) => t.from !== 'клієнт'))
+  const keptLast = keptThread[keptThread.length - 1]
+  // Заявку знову відкрило саме це фото — воно поїхало, тож повертаємо «Оцінено».
+  const restoreDone = doc.status === 'work' && Number(doc.estimate || 0) > 0 && keptLast && keptLast.from !== 'клієнт'
+  await payload.update({
+    collection: 'eval-requests', id: doc.id, overrideAccess: true,
+    data: {
+      photos: photos.slice(0, photoFrom),
+      thread: keptThread,
+      ...(restoreDone ? { status: 'done' } : {}),
+    },
+  })
+  const created = await payload.create({
+    collection: 'eval-requests', overrideAccess: true,
+    data: {
+      category: 'other', source: 'bot', clientChat: chat, name: String(doc.name || 'клієнт'), phone: String(doc.phone || ''),
+      status: 'new', comment: movedText, photos: movedPhotos,
+    },
+  })
+  await send({ chat, text: `Створили окрему заявку <b>№${created.id}</b> для нової речі — оцінювач скоро відповість.`, replyMarkup: MENU_KEYBOARD })
+
+  const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
+  const chats = await recipientsFor(payload, 'other')
+  for (const target of chats.keys()) {
+    await send({ chat: target, text: evalCard({ ...(created as Record<string, unknown>) }, { clientInBot: true }) }).catch(() => {})
+  }
+  await notifyRecipients(payload, chats, { title: 'Нова заявка на оцінку', body: movedText || `Окрема річ із заявки №${doc.id}` })
+  if (movedPhotos.length) {
+    const media = await payload.find({
+      collection: 'media', where: { id: { in: movedPhotos } }, limit: movedPhotos.length, depth: 0, overrideAccess: true, pagination: false,
+    })
+    const urls = media.docs.map((m) => String((m as unknown as { filename?: string }).filename || '')).filter(Boolean).map(mediaUrl)
+    for (const target of chats.keys()) await sendPhotos(target, urls).catch(() => {})
   }
 }
 
@@ -1393,6 +1513,13 @@ async function handleContact(
     return
   }
 
+  /*
+   * Клієнт заповнив форму на сайті, а в бота зайшов не за посиланням зі
+   * сторінки «Дякуємо» — знаходимо його свіжу заявку з сайту за номером,
+   * щойно Telegram підтвердив, що номер саме його.
+   */
+  await bindSiteRequestsByPhone(payload, chat, digits)
+
   const intent = await takePendingIntent(payload, chat)
   if (intent) {
     await startIntent(payload, chat, from, intent, phone)
@@ -1400,6 +1527,24 @@ async function handleContact(
   }
 
   await send({ chat, text: 'Дякуємо! Ось що я вмію:', replyMarkup: MENU_KEYBOARD })
+}
+
+async function bindSiteRequestsByPhone(payload: Awaited<ReturnType<typeof getPayload>>, chat: string, digits: string) {
+  if (!digits) return
+  const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+  const { docs } = await payload.find({
+    collection: 'eval-requests', limit: 5, depth: 0, overrideAccess: true, pagination: false, sort: '-createdAt',
+    where: { and: [
+      { source: { equals: 'site' } },
+      { phone: { contains: digits } },
+      { createdAt: { greater_than: since } },
+      { or: [{ clientChat: { exists: false } }, { clientChat: { equals: '' } }] },
+    ] },
+  }).catch(() => ({ docs: [] as unknown[] }))
+  for (const d of docs as { id: string | number; phone?: string }[]) {
+    if (normalizePhone(d.phone) !== digits) continue
+    await payload.update({ collection: 'eval-requests', id: d.id, overrideAccess: true, data: { clientChat: chat } }).catch(() => {})
+  }
 }
 
 /**
@@ -1483,6 +1628,23 @@ async function relayAnswer(
   const clientChat = String((doc as { clientChat?: string }).clientChat || '')
   const answeredBy = String((doc as { answeredBy?: string }).answeredBy || '')
 
+  /*
+   * Сума з відповіді — щоб не вписувати її ще раз руками в адмінці. Числа
+   * самої заявки не рахуємо: модель годинника теж складається з цифр.
+   * Коли сума вже була, виправлення ловимо лише з явною валютою («12000
+   * грн») — інакше випадкове число в подальшій переписці тихо переписало б
+   * правильну оцінку.
+   */
+  const already = Number((doc as { estimate?: number }).estimate || 0)
+  const own = [doc.brand, doc.model, doc.year].filter(Boolean).join(' ')
+  const sum = sumFromText(text, own, { requireCurrency: already > 0 })
+  const changed = sum != null && sum !== already
+  // Статус за змістом відповіді: сума — «Оцінено», відмова — «Відмова», решта — «В роботі».
+  const newStatus = statusAfterStaffReply({
+    templateTitle: resolved.title, hasAmount: Boolean(resolved.amount), sumDetected: sum != null,
+  })
+  const clientText = newStatus === 'done' ? `${text}\n\n${NEW_ITEM_HINT}` : text
+
   if (answeredBy && answeredBy !== who) {
     await send({ chat, text: `На цю заявку вже відповів ${esc(answeredBy)}. Ваше повідомлення теж надіслано.` })
   }
@@ -1491,7 +1653,7 @@ async function relayAnswer(
   const replyKey = randomBytes(4).toString('hex')
   if (clientChat) {
     if (text) {
-      const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
+      const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(clientText)}`, replyMarkup: MENU_KEYBOARD })
       clientMsgId = r.message_id
     }
     const delKeyboard = clientMsgId
@@ -1542,22 +1704,10 @@ async function relayAnswer(
   const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
 
-  /*
-   * Сума з відповіді — щоб не вписувати її ще раз руками в адмінці. Числа
-   * самої заявки не рахуємо: модель годинника теж складається з цифр.
-   * Коли сума вже була, виправлення ловимо лише з явною валютою («12000
-   * грн») — інакше випадкове число в подальшій переписці тихо переписало б
-   * правильну оцінку.
-   */
-  const already = Number((doc as { estimate?: number }).estimate || 0)
-  const own = [doc.brand, doc.model, doc.year].filter(Boolean).join(' ')
-  const sum = sumFromText(text, own, { requireCurrency: already > 0 })
-  const changed = sum != null && sum !== already
-
   await payload.update({
     collection: 'eval-requests', id, overrideAccess: true,
     data: {
-      status: 'work',
+      status: newStatus,
       answeredBy: who,
       answeredAt: new Date().toISOString(),
       // Хто відповідає — той і бачив заявку, тож заразом знімаємо «непрочитане».
@@ -1677,19 +1827,17 @@ async function dispatchClientMessage(
    * останньої активності — хто оновлювався останнім (відповідь оцінювача,
    * будь-яка зміна), той і виграє.
    */
-  const [hotlineRes, draftRes, linkedRes] = await Promise.all([
+  /*
+   * Поточна заявка на оцінку — одна: найсвіжіша за 3 дні, хоч і вже оцінена
+   * (вчорашнє «а можна дорожче?» — та сама розмова). Чернетка з бота, якій
+   * ще не відповідали, збирає опис і фото; решта — продовження переписки.
+   */
+  const [hotlineRes, current] = await Promise.all([
     payload.find({
       collection: 'hotline-chats', limit: 1, depth: 0, overrideAccess: true,
       sort: '-updatedAt', where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
     }),
-    payload.find({
-      collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
-      sort: '-updatedAt', where: { clientChat: { equals: chat }, source: { equals: 'bot' }, status: { equals: 'new' } },
-    }),
-    payload.find({
-      collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true,
-      sort: '-updatedAt', where: { clientChat: { equals: chat } },
-    }),
+    currentEvalFor(payload, chat),
   ])
 
   type Candidate = { updatedAt?: string } & Record<string, unknown>
@@ -1698,11 +1846,14 @@ async function dispatchClientMessage(
   if (hotlineRes.docs[0]) {
     candidates.push({ doc: hotlineRes.docs[0], run: () => appendHotline(payload, hotlineRes.docs[0] as HotlineDoc, msg) })
   }
-  if (draftRes.docs[0]) {
-    candidates.push({ doc: draftRes.docs[0], run: () => appendOtsinka(payload, draftRes.docs[0] as EvalDraft, msg) })
-  }
-  if (linkedRes.docs[0]) {
-    candidates.push({ doc: linkedRes.docs[0], run: () => noteClientMessage(payload, msg, linkedRes.docs[0] as EvalDraft) })
+  if (current) {
+    const collectingDraft = current.source === 'bot' && current.status === 'new' && !(current.thread || []).length
+    candidates.push({
+      doc: current as unknown as Candidate,
+      run: () => (collectingDraft
+        ? appendOtsinka(payload, current as EvalDraft, msg)
+        : noteClientMessage(payload, msg, current as EvalDraft)),
+    })
   }
 
   if (candidates.length) {
@@ -1767,7 +1918,8 @@ async function appendHotline(
 
 type EvalDraft = { id: string | number; clientChat?: string; category?: string; brand?: string
   model?: string; year?: string; comment?: string; photos?: (string | number)[]; name?: string
-  phone?: string; status?: string; thread?: { from: string; text: string; at: string }[] }
+  phone?: string; status?: string; estimate?: number | null; source?: string
+  thread?: { from: string; text: string; at: string; photo?: number | null }[] }
 
 /** Додає текст і/або фото до чернетки заявки на оцінку, створеної з бота. */
 async function appendOtsinka(
@@ -1802,7 +1954,14 @@ async function appendOtsinka(
   })
   // Кнопка «Оцінка речі» створює порожню чернетку — заявкою вона стає лише тут,
   // у момент першого реального опису чи фото.
-  if (isFirst && doc.clientChat) await logBotEvent(payload, doc.clientChat, 'form_completed', 'otsinka')
+  if (isFirst && doc.clientChat) {
+    await logBotEvent(payload, doc.clientChat, 'form_completed', 'otsinka')
+    await send({
+      chat: String(doc.clientChat),
+      text: `Дякуємо! Створили заявку <b>№${doc.id}</b> — оцінювач скоро відповість. Можете надіслати ще фото чи деталі — додамо до неї.`,
+      replyMarkup: MENU_KEYBOARD,
+    }).catch(() => {})
+  }
 
   const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, 'other')
@@ -1829,7 +1988,12 @@ async function appendOtsinka(
   }
 }
 
-/** Повідомлення клієнта у вже привʼязаній заявці — звичайне продовження переписки. */
+/**
+ * Повідомлення клієнта у вже привʼязаній заявці — звичайне продовження переписки.
+ * Фото тепер зберігаються в заявку (раніше лише пересилались у Telegram, а в
+ * робочому столі стояло «[фото]»). Після оцінки: «дякую» лишає заявку закритою,
+ * будь-що інше знову відкриває; нові фото — питаємо, чи це не інша річ.
+ */
 async function noteClientMessage(
   payload: Awaited<ReturnType<typeof getPayload>>,
   msg: TgMessage,
@@ -1838,11 +2002,34 @@ async function noteClientMessage(
   const text = textOf(msg)
   const photo = pickPhoto(msg)
   const entryText = photo ? (text ? `${text} [фото]` : '[фото]') : text
-  const thread = [...(doc.thread || []), { from: 'клієнт', text: entryText, at: new Date().toISOString() }]
+  const prevPhotos = (doc.photos || []) as (string | number)[]
+  const prevThread = doc.thread || []
+
+  let mediaId: number | null = null
+  if (photo) {
+    const { downloadTelegramFile } = await import('@/lib/telegram.ts')
+    const file = await downloadTelegramFile(photo.fileId).catch(() => null)
+    if (file) {
+      const created = await payload.create({
+        collection: 'media', overrideAccess: true,
+        data: { alt: `Заявка №${doc.id}: фото від клієнта` },
+        file: { data: file.data, name: file.name, mimetype: photo.mimeType, size: file.data.length },
+      }).catch(() => null)
+      if (created) mediaId = Number(created.id)
+    }
+  }
+
+  const status = String(doc.status || 'new')
+  const closed = status === 'done' || status === 'reject'
+  const reopen = closed && !(isCourtesy(text) && !photo)
 
   await payload.update({
     collection: 'eval-requests', id: doc.id, overrideAccess: true,
-    data: { thread },
+    data: {
+      thread: [...prevThread, { from: 'клієнт', text: entryText, at: new Date().toISOString(), ...(mediaId ? { photo: mediaId } : {}) }],
+      ...(mediaId ? { photos: [...prevPhotos, mediaId] } : {}),
+      ...(reopen ? { status: 'work' } : {}),
+    },
   })
 
   const { recipientsFor, sendPhoto } = await import('@/lib/telegram.ts')
@@ -1853,5 +2040,28 @@ async function noteClientMessage(
       text: `<b>Заявка №${doc.id}</b> · клієнт відповів:\n${esc(entryText)}`,
     }).catch(() => {})
     if (photo) await sendPhoto(target, photo.fileId).catch(() => {})
+  }
+
+  /*
+   * Нові фото до вже оціненої заявки — найчастіша ознака іншої речі. Питаємо
+   * один раз на «пачку» (альбом приходить кількома повідомленнями поспіль).
+   */
+  if (photo && status === 'done' && Number(doc.estimate || 0) > 0 && doc.clientChat) {
+    const since = new Date(Date.now() - 3 * 60 * 1000).toISOString()
+    const recent = await payload.find({
+      collection: 'bot-events', limit: 1, depth: 0, overrideAccess: true, pagination: false,
+      where: { and: [{ chatId: { equals: String(doc.clientChat) } }, { eventType: { equals: 'item_question' } }, { createdAt: { greater_than: since } }] },
+    }).catch(() => null)
+    if (!recent?.docs.length) {
+      await logBotEvent(payload, String(doc.clientChat), 'item_question', String(doc.id))
+      await send({
+        chat: String(doc.clientChat),
+        text: `Це ще про <b>${esc(itemLabel(doc as EvalDoc))}</b> (заявка №${doc.id}) чи нова річ?`,
+        replyMarkup: { inline_keyboard: [[
+          { text: 'Та сама річ', callback_data: `evps:${doc.id}` },
+          { text: 'Інша річ', callback_data: `evpn:${doc.id}:${prevPhotos.length}:${prevThread.length}` },
+        ]] },
+      }).catch(() => {})
+    }
   }
 }

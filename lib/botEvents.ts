@@ -8,7 +8,7 @@ import type { getPayload } from 'payload'
 export async function logBotEvent(
   payload: Awaited<ReturnType<typeof getPayload>>,
   chatId: string,
-  eventType: 'start' | 'menu_click' | 'contact_shared' | 'form_completed',
+  eventType: 'start' | 'menu_click' | 'contact_shared' | 'form_completed' | 'item_question',
   detail?: string,
 ) {
   try {

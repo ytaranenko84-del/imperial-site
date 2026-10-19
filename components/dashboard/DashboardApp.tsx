@@ -9,7 +9,7 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-type Channel = 'eval' | 'hotline' | 'review' | 'booking' | 'incomplete'
+type Channel = 'eval' | 'hotline' | 'review' | 'booking'
 
 type Item = {
   key: string
@@ -25,6 +25,9 @@ type Item = {
   unanswered: boolean
   waitingSince: string | null
   firstReplyAt: string | null
+  thanked?: boolean
+  replyToEstimate?: boolean
+  noReply?: boolean
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -53,7 +56,8 @@ type Detail = {
   assignedTo: string | number | null
   assignedToName: string
   answeredBy?: string
-  thread?: { from?: string; text?: string; at?: string }[]
+  mergedInto?: number | null
+  thread?: { from?: string; text?: string; at?: string; photo?: string; mergedFrom?: number }[]
   notes?: Note[]
   // лише для брони
   amount?: number
@@ -64,7 +68,7 @@ type Detail = {
   branchName?: string
   expiresAt?: string
   note?: string
-  related?: { key: string; channel: Channel; title: string; createdAt: string }[]
+  related?: { key: string; channel: Channel; title: string; createdAt: string; mergedInto?: number | null }[]
 }
 
 type Template = { code: string; title: string; text: string }
@@ -247,12 +251,12 @@ function pluralUa(n: number, one: string, few: string, many: string): string {
 }
 
 const CHANNEL_ICON: Record<Channel, string> = {
-  eval: '💍', hotline: '☎️', review: '⭐', booking: '📅', incomplete: '📝',
+  eval: '💍', hotline: '☎️', review: '⭐', booking: '📅',
 }
 const CHANNEL_LABEL: Record<Channel, string> = {
-  eval: 'Оцінка', hotline: 'Гаряча лінія', review: 'Відгуки', booking: 'Бронь', incomplete: 'Незавершені',
+  eval: 'Оцінка', hotline: 'Гаряча лінія', review: 'Відгуки', booking: 'Бронь',
 }
-const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking', 'incomplete']
+const CHANNELS: Channel[] = ['eval', 'hotline', 'review', 'booking']
 
 export default function DashboardApp({ me }: { me: { id: string; title: string; kind: string } }) {
   const [items, setItems] = useState<Item[] | null>(null)
@@ -270,6 +274,12 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [noteMentions, setNoteMentions] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [note, setNote] = useState('')
+  // «Приєднати сюди»: чекаємо підтвердження з переліком того, що переїде
+  const [mergeAsk, setMergeAsk] = useState<{ key: string; id: string; messages: number; photos: number; notes: number } | null>(null)
+  // «Виділити в нову заявку»: позначені повідомлення (індекси в переписці) й фото з блоку згори
+  const [splitMode, setSplitMode] = useState(false)
+  const [splitEntries, setSplitEntries] = useState<Set<number>>(new Set())
+  const [splitPhotos, setSplitPhotos] = useState<Set<string>>(new Set())
   // Лише для телефону: рейка-фільтри як шторка поверх екрана, а не колонка
   // поруч — там і так тісно. Список/деталі перемикаються повноекранно.
   const [railOpen, setRailOpen] = useState(false)
@@ -432,6 +442,10 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     setNoteMentions(new Set())
     setComposerMode('reply')
     setNote('')
+    setSplitMode(false)
+    setSplitEntries(new Set())
+    setSplitPhotos(new Set())
+    setMergeAsk(null)
   }, [selectedKey, loadDetail])
 
   function periodCutoff(): number {
@@ -510,6 +524,56 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     } finally {
       setSending(false)
     }
+  }
+
+  /** «Приєднати сюди»: спершу показуємо, що саме переїде. */
+  async function askMerge(key: string) {
+    const [kind, id] = key.split(':')
+    const res = await fetch(`/api/dashboard/item?kind=${kind}&id=${id}&peek=1`).catch(() => null)
+    const src = res ? (await res.json().catch(() => null)) as (Detail & { error?: string }) | null : null
+    if (!src || src.error) { setNote('Не вдалося відкрити заявку для приєднання'); return }
+    setMergeAsk({
+      key,
+      id,
+      messages: (src.thread || []).length + (src.comment && detail?.comment ? 1 : 0),
+      photos: (src.photos || []).length + (src.thread || []).filter((t) => t.photo).length,
+      notes: (src.notes || []).length,
+    })
+  }
+
+  async function confirmMerge() {
+    if (!detail || !mergeAsk) return
+    const ask = mergeAsk
+    setMergeAsk(null)
+    const res = await fetch('/api/dashboard/merge', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: detail.kind, targetId: detail.id, sourceId: ask.id }),
+    }).catch(() => null)
+    const json = res ? await res.json().catch(() => null) : null
+    if (!json?.ok) { setNote(json?.error || 'Не вдалося приєднати'); return }
+    detailCacheRef.current.delete(ask.key)
+    await Promise.all([loadDetail(detail.key), loadItems(q)])
+    setNote(`✓ Заявку №${ask.id} приєднано сюди`)
+  }
+
+  async function doSplit() {
+    if (!detail || (!splitEntries.size && !splitPhotos.size)) return
+    const res = await fetch('/api/dashboard/split', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: detail.id, entries: Array.from(splitEntries), photoUrls: Array.from(splitPhotos) }),
+    }).catch(() => null)
+    const json = res ? await res.json().catch(() => null) : null
+    if (!json?.ok) { setNote(json?.error || 'Не вдалося виділити'); return }
+    detailCacheRef.current.delete(detail.key)
+    await loadItems(q)
+    openItem(json.key)
+  }
+
+  function toggleIn<T>(set: Set<T>, v: T): Set<T> {
+    const next = new Set(set)
+    if (next.has(v)) next.delete(v)
+    else next.add(v)
+    return next
   }
 
   function insertTemplate(code: string) {
@@ -595,8 +659,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   }
 
   /** Переписка й нотатки в одній стрічці за часом — нотатки просто виглядають геть інакше. */
-  function mergedTimeline(d: Detail): ({ type: 'message' | 'note' } & Note)[] {
-    const messages = (d.thread || []).map((m) => ({ type: 'message' as const, ...m }))
+  type TimelineRow = { type: 'message' | 'note'; idx?: number; photo?: string; mergedFrom?: number } & Note
+  function mergedTimeline(d: Detail): TimelineRow[] {
+    const messages = (d.thread || []).map((m, idx) => ({ type: 'message' as const, idx, ...m }))
     const notes = (d.notes || []).map((n) => ({ type: 'note' as const, ...n }))
     return [...messages, ...notes].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
   }
@@ -759,10 +824,18 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   <div className="dw-tags">
                     <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
                     {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
-                    {waitingBadge(it.waitingSince) ? (
+                    {waitingBadge(it.waitingSince) && it.replyToEstimate ? (
+                      <span className="dw-tag dw-tag--reply-est">
+                        відповів на оцінку · {fmtDur(Date.now() - new Date(it.waitingSince!).getTime())}
+                      </span>
+                    ) : waitingBadge(it.waitingSince) ? (
                       <span className={`dw-tag dw-tag--wait-${waitingBadge(it.waitingSince)!.level}`}>
                         {waitingBadge(it.waitingSince)!.label}
                       </span>
+                    ) : it.thanked ? (
+                      <span className="dw-tag dw-tag--muted">клієнт подякував</span>
+                    ) : it.noReply ? (
+                      <span className="dw-tag dw-tag--muted">не потребує відповіді</span>
                     ) : it.firstReplyAt && validDate(it.createdAt) ? (
                       <span className="dw-tag dw-tag--answered">
                         відповіли за {fmtDur(new Date(it.firstReplyAt).getTime() - new Date(it.createdAt).getTime())}
@@ -864,6 +937,23 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   ) : (
                     <button type="button" className="dw-btn" onClick={() => update({ assignedTo: 'me' })}>Призначити на мене</button>
                   )}
+                  {(() => {
+                    const th = detail.thread || []
+                    const clientLast = !th.length || th[th.length - 1].from === 'клієнт'
+                    const open = detail.status !== 'done' && detail.status !== 'reject'
+                    return clientLast && open ? (
+                      <button type="button" className="dw-btn" onClick={() => update({ noReply: true })}>Не потребує відповіді</button>
+                    ) : null
+                  })()}
+                  {detail.kind === 'eval' && (
+                    <button
+                      type="button"
+                      className={`dw-btn ${splitMode ? 'dw-btn--on' : ''}`}
+                      onClick={() => { setSplitMode((v) => !v); setSplitEntries(new Set()); setSplitPhotos(new Set()) }}
+                    >
+                      {splitMode ? 'Скасувати виділення' : 'Виділити в нову заявку'}
+                    </button>
+                  )}
                   {detail.status !== 'done' && (
                     <button type="button" className="dw-btn dw-btn--primary" onClick={() => update({ status: 'done' })}>Закрити</button>
                   )}
@@ -875,13 +965,27 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
               {renderTiming(detail)}
 
+              {detail.mergedInto != null && (
+                <div className="dw-merged-note">
+                  Ця заявка приєднана до №{detail.mergedInto} — уся переписка там.
+                  <button type="button" className="dw-related-link" onClick={() => openItem(`${detail.kind}:${detail.mergedInto}`)}>Відкрити №{detail.mergedInto}</button>
+                </div>
+              )}
+
               {detail.related && detail.related.length > 0 && (
                 <div className="dw-related">
                   У цього клієнта є ще {detail.related.length} {pluralUa(detail.related.length, 'заявка', 'заявки', 'заявок')}:
                   {detail.related.map((r) => (
-                    <button type="button" key={r.key} className="dw-related-link" onClick={() => openItem(r.key)}>
-                      {CHANNEL_ICON[r.channel]} №{r.key.split(':')[1]} · {r.title}
-                    </button>
+                    <span key={r.key} className="dw-related-chip">
+                      <button type="button" className="dw-related-link" onClick={() => openItem(r.key)}>
+                        {CHANNEL_ICON[r.channel]} №{r.key.split(':')[1]} · {r.title}
+                      </button>
+                      {r.mergedInto != null ? (
+                        <span className="dw-tag dw-tag--merged">Об’єднано в №{r.mergedInto}</span>
+                      ) : r.key.split(':')[0] === detail.kind && detail.mergedInto == null ? (
+                        <button type="button" className="dw-join" onClick={() => askMerge(r.key)}>Приєднати сюди</button>
+                      ) : null}
+                    </span>
                   ))}
                 </div>
               )}
@@ -908,10 +1012,16 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                             {fmtTime(detail.createdAt) && <time>{fmtTime(detail.createdAt)}</time>}
                           </div>
                         )}
-                        {(detail.photos || []).map((url) => (
+                        {(detail.photos || []).map((url) => (splitMode ? (
+                          <label key={url} className={`dw-pick ${splitPhotos.has(url) ? 'on' : ''}`}>
+                            <input type="checkbox" checked={splitPhotos.has(url)} onChange={() => setSplitPhotos((p) => toggleIn(p, url))} />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt="" className="dw-photo" />
+                          </label>
+                        ) : (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img key={url} src={url} alt="" className="dw-photo" />
-                        ))}
+                        )))}
                         {mergedTimeline(detail).map((m, i) => [
                           daySep(m.at, `day-${i}`),
                           m.type === 'note' ? (
@@ -921,9 +1031,21 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                               <time>{m.from}{m.at ? ` · ${fmtTime(m.at)}` : ''}</time>
                             </div>
                           ) : (
-                            <div key={i} className={`dw-bubble ${m.from === detail.answeredBy || (m.from || '').includes('робочого столу') || (m.from || '').includes(me.title) ? 'out' : 'in'}`}>
-                              {!((m.from || '').includes('робочого столу')) && m.from ? <span className="dw-who">{m.from}</span> : null}
-                              {m.text}
+                            <div
+                              key={i}
+                              className={`dw-bubble ${m.from && m.from !== 'клієнт' ? 'out' : 'in'} ${splitMode && m.idx != null && splitEntries.has(m.idx) ? 'picked' : ''}`}
+                              onClick={splitMode && m.idx != null ? () => setSplitEntries((p) => toggleIn(p, m.idx!)) : undefined}
+                            >
+                              {splitMode && m.idx != null && (
+                                <input type="checkbox" className="dw-pick-box" checked={splitEntries.has(m.idx)} readOnly />
+                              )}
+                              {m.mergedFrom != null && <span className="dw-from-merged">із заявки №{m.mergedFrom}</span>}
+                              {m.from ? <span className="dw-who">{m.from}</span> : null}
+                              {m.photo && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={m.photo} alt="" className="dw-photo dw-photo--in-bubble" />
+                              )}
+                              {m.photo && m.text === '[фото]' ? null : (m.text || '').replace(/\s*\[фото\]$/, '')}
                               {m.at && <time>{fmtTime(m.at)}</time>}
                             </div>
                           ),
@@ -934,6 +1056,33 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   {!mergedTimeline(detail).length && !detail.comment && <p className="dw-empty">Ще немає переписки</p>}
                 </div>
               </div>
+
+              {splitMode && (
+                <div className="dw-split-bar">
+                  <span>Позначте повідомлення й фото іншої речі — вони переїдуть в окрему заявку цього клієнта.</span>
+                  <button type="button" className="dw-btn dw-btn--primary" disabled={!splitEntries.size && !splitPhotos.size} onClick={doSplit}>
+                    Перенести вибране ({splitEntries.size + splitPhotos.size})
+                  </button>
+                </div>
+              )}
+
+              {mergeAsk && (
+                <div className="dw-report-backdrop" onClick={() => setMergeAsk(null)}>
+                  <div className="dw-merge-modal" onClick={(e) => e.stopPropagation()}>
+                    <h4>Приєднати заявку №{mergeAsk.id} до №{detail.id}?</h4>
+                    <ul>
+                      <li>Перенесеться: <b>{mergeAsk.messages} {pluralUa(mergeAsk.messages, 'повідомлення', 'повідомлення', 'повідомлень')}, {mergeAsk.photos} фото, {mergeAsk.notes} {pluralUa(mergeAsk.notes, 'нотатка', 'нотатки', 'нотаток')}</b></li>
+                      <li>№{mergeAsk.id} закриється з позначкою «Об’єднано в №{detail.id}»</li>
+                      <li>Оцінка й відповідальний лишаються від №{detail.id}</li>
+                    </ul>
+                    <p>Дані в №{mergeAsk.id} нікуди не зникають — якщо приєднали помилково, нічого не втрачено.</p>
+                    <div className="dw-merge-row">
+                      <button type="button" className="dw-btn" onClick={() => setMergeAsk(null)}>Скасувати</button>
+                      <button type="button" className="dw-btn dw-btn--primary" onClick={confirmMerge}>Приєднати</button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="dw-composer">
                 <div className="dw-mode-tabs">

@@ -1,6 +1,7 @@
 import { getPayload } from 'payload'
 import type { Where } from 'payload'
 import config from '@payload-config'
+import { isEmptyEval } from '@/lib/evalFlow.ts'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 
@@ -51,7 +52,11 @@ export async function GET(req: Request) {
     payload.find({ collection: 'eval-requests', where, limit: 2000, depth: 0, overrideAccess: true }),
     payload.find({ collection: 'hotline-chats', where, limit: 2000, depth: 0, overrideAccess: true }),
   ])
-  const docs = [...evalRes.docs, ...hotlineRes.docs] as Record<string, unknown>[]
+  // Порожні чернетки з бота й приєднані дублі — не звернення, у звіт не йдуть.
+  const docs = [
+    ...(evalRes.docs as Record<string, unknown>[]).filter((d) => !isEmptyEval(d)),
+    ...(hotlineRes.docs as Record<string, unknown>[]),
+  ].filter((d) => d.mergedInto == null)
 
   let totalReplyMs = 0
   let totalReplied = 0

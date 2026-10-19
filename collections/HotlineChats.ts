@@ -55,6 +55,8 @@ export const HotlineChats: CollectionConfig = {
     { name: 'lastViewedAt', type: 'date', label: 'Востаннє переглянуто', admin: { readOnly: true, hidden: true,
       date: { pickerAppearance: 'dayAndTime' } } },
     { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } } },
+    { name: 'mergedInto', type: 'number', label: 'Об’єднано в звернення №', admin: { readOnly: true } },
+    { name: 'noReplyAt', type: 'date', label: 'Позначено «не потребує відповіді»', admin: { readOnly: true, hidden: true } },
     {
       name: 'thread',
       type: 'array',
@@ -64,6 +66,7 @@ export const HotlineChats: CollectionConfig = {
         { name: 'from', type: 'text', label: 'Хто' },
         { name: 'text', type: 'textarea', label: 'Повідомлення' },
         { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
+        { name: 'mergedFrom', type: 'number', label: 'Із звернення №', admin: { hidden: true } },
       ],
     },
     {

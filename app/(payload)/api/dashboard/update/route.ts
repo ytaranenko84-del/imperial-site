@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   }
 
   const kind = text(body.kind, 20)
-  const id = text(body.id, 40)
+  const id = text(body.id == null ? '' : String(body.id), 40)
   if (!id || !COLLECTION[kind]) {
     return Response.json({ error: 'Некоректні дані' }, { status: 422 })
   }
@@ -37,6 +37,11 @@ export async function POST(req: Request) {
   if (body.assignedTo === 'me') data.assignedTo = me.id
   else if (body.assignedTo === 'none') data.assignedTo = null
 
+  // «Не потребує відповіді» — знімає позначку «без відповіді» до наступного слова клієнта, клієнту нічого не йде.
+  if (body.noReply === true && kind !== 'booking') {
+    data.noReplyAt = new Date().toISOString()
+    data.lastViewedAt = new Date().toISOString()
+  }
   if (typeof body.status === 'string') {
     if (!STATUSES[kind].has(body.status)) return Response.json({ error: 'Невірний статус' }, { status: 422 })
     data.status = body.status

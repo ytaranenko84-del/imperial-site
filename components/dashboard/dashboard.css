@@ -223,6 +223,41 @@
   border-radius: 999px; padding: 4px 10px; cursor: pointer; font-family: inherit;
 }
 .dw-related-link:hover { background: var(--brand-soft); }
+.dw-related-chip { display: inline-flex; align-items: center; gap: 4px; }
+.dw-join {
+  font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border: 0; border-radius: 999px;
+  padding: 4px 10px; cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.dw-tag--merged { background: #efeaf9; color: #6a4fb5; }
+.dw-tag--muted { background: #f3f3f5; color: #8a8a92; font-weight: 600; }
+.dw-tag--reply-est { background: #fdeedf; color: #d9640b; font-weight: 800; }
+.dw-merged-note {
+  flex: none; padding: 10px 20px; background: #efeaf9; border-bottom: 1px solid var(--line);
+  font-size: 12.5px; color: #4b3a86; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.dw-btn--on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+.dw-from-merged { display: block; font-size: 10px; font-weight: 700; color: #6a4fb5; margin-bottom: 2px; }
+.dw-bubble.out .dw-from-merged { color: #f1e9ff; }
+.dw-photo--in-bubble { display: block; max-width: 200px; margin: 2px 0 4px; }
+.dw-pick { position: relative; display: inline-block; cursor: pointer; border-radius: 12px; outline: 3px solid transparent; }
+.dw-pick.on { outline-color: var(--new); }
+.dw-pick input { position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; }
+.dw-pick-box { float: right; margin: 0 0 4px 8px; width: 16px; height: 16px; pointer-events: none; }
+.dw-bubble.picked { outline: 3px solid var(--new); outline-offset: 2px; }
+.dw-split-bar {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 20px; background: var(--new-soft); border-top: 1px solid var(--line); font-size: 12.5px; color: #1f4fb5;
+}
+
+.dw-merge-modal {
+  background: #fff; border-radius: 14px; width: 100%; max-width: 460px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.dw-merge-modal h4 { margin: 0; font-size: 16px; }
+.dw-merge-modal ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
+.dw-merge-modal p { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.dw-merge-row { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 900px) {
   .dw-burger { display: block; }
