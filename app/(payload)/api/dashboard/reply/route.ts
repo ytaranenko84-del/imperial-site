@@ -4,6 +4,7 @@ import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { esc, hotlineRecipients, recipientsFor, resolveTemplate, send, sumFromText } from '@/lib/telegram.ts'
 import { sendSms } from '@/lib/sms.ts'
+import { runAfterResponse } from '@/lib/groupCard.ts'
 
 /**
  * Відповідь клієнту з веб-робочого столу — той самий канал доставки
@@ -50,8 +51,15 @@ export async function POST(req: Request) {
   let deliveryNote = ''
 
   if (clientChat) {
-    await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(replyText)}` })
-    deliveredVia = 'telegram'
+    // Telegram може відмовити (клієнт заблокував бота, видалив чат) — раніше
+    // це валило весь запит: відповідь не зберігалась, а співробітник бачив
+    // лише «Помилка мережі». Тепер — збережено, і видно справжню причину.
+    try {
+      await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(replyText)}` })
+      deliveredVia = 'telegram'
+    } catch (e) {
+      deliveryNote = `Telegram: ${(e as Error).message || 'помилка'}`
+    }
   } else if (kind === 'eval' && phone) {
     // SMS-резерв поки лише для заявок на оцінку — так само, як і в боті.
     try {
@@ -82,15 +90,18 @@ export async function POST(req: Request) {
   await payload.update({ collection, id, overrideAccess: true, data })
 
   // Копія іншим отримувачам заявки — щоб і в Telegram було видно, що вже відповіли.
-  const others = kind === 'eval'
-    ? await recipientsFor(payload, String((doc as { category?: string }).category || ''))
-    : await hotlineRecipients(payload)
-  for (const chat of others.keys()) {
-    await send({
-      chat,
-      text: `<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(replyText)}`,
-    }).catch(() => {})
-  }
+  // Після відповіді співробітнику: ці розсилки не мають тримати запит.
+  await runAfterResponse(async () => {
+    const others = kind === 'eval'
+      ? await recipientsFor(payload, String((doc as { category?: string }).category || ''))
+      : await hotlineRecipients(payload)
+    for (const chat of others.keys()) {
+      await send({
+        chat,
+        text: `<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(replyText)}`,
+      }).catch(() => {})
+    }
+  }, 'копії відповіді не пішли')
 
   return Response.json({ ok: true, deliveredVia, deliveryNote, text: replyText })
 }

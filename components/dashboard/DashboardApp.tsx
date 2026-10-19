@@ -482,8 +482,18 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
       const res = await fetch('/api/dashboard/reply', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ kind: detail.kind, id: detail.id, text: composer.trim() }),
-      })
-      const json = await res.json()
+      }).catch(() => null)
+      if (!res) {
+        setNote('Немає зв’язку з сервером — перевірте інтернет і надішліть ще раз')
+        return
+      }
+      const json = await res.json().catch(() => null)
+      if (!json) {
+        // Сервер щось почав, але не відповів до кінця: повідомлення могло вже піти.
+        setNote(`Сервер не відповів (код ${res.status}). Повідомлення могло вже піти клієнту — заявку оновлено, перевірте переписку перед повторною відправкою.`)
+        await Promise.all([loadDetail(detail.key), loadItems(q)])
+        return
+      }
       if (json.warn) {
         setNote(json.warn)
       } else if (!res.ok) {
@@ -496,7 +506,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
         await Promise.all([loadDetail(detail.key), loadItems(q)])
       }
     } catch {
-      setNote('Помилка мережі')
+      setNote('Щось пішло не так — оновіть заявку й перевірте переписку')
     } finally {
       setSending(false)
     }
@@ -527,17 +537,21 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
       const res = await fetch('/api/dashboard/note', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ kind: detail.kind, id: detail.id, text: noteText.trim(), mentions: Array.from(noteMentions) }),
-      })
+      }).catch(() => null)
+      if (!res) {
+        setNote('Немає зв’язку з сервером — перевірте інтернет і збережіть ще раз')
+        return
+      }
       if (res.ok) {
         setNoteText('')
         setNoteMentions(new Set())
         await Promise.all([loadDetail(detail.key), loadItems(q)])
       } else {
         const json = await res.json().catch(() => ({}))
-        setNote(json.error || 'Не вдалося зберегти нотатку')
+        setNote(json.error || `Не вдалося зберегти нотатку (код ${res.status})`)
       }
     } catch {
-      setNote('Помилка мережі')
+      setNote('Щось пішло не так — оновіть заявку й перевірте нотатки')
     } finally {
       setSending(false)
     }

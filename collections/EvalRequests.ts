@@ -62,40 +62,14 @@ export const EvalRequests: CollectionConfig = {
         const prevEstimate = Number(previousDoc?.estimate || 0)
         if (estimate <= 0 || estimate === prevEstimate) return doc
 
-        try {
-          const { groupCard, mediaUrl, send, sendPhotos, token } = await import('../lib/telegram.ts')
-          if (!token()) return doc
-
-          const settings = await req.payload.findGlobal({ slug: 'settings', overrideAccess: true }) as Record<string, unknown>
-          const chat = String(settings.reviewChat || '')
-          if (!chat) return doc
-
-          if (prevEstimate > 0) {
-            await send({
-              chat,
-              text: `<b>Заявка №${doc.id}</b> · сума уточнена: ${prevEstimate.toLocaleString('uk-UA')} → `
-                + `<b>${estimate.toLocaleString('uk-UA')} грн</b>`,
-            })
-            return doc
-          }
-
-          await send({ chat, text: groupCard(doc as Record<string, unknown>) })
-
-          const ids = (doc.photos || []) as unknown[]
-          if (ids.length) {
-            const urls: string[] = []
-            for (const it of ids) {
-              const id = typeof it === 'object' && it ? (it as { id?: unknown }).id : it
-              const m = await req.payload.findByID({ collection: 'media', id: String(id), depth: 0, overrideAccess: true })
-                .catch(() => null) as { filename?: string } | null
-              if (m?.filename) urls.push(mediaUrl(m.filename))
-            }
-            if (urls.length) await sendPhotos(chat, urls)
-          }
-        } catch (e) {
-          // Група — допоміжна копія: заявка збережена в будь-якому разі
-          console.error('картка в групу не пішла:', e)
-        }
+        // Не всередині збереження: картка з 8 фото тримала транзакцію доти,
+        // доки Netlify не обривав функцію, і відповідь співробітника
+        // відкочувалась (заявка №282, 16.10). Група — допоміжна копія.
+        const { postEstimateToGroup, runAfterResponse } = await import('../lib/groupCard.ts')
+        await runAfterResponse(
+          () => postEstimateToGroup(req.payload, doc as Record<string, unknown>, prevEstimate),
+          'картка в групу не пішла',
+        )
         return doc
       },
     ],
