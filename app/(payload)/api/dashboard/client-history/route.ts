@@ -4,8 +4,7 @@ import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
 import { isEmptyEval } from '@/lib/evalFlow.ts'
-import { onixClientByPhone } from '@/lib/onix.ts'
-import { onixBails, onixCustomerName, onixHistoryEnabled, type HistoryBail } from '@/lib/onixHistory.ts'
+import { onixBails, onixClientWithLive, onixCustomerName, onixHistoryEnabled, type HistoryBail } from '@/lib/onixHistory.ts'
 
 /**
  * Історія клієнта для вікна «по натисканню на ім’я»: статус і мережі з нічного
@@ -26,17 +25,18 @@ export async function GET(req: Request) {
   const digits = normalizePhone(phone)
   if (!digits) return Response.json({ error: 'Немає телефону' }, { status: 422 })
 
-  const client = await onixClientByPhone(payload, phone).catch(() => null)
+  const client = await onixClientWithLive(payload, phone).catch(() => null)
 
   // Застави з усіх мереж клієнта, разом за датою; беремо з кожної стільки, щоб вистачило на сторінку.
   let bails: HistoryBail[] = []
-  let name = ''
+  // ПІБ — з нічного довідника; з Оникса напряму лише якщо там ще порожньо
+  let name = client?.fullName || ''
   let onixError = ''
   if (client && onixHistoryEnabled()) {
     try {
       const perNet = await Promise.all(client.networks.map((n) => onixBails(n.network, n.customerId, offset + PAGE + 1)))
       bails = perNet.flat().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-      if (offset === 0) name = await onixCustomerName(client.networks[0].network, client.networks[0].customerId)
+      if (offset === 0 && !name) name = await onixCustomerName(client.networks[0].network, client.networks[0].customerId)
     } catch (e) {
       onixError = 'Оникс зараз не відповідає — спробуйте ще раз за хвилину'
       console.error('onix history', (e as Error).message)

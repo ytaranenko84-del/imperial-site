@@ -8,7 +8,7 @@ import { logBotEvent } from '@/lib/botEvents.ts'
 import {
   currentEvalFor, isCourtesy, isEmptyEval, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
 } from '@/lib/evalFlow.ts'
-import { onixClientByPhone, onixClientLine, tierEmoji, tierLabel } from '@/lib/onix.ts'
+import { onixClientByPhone, onixClientInfo, tierEmoji, tierLabel } from '@/lib/onix.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -1347,9 +1347,11 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
 
   const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, 'other')
-  const clientLine = await onixClientLine(payload, doc.phone)
+  const onix = await onixClientInfo(payload, doc.phone)
+  const cardDoc = { ...(created as Record<string, unknown>) }
+  if (onix.fullName) cardDoc.name = onix.fullName
   for (const target of chats.keys()) {
-    await send({ chat: target, text: evalCard({ ...(created as Record<string, unknown>) }, { clientInBot: true, clientLine }) }).catch(() => {})
+    await send({ chat: target, text: evalCard(cardDoc, { clientInBot: true, clientLine: onix.line }) }).catch(() => {})
   }
   await notifyRecipients(payload, chats, { title: 'Нова заявка на оцінку', body: movedText || `Окрема річ із заявки №${doc.id}` })
   if (movedPhotos.length) {
@@ -1913,11 +1915,12 @@ async function appendHotline(
 
   const { hotlineCard, sendPhoto } = await import('@/lib/telegram.ts')
   const chats = await hotlineRecipientsFor(payload)
-  const clientLine = isFirst ? await onixClientLine(payload, doc.phone) : ''
+  // Клієнт є в Ониксі — у картці ПІБ звідти замість ніка з Telegram
+  const onix = isFirst ? await onixClientInfo(payload, doc.phone) : { fullName: '', line: '' }
 
   for (const target of chats.keys()) {
     const text2 = isFirst
-      ? hotlineCard({ id: doc.id, name: doc.name, phone: doc.phone }, text, label, clientLine)
+      ? hotlineCard({ id: doc.id, name: onix.fullName || doc.name, phone: doc.phone }, text, label, onix.line)
       : `<b>${esc(label)} №${doc.id}</b> · клієнт додав:\n${esc(entryText)}`
     await send({ chat: target, text: text2 }).catch(() => {})
     if (photo) await sendPhoto(target, photo.fileId).catch(() => {})
@@ -1984,11 +1987,11 @@ async function appendOtsinka(
 
   const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, 'other')
-  const clientLine = isFirst ? await onixClientLine(payload, doc.phone) : ''
+  const onix = isFirst ? await onixClientInfo(payload, doc.phone) : { fullName: '', line: '' }
 
   for (const target of chats.keys()) {
     const cardText = isFirst
-      ? evalCard({ ...doc, comment, photos }, { clientInBot: true, clientLine })
+      ? evalCard({ ...doc, comment, photos, name: onix.fullName || doc.name }, { clientInBot: true, clientLine: onix.line })
       : `<b>Заявка №${doc.id}</b> · клієнт додав:\n${esc(text || '[фото]')}`
     await send({ chat: target, text: cardText }).catch(() => {})
   }

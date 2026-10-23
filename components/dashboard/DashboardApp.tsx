@@ -28,7 +28,7 @@ type Item = {
   thanked?: boolean
   replyToEstimate?: boolean
   noReply?: boolean
-  client?: { tier: TierKey; tierLabel: string; discount: number | null; networks: string[] } | null
+  client?: { tier: TierKey; tierLabel: string; discount: number | null; fullName: string; people: number; networks: string[] } | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -42,9 +42,13 @@ type TierKey = 'diamond' | 'ruby' | 'emerald' | 'new' | 'plain'
 type OnixNet = {
   network: string; networkLabel: string; customerId: number; url: string; tier: TierKey; tierLabel: string
   discount: number | null; totalBails: number; activeBails: number; boughtBails: number; soldBails: number
-  fineBails: number; clientSince: string | null; lastBailAt: string | null; lastBranch: string | null
+  fineBails: number; clientSince: string | null; lastBailAt: string | null; lastBranch: string | null; fullName?: string
 }
-type OnixClientUI = { tier: TierKey; tierLabel: string; discount: number | null; networks: OnixNet[] }
+type OnixClientUI = {
+  tier: TierKey; tierLabel: string; discount: number | null; networks: OnixNet[]
+  /** Головний запис (де більше активних застав), та сама людина в інших базах, скільки людей на номері. */
+  fullName?: string; primary?: OnixNet; also?: OnixNet[]; people?: number
+}
 type HistoryBail = {
   network: string; networkLabel: string; id: number; createdAt: string; loan: number; product: string
   statusLabel: string; statusKind: 'active' | 'redeemed' | 'overdue' | 'sold' | 'other'; branch: string
@@ -224,23 +228,42 @@ const fmtDateShort = (iso?: string | null) => {
 function renderClientBar(d: Detail, openHistory: (phone: string) => void) {
   if (!d.phone) return null
   const c = d.client
-  const best = c?.networks[0]
+  const best = c?.primary || c?.networks[0]
+  const also = c?.also || []
   return (
+    <>
     <div className="dw-clientbar">
       <TierBadge client={c} big />
-      {c?.networks.map((n) => (
-        <a key={n.network} className="dw-net" href={n.url} target="_blank" rel="noopener noreferrer" title="Відкрити картку клієнта в Ониксі">
-          {n.networkLabel}{c.networks.length > 1 && n.tier !== c.tier ? ` · ${n.tierLabel}` : ''} ↗
+      {best && (
+        <a className="dw-net" href={best.url} target="_blank" rel="noopener noreferrer" title="Відкрити картку клієнта в Ониксі">
+          {best.networkLabel} ↗
         </a>
-      ))}
+      )}
       {best && (
         <span className="dw-clientbar-meta">
-          <b>{best.totalBails}</b> застав · активних <b>{best.activeBails}</b>
+          активних <b>{best.activeBails}</b> · усього <b>{best.totalBails}</b>
           {best.lastBailAt ? <> · востаннє <b>{fmtWhen(best.lastBailAt)}</b>{best.lastBranch ? `, ${best.lastBranch}` : ''}</> : null}
         </span>
       )}
       <button type="button" className="dw-btn dw-btn--history" onClick={() => openHistory(d.phone)}>Історія клієнта</button>
     </div>
+      {/* Окремим рядком, щоб на телефоні не ховався за краєм гортання */}
+      {(also.length > 0 || (c?.people || 1) > 1) && (
+        <div className="dw-clientbar-also">
+          {also.length > 0 && <span>також є в:</span>}
+          {also.map((n) => (
+            <a key={`${n.network}:${n.customerId}`} className="dw-net dw-net--small" href={n.url} target="_blank" rel="noopener noreferrer" title="Відкрити картку клієнта в Ониксі">
+              {n.networkLabel}{n.tier !== c!.tier ? ` · ${n.tierLabel}` : ''} · активних {n.activeBails} ↗
+            </a>
+          ))}
+          {(c?.people || 1) > 1 && (
+            <span className="dw-tag dw-tag--people" title="Під цим номером в Ониксі записано різних людей — показано того, в кого активні застави. Решта — в історії.">
+              {c!.people} клієнти на номері
+            </span>
+          )}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -913,11 +936,18 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 {it.unread && <div className="dw-dot dw-dot--unread" title="Ніхто ще не відкривав" />}
                 {!it.unread && it.unanswered && <div className="dw-dot dw-dot--unanswered" title="Переглянуто, немає відповіді" />}
                 <div className="dw-item-body">
-                  <div className="dw-item-top"><b>{it.title}</b><time>{fmtWhen(it.createdAt)}</time></div>
-                  <div className="dw-snippet">{it.snippet}</div>
+                  {/* Клієнт є в Ониксі — ПІБ і телефон замість ніка; оцінка — річ іде в рядок нижче */}
+                  <div className="dw-item-top">
+                    {it.client?.fullName
+                      ? <b>{it.client.fullName}{it.phone && <span className="dw-item-phone"> · {it.phone}</span>}</b>
+                      : <b>{it.title}</b>}
+                    <time>{fmtWhen(it.createdAt)}</time>
+                  </div>
+                  <div className="dw-snippet">{it.client?.fullName && it.kind === 'eval' && it.title ? `${it.title} · ${it.snippet}` : it.snippet}</div>
                   <div className="dw-tags">
                     {it.client && ['diamond', 'ruby', 'emerald'].includes(it.client.tier) && <TierBadge client={it.client} />}
-                    {it.client && <span className="dw-net dw-net--small">{it.client.networks[0]}{it.client.networks.length > 1 ? ` +${it.client.networks.length - 1}` : ''}</span>}
+                    {it.client && <span className="dw-net dw-net--small">{it.client.networks[0]}{it.client.networks.length > 1 ? ` +${it.client.networks.slice(1).join(', ')}` : ''}</span>}
+                    {it.client && it.client.people > 1 && <span className="dw-tag dw-tag--people">{it.client.people} клієнти на номері</span>}
                     <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
                     {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
                     {waitingBadge(it.waitingSince) && it.replyToEstimate ? (
@@ -978,7 +1008,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 <button type="button" className="dw-back" onClick={() => setSelectedKey(null)} aria-label="Назад до списку">←</button>
                 <div>
                   <h3>
-                    <button type="button" className="dw-name-link" onClick={() => openHistory(detail.phone)}>{detail.name}</button>
+                    <button type="button" className="dw-name-link" onClick={() => openHistory(detail.phone)}>{detail.client?.fullName || detail.name}</button>
                     {detail.phone ? ` · ${detail.phone}` : ''}
                   </h3>
                   <p>Бронь суми{detail.branchName ? ` · ${detail.branchName}` : ''} · №{detail.id}</p>
@@ -1025,7 +1055,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 <button type="button" className="dw-back" onClick={() => setSelectedKey(null)} aria-label="Назад до списку">←</button>
                 <div>
                   <h3>
-                    <button type="button" className="dw-name-link" onClick={() => openHistory(detail.phone)}>{detail.name || detail.title}</button>
+                    <button type="button" className="dw-name-link" onClick={() => openHistory(detail.phone)}>{detail.client?.fullName || detail.name || detail.title}</button>
                     {detail.phone ? ` · ${detail.phone}` : ''}
                   </h3>
                   <p>

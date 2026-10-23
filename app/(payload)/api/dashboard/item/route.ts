@@ -5,7 +5,7 @@ import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { mediaUrl, normalizePhone } from '@/lib/telegram.ts'
 import { isEmptyEval } from '@/lib/evalFlow.ts'
-import { onixClientByPhone } from '@/lib/onix.ts'
+import { onixClientWithLive } from '@/lib/onixHistory.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
@@ -141,7 +141,7 @@ export async function GET(req: Request) {
       assignedTo: (assigned?.id as string | number | undefined) ?? null,
       assignedToName: assigned?.title || '',
       related: await relatedByPhone(payload, String(d.phone || ''), key),
-      client: await onixClientByPhone(payload, d.phone).catch(() => null),
+      client: await onixClientWithLive(payload, d.phone).catch(() => null),
     })
   }
 
@@ -180,7 +180,7 @@ export async function GET(req: Request) {
         .map((m) => [String(m.id), mediaUrl(String((m as unknown as { filename?: string }).filename))])))
       : new Map<string, string>(),
     relatedByPhone(payload, String(d.phone || ''), key),
-    onixClientByPhone(payload, d.phone).catch(() => null),
+    onixClientWithLive(payload, d.phone).catch(() => null),
   ])
 
   return Response.json({

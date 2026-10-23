@@ -1,5 +1,10 @@
 import mysql from 'mysql2/promise'
-import { NETWORKS, type Network } from './onix.ts'
+import type { Payload } from 'payload'
+import { sql } from '@payloadcms/db-postgres'
+import {
+  NETWORKS, clientFromRecords, onixClientByPhone, phone9, recordFromRow,
+  type Network, type OnixClient, type OnixRow,
+} from './onix.ts'
 
 /**
  * Історія клієнта з самого Оникса — лише на натискання й лише читання.
@@ -96,4 +101,76 @@ export async function onixBails(network: Network, customerId: number, limit: num
       branch: String(r.branch || ''),
     }
   })
+}
+
+/*
+ * Клієнт, якого завели в Ониксі сьогодні, у нічному довіднику ще відсутній.
+ * Коли співробітник відкриває переписку з таким номером, один раз шукаємо
+ * його в усіх п'яти базах напряму й дописуємо в довідник — далі він видний
+ * усюди одразу, а вночі вивантаження все одно перезапише рядок.
+ * «Не знайдено» пам'ятаємо 10 хвилин, щоб не смикати Оникс на кожне відкриття.
+ */
+const missCache = new Map<string, number>()
+const MISS_TTL_MS = 10 * 60 * 1000
+
+const LIVE_QUERY = `SELECT c.id, IFNULL(d.statusName,'') status, d.discount, IFNULL(c.totalBails,0) tb, IFNULL(c.activeBails,0) ab,
+  IFNULL(c.boughtBails,0) bb, IFNULL(c.soldBails,0) sb, IFNULL(c.fineBails,0) fb,
+  DATE_FORMAT(c.createdOn,'%Y-%m-%d') since, DATE_FORMAT(lb.createdOn,'%Y-%m-%d %H:%i:%s') last_at, p.name branch,
+  TRIM(CONCAT_WS(' ', c.lastName, c.firstName, c.surName)) full_name
+FROM customer c
+LEFT JOIN discountrate d ON d.id = c.DISCOUNT_RATE_ID
+LEFT JOIN bail lb ON lb.id = (SELECT MAX(b.id) FROM bail b WHERE b.CUSTOMER_ID = c.id AND b.manualStatus <> 8)
+LEFT JOIN pawnshop p ON p.id = lb.PAWNSHOP_ID
+WHERE c.phone IN (?) OR c.phone1 IN (?)`
+
+type LiveRow = {
+  id: number; status: string; discount: string | number | null; tb: number; ab: number; bb: number; sb: number; fb: number
+  since: string | null; last_at: string | null; branch: string | null; full_name: string | null
+}
+
+async function liveRows(p9: string): Promise<OnixRow[]> {
+  // Номери в Ониксі переважно «+380…», але трапляються й інші записи
+  const variants = [`+380${p9}`, `380${p9}`, `0${p9}`, p9, `+38 0${p9}`]
+  const nets = (Object.keys(NETWORKS) as Network[]).filter((n) => pool(n))
+  const perNet = await Promise.all(nets.map(async (network) => {
+    const [rows] = await pool(network)!.query({ sql: LIVE_QUERY, timeout: 4000 }, [variants, variants]) as unknown as [LiveRow[]]
+    return rows.map((r): OnixRow => ({
+      phone9: p9, network, customer_id: Number(r.id), status: r.status || null,
+      discount: r.discount != null && /^-?\d+$/.test(String(r.discount)) ? Number(r.discount) : null,
+      total_bails: Number(r.tb), active_bails: Number(r.ab), bought_bails: Number(r.bb), sold_bails: Number(r.sb), fine_bails: Number(r.fb),
+      client_since: r.since, last_bail_at: r.last_at, last_branch: r.branch, full_name: r.full_name,
+    }))
+  }))
+  return perNet.flat()
+}
+
+/** Клієнт за номером: з довідника, а якщо там немає — напряму з Оникса (див. вище). */
+export async function onixClientWithLive(payload: Payload, phone: unknown): Promise<OnixClient | null> {
+  const cached = await onixClientByPhone(payload, phone).catch(() => null)
+  const p9 = phone9(phone)
+  if (cached || !p9 || !onixHistoryEnabled()) return cached
+  const missAt = missCache.get(p9)
+  if (missAt && Date.now() - missAt < MISS_TTL_MS) return null
+  let rows: OnixRow[] = []
+  try {
+    rows = await liveRows(p9)
+  } catch (e) {
+    console.error('onix live lookup', (e as Error).message)
+    return null
+  }
+  if (!rows.length) {
+    missCache.set(p9, Date.now())
+    if (missCache.size > 5000) missCache.clear()
+    return null
+  }
+  const db = payload.db as unknown as { drizzle?: { execute: (q: unknown) => Promise<unknown> } }
+  for (const r of rows) {
+    await db.drizzle?.execute(sql`
+      insert into onix.clients (phone9, network, customer_id, status, discount, total_bails, active_bails, bought_bails,
+        sold_bails, fine_bails, client_since, last_bail_at, last_branch, full_name)
+      values (${r.phone9}, ${r.network}, ${r.customer_id}, ${r.status}, ${r.discount}, ${r.total_bails}, ${r.active_bails},
+        ${r.bought_bails}, ${r.sold_bails}, ${r.fine_bails}, ${r.client_since}, ${r.last_bail_at}, ${r.last_branch}, ${r.full_name})
+      on conflict (network, customer_id, phone9) do nothing`).catch((e: Error) => console.error('onix live upsert', e.message))
+  }
+  return clientFromRecords(rows.map(recordFromRow))
 }

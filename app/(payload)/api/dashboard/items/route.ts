@@ -41,7 +41,8 @@ type Item = {
   /** Позначено «Не потребує відповіді» після останнього слова клієнта. */
   noReply: boolean
   /** Клієнт в Ониксі за телефоном: найкращий статус і мережі. null — немає в базі. */
-  client?: { tier: TierKey; tierLabel: string; discount: number | null; networks: string[] } | null
+  /** Статус і ПІБ головного запису в Ониксі; networks — головна база першою, далі та сама людина деінде. */
+  client?: { tier: TierKey; tierLabel: string; discount: number | null; fullName: string; people: number; networks: string[] } | null
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -246,7 +247,12 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
   const clients = await onixClientsByPhones(payload, items.map((it) => it.phone))
   for (const it of items) {
     const c = clients.get(phone9(it.phone))
-    it.client = c ? { tier: c.tier, tierLabel: c.tierLabel, discount: c.discount, networks: c.networks.map((n) => n.networkLabel) } : null
+    it.client = c
+      ? {
+        tier: c.tier, tierLabel: c.tierLabel, discount: c.discount, fullName: c.fullName, people: c.people,
+        networks: Array.from(new Set([c.primary, ...c.also].map((n) => n.networkLabel))),
+      }
+      : null
   }
 
   itemsCache = { items, ts: Date.now() }
@@ -272,7 +278,7 @@ export async function GET(req: Request) {
   const qDigits = normalizePhone(q)
   const filtered = q
     ? items.filter((it) =>
-        `${it.title} ${it.phone} ${it.snippet}`.toLowerCase().includes(q)
+        `${it.title} ${it.client?.fullName || ''} ${it.phone} ${it.snippet}`.toLowerCase().includes(q)
         || (qDigits.length >= 3 && normalizePhone(it.phone).includes(qDigits)))
     : items
 
