@@ -96,6 +96,7 @@ export async function POST(req: Request) {
 
   // Копія іншим отримувачам заявки — щоб і в Telegram було видно, що вже відповіли.
   // Після відповіді співробітнику: ці розсилки не мають тримати запит.
+  const copyLabel = kind === 'eval' ? 'Заявка' : (doc as { kind?: string }).kind === 'review' ? 'Відгук' : 'Гаряча лінія'
   await runAfterResponse(async () => {
     const others = kind === 'eval'
       ? await recipientsFor(payload, String((doc as { category?: string }).category || ''))
@@ -103,7 +104,8 @@ export async function POST(req: Request) {
     for (const chat of others.keys()) {
       await send({
         chat,
-        text: `<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(replyText)}`,
+        // Підпис як на картці цього звернення: Reply на копію мусить знайти саме його
+        text: `<b>${copyLabel} №${id}</b> · ${esc(who)} відповів:\n${esc(replyText)}`,
       }).catch(() => {})
     }
   }, 'копії відповіді не пішли')

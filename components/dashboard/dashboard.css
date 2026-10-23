@@ -291,6 +291,30 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
   padding: 0 20px 8px; margin-top: -1px; border-bottom: 1px solid var(--line); background: #fafbff;
 }
 .dw-tag--people { background: #fbf1de; color: #b8790a; }
+/* Передача між відділами */
+.dw-tag--xfer { background: #eef1f8; color: #3d5a99; }
+.dw-btn--xfer { color: var(--new); border-color: var(--new); }
+.dw-xfer-event {
+  align-self: center; max-width: 92%; text-align: center; font-size: 11.5px; color: #55555c;
+  background: #eef1f8; border: 1px dashed #c9d3ea; border-radius: 999px; padding: 4px 12px;
+}
+.dw-xfer-note { background: #eef1f8; color: #3d5a99; }
+.dw-xfer-modal { width: min(500px, calc(100vw - 32px)); }
+.dw-xfer-opts { display: flex; gap: 8px; }
+.dw-xfer-opt {
+  flex: 1; display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center;
+  border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 6px; background: #fff; cursor: pointer; font: inherit;
+}
+.dw-xfer-opt b { font-size: 13px; }
+.dw-xfer-opt small { font-size: 11px; color: var(--dim); }
+.dw-xfer-opt.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.dw-xfer-opt:disabled { opacity: .45; cursor: default; }
+.dw-xfer-input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font: inherit; font-size: 13px; }
+.dw-xfer-client { font-size: 12.5px; display: flex; flex-direction: column; gap: 5px; }
+.dw-xfer-preview { background: #e2f7cb; border-radius: 10px; padding: 8px 10px; font-size: 12.5px; line-height: 1.4; }
+.dw-xfer-client--warn { background: #fbf1de; color: #8a5a00; border-radius: 10px; padding: 8px 10px; }
+.dw-xfer-error { color: #c0392b; font-size: 12.5px; }
+.dw-report-xfer { margin: 4px 0 0; }
 .dw-btn--history { margin-left: auto; color: var(--new); border-color: var(--new); }
 .dw-name-link {
   background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer;
@@ -418,6 +442,8 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
   .dw-clientbar-also::-webkit-scrollbar { display: none; }
   .dw-clientbar-also > * { flex: none; }
   .dw-btn--history { margin-left: 0; }
+  .dw-xfer-opts { flex-direction: column; }
+  .dw-xfer-opt { flex-direction: row; justify-content: space-between; padding: 10px 12px; }
   .dw-history { max-width: none; max-height: none; height: 100%; border-radius: 0; }
   .dw-history-stats { grid-template-columns: repeat(3, 1fr); }
   .dw-history-net .dw-net--btn { margin-left: 0; }

@@ -9,6 +9,7 @@ import {
   currentEvalFor, isCourtesy, isEmptyEval, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
 } from '@/lib/evalFlow.ts'
 import { onixClientByPhone, onixClientInfo, tierEmoji, tierLabel } from '@/lib/onix.ts'
+import { DEPT_LABEL, followTransfer } from '@/lib/transfer.ts'
 
 /**
  * Приймання подій від Telegram.
@@ -885,6 +886,7 @@ export async function POST(req: Request) {
 
     // ── відповідь на картку (Reply) → клієнтові ──
     if (msg.reply_to_message && (msg.text || msg.caption || msg.photo)) {
+      await redirectTransferredReply(payload, msg, chatKey)
       const goldProposal = goldPriceProposalFrom(msg.reply_to_message.text)
       if (goldProposal != null) {
         await confirmGoldPrice(payload, msg, chatKey, goldProposal)
@@ -1624,6 +1626,30 @@ async function handleGroupMembership(
 }
 
 /** Відповідь співробітника на картку заявки на оцінку пересилаємо клієнтові. */
+/**
+ * Reply на стару картку звернення, яке вже передали в інший відділ: відповідь
+ * має піти туди, де розмова тепер, — інакше вона лягла б у закрите звернення
+ * й знову відкрила б його. Підміняємо заголовок картки на актуальний і
+ * підказуємо співробітнику, куди пішла відповідь.
+ */
+async function redirectTransferredReply(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  msg: TgMessage,
+  chat: string,
+) {
+  const reply = msg.reply_to_message
+  if (!reply?.text) return
+  const hotlineId = hotlineIdFrom(reply.text)
+  const evalId = hotlineId == null && /Заявка\s*№\d+/i.test(reply.text) ? requestIdFrom(reply.text) : null
+  const kind = hotlineId != null ? 'hotline' : evalId != null ? 'eval' : null
+  if (!kind) return
+  const moved = await followTransfer(payload, kind, Number(hotlineId ?? evalId)).catch(() => null)
+  if (!moved) return
+  const label = moved.kind === 'eval' ? 'Заявка' : moved.dept === 'review' ? 'Відгук' : 'Гаряча лінія'
+  reply.text = `${label} №${moved.id}`
+  await send({ chat, text: `ℹ️ Звернення вже передано: ${DEPT_LABEL[moved.dept]} №${moved.id} — відповідь пішла туди.` }).catch(() => {})
+}
+
 async function relayAnswer(
   payload: Awaited<ReturnType<typeof getPayload>>,
   msg: TgMessage,
@@ -1890,7 +1916,8 @@ async function dispatchClientMessage(
 }
 
 type HotlineDoc = { id: string | number; clientChat?: string; name?: string; phone?: string
-  status?: string; kind?: string; thread?: { from: string; text: string; at: string }[] }
+  status?: string; kind?: string; thread?: { from: string; text: string; at: string; photo?: number | null }[]
+  transfers?: unknown[] }
 
 const FIRST_ACK: Record<string, string> = {
   hotline: 'Дякуємо за звернення! Передаю оператору — він ознайомиться і незабаром напише вам особисто.',
@@ -1910,7 +1937,23 @@ async function appendHotline(
   const kind = doc.kind || 'hotline'
   const label = hotlineLabel(kind)
 
-  const thread = [...(doc.thread || []), { from: 'клієнт', text: entryText, at: new Date().toISOString() }]
+  // Фото зберігаємо в медіатеку, як в оцінці: інакше воно лишалось лише в
+  // Telegram і губилось би, коли звернення передають в оцінку.
+  let mediaId: number | null = null
+  if (photo) {
+    const { downloadTelegramFile } = await import('@/lib/telegram.ts')
+    const file = await downloadTelegramFile(photo.fileId).catch(() => null)
+    if (file) {
+      const created = await payload.create({
+        collection: 'media', overrideAccess: true,
+        data: { alt: `${label} №${doc.id}: фото від клієнта` },
+        file: { data: file.data, name: file.name, mimetype: photo.mimeType, size: file.data.length },
+      }).catch(() => null)
+      if (created) mediaId = Number(created.id)
+    }
+  }
+
+  const thread = [...(doc.thread || []), { from: 'клієнт', text: entryText, at: new Date().toISOString(), ...(mediaId ? { photo: mediaId } : {}) }]
   await payload.update({ collection: 'hotline-chats', id: doc.id, overrideAccess: true, data: { thread } })
 
   const { hotlineCard, sendPhoto } = await import('@/lib/telegram.ts')
@@ -1929,7 +1972,8 @@ async function appendHotline(
     await notifyRecipients(payload, chats, { title: `Нове звернення: ${label}`, body: entryText || doc.name || '' })
   }
 
-  if ((doc.status || 'new') === 'new') {
+  // Передане звернення: клієнту вже написали, куди передали, — не повторюємо
+  if ((doc.status || 'new') === 'new' && !(doc.transfers || []).length) {
     await send({
       chat: String(doc.clientChat),
       text: FIRST_ACK[kind] || FIRST_ACK.hotline,

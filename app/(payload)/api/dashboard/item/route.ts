@@ -9,7 +9,7 @@ import { onixClientWithLive } from '@/lib/onixHistory.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
-type Related = { key: string; channel: string; title: string; createdAt: string; mergedInto?: number | null }
+type Related = { key: string; channel: string; title: string; createdAt: string; mergedInto?: number | null; transferredTo?: string }
 
 /**
  * Інші заявки того самого клієнта за номером телефону — щоб оцінювач бачив,
@@ -43,9 +43,10 @@ async function relatedByPhone(
     if (key === excludeKey || normalizePhone(d.phone) !== digits || isEmptyEval(d)) continue
     related.push({
       key, channel: 'eval',
-      title: [d.brand, d.model].filter(Boolean).join(' ') || String(d.title || 'Заявка'),
+      title: [d.brand, d.model].filter(Boolean).join(' ') || (d.title && d.title !== 'Без назви' ? String(d.title) : 'Оцінка'),
       createdAt: String(d.createdAt || ''),
       mergedInto: (d.mergedInto as number | null | undefined) ?? null,
+      transferredTo: String(d.transferredTo || ''),
     })
   }
 
@@ -58,6 +59,7 @@ async function relatedByPhone(
       key, channel: isReview ? 'review' : 'hotline',
       title: isReview ? 'Відгук' : 'Гаряча лінія',
       createdAt: String(d.createdAt || ''),
+      transferredTo: String(d.transferredTo || ''),
       mergedInto: (d.mergedInto as number | null | undefined) ?? null,
     })
   }
@@ -164,7 +166,7 @@ export async function GET(req: Request) {
   const inThread = new Set(threadRows.map((t) => t.photo).filter((x) => x != null).map(String))
   const photoIds = kind === 'eval'
     ? Array.from(new Set([...(((d.photos as (string | number)[] | undefined) || []).map(String)), ...inThread]))
-    : []
+    : Array.from(inThread)
 
   const [assignedToName, photoUrls, related, client] = await Promise.all([
     d.assignedTo != null
@@ -203,6 +205,9 @@ export async function GET(req: Request) {
     assignedToName,
     answeredBy: String(d.answeredBy || ''),
     mergedInto: (d.mergedInto as number | null | undefined) ?? null,
+    // журнал передач між відділами й куди передано (якщо це вже закрите «джерело»)
+    transfers: Array.isArray(d.transfers) ? d.transfers : [],
+    transferredTo: String(d.transferredTo || ''),
     thread: threadRows.map((t) => ({
       from: t.from, text: t.text, at: t.at,
       ...(t.photo != null && photoUrls.get(String(t.photo)) ? { photo: photoUrls.get(String(t.photo)) } : {}),

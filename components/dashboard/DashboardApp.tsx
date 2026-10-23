@@ -29,6 +29,9 @@ type Item = {
   replyToEstimate?: boolean
   noReply?: boolean
   client?: { tier: TierKey; tierLabel: string; discount: number | null; fullName: string; people: number; networks: string[] } | null
+  /** Звідки щойно передали в цей відділ і скільки передач було взагалі */
+  transferredFrom?: string
+  transferCount?: number
   assignedTo: string | number | null
   assignedToName: string
   updatedAt: string
@@ -36,6 +39,23 @@ type Item = {
 }
 
 type Note = { from?: string; text?: string; at?: string; mentions?: string[] }
+type Dept = 'eval' | 'hotline' | 'review'
+type Transfer = { from: Dept; to: Dept; by: string; note: string; at: string; fromKey: string }
+const DEPT_LABEL: Record<Dept, string> = { eval: 'Оцінка', hotline: 'Гаряча лінія', review: 'Відгуки' }
+const DEPT_ICON: Record<Dept, string> = { eval: '📸', hotline: '☎️', review: '⭐' }
+const DEPT_HINT: Record<Dept, string> = { eval: 'побачать усі оцінювачі', hotline: 'загальні питання', review: 'скарги й побажання' }
+const CLIENT_NOTICE: Record<Dept, string> = {
+  eval: 'Ваше питання передали оцінювачу — він відповість тут, у цьому чаті. Нічого повторювати не потрібно 🙂',
+  hotline: 'Ваше питання передали на гарячу лінію — колеги відповідять тут, у цьому чаті. Нічого повторювати не потрібно 🙂',
+  review: 'Ваше повідомлення передали відповідальним за відгуки та скарги — вам відповідять тут, у цьому чаті. Нічого повторювати не потрібно 🙂',
+}
+const deptOfDetail = (d: { kind: string; category?: string }): Dept => (d.kind === 'eval' ? 'eval' : d.category === 'review' ? 'review' : 'hotline')
+/** Остання передача саме сюди (а не звідси) — від неї рахуємо відповідь цього відділу. */
+const arrivedTransfer = (d: Detail): Transfer | null => {
+  const list = d.transfers || []
+  const last = list[list.length - 1]
+  return last && !d.transferredTo && last.to === deptOfDetail(d) ? last : null
+}
 type Staff = { id: string; title: string }
 
 type TierKey = 'diamond' | 'ruby' | 'emerald' | 'new' | 'plain'
@@ -79,6 +99,9 @@ type Detail = {
   assignedToName: string
   answeredBy?: string
   mergedInto?: number | null
+  transfers?: Transfer[]
+  /** «eval:412» — звернення передано туди, тут лише історія */
+  transferredTo?: string
   thread?: { from?: string; text?: string; at?: string; photo?: string; mergedFrom?: number }[]
   notes?: Note[]
   // лише для брони
@@ -90,7 +113,7 @@ type Detail = {
   branchName?: string
   expiresAt?: string
   note?: string
-  related?: { key: string; channel: Channel; title: string; createdAt: string; mergedInto?: number | null }[]
+  related?: { key: string; channel: Channel; title: string; createdAt: string; mergedInto?: number | null; transferredTo?: string }[]
   client?: OnixClientUI | null
 }
 
@@ -270,15 +293,22 @@ function renderClientBar(d: Detail, openHistory: (phone: string) => void) {
 function renderTiming(d: Detail) {
   if (!validDate(d.createdAt)) return null
   const thread = d.thread || []
-  const firstStaff = thread.find((t) => !isClientEntry(t.from) && validDate(t.at))
+  // Передане сюди: відповідь цього відділу рахуємо від передачі, звернення — від першого слова клієнта
+  const xfer = arrivedTransfer(d)
+  const since = xfer ? new Date(xfer.at).getTime() : 0
+  const firstStaff = thread.find((t) => !isClientEntry(t.from) && validDate(t.at) && new Date(t.at!).getTime() >= since)
   const lastStaff = [...thread].reverse().find((t) => !isClientEntry(t.from) && validDate(t.at))
-  const created = new Date(d.createdAt!).getTime()
+  const created = xfer ? since : new Date(d.createdAt!).getTime()
+  const started = xfer ? (thread.find((t) => validDate(t.at))?.at || d.createdAt) : d.createdAt
   const closed = d.status === 'done' || d.status === 'reject'
   return (
     <div className="dw-timing">
-      <div className="dw-tcell"><span>Звернення</span><b>{fmtWhen(d.createdAt)}</b></div>
+      <div className="dw-tcell"><span>Звернення</span><b>{fmtWhen(started)}</b></div>
+      {xfer && (
+        <div className="dw-tcell"><span>Передано сюди</span><b>{fmtWhen(xfer.at)} · {xfer.by}</b></div>
+      )}
       <div className="dw-tcell">
-        <span>Перша відповідь</span>
+        <span>{xfer ? `Відповідь: ${DEPT_LABEL[xfer.to].toLowerCase()}` : 'Перша відповідь'}</span>
         {firstStaff ? (
           <b>{fmtWhen(firstStaff.at)} · <em>через {fmtDur(new Date(firstStaff.at!).getTime() - created)}</em></b>
         ) : closed ? (
@@ -299,6 +329,8 @@ function renderTiming(d: Detail) {
 
 type Report = {
   total: number
+  transferred?: number
+  transferPairs?: { route: string; count: number }[]
   answered: number
   avgReplyMs: number | null
   staff: { name: string; count: number; avgReplyMs: number | null }[]
@@ -364,6 +396,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [mergeAsk, setMergeAsk] = useState<{ key: string; id: string; messages: number; photos: number; notes: number } | null>(null)
   // «Виділити в нову заявку»: позначені повідомлення (індекси в переписці) й фото з блоку згори
   const [splitMode, setSplitMode] = useState(false)
+  const [transferAsk, setTransferAsk] = useState<{ to: Dept | null; note: string; busy: boolean; error: string } | null>(null)
   const [splitEntries, setSplitEntries] = useState<Set<number>>(new Set())
   const [splitPhotos, setSplitPhotos] = useState<Set<string>>(new Set())
   // Стрічка відкривається на останніх повідомленнях, як у месенджері, а не з самого початку.
@@ -652,6 +685,29 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
     setNote(`✓ Заявку №${ask.id} приєднано сюди`)
   }
 
+  function openTransfer(d: Detail) {
+    // одразу пропонуємо найімовірніше: з гарячої лінії й відгуків — в оцінку, з оцінки — на гарячу лінію
+    const here = deptOfDetail(d)
+    setTransferAsk({ to: here === 'eval' ? 'hotline' : 'eval', note: '', busy: false, error: '' })
+  }
+
+  async function confirmTransfer() {
+    if (!detail || !transferAsk?.to) return
+    const ask = transferAsk
+    setTransferAsk({ ...ask, busy: true, error: '' })
+    const res = await fetch('/api/dashboard/transfer', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: detail.key, to: ask.to, note: ask.note }),
+    }).catch(() => null)
+    const json = res ? await res.json().catch(() => null) : null
+    if (!json?.ok) { setTransferAsk({ ...ask, busy: false, error: json?.error || 'Не вдалося передати — перевірте зв’язок' }); return }
+    setTransferAsk(null)
+    detailCacheRef.current.delete(detail.key)
+    await loadItems(q)
+    openItem(json.key)
+    setNote(`✓ Передано: ${DEPT_LABEL[ask.to!]}${json.clientInBot ? (json.clientNotified ? ' · клієнту написали в боті' : ' · клієнту написати не вдалося') : ' · клієнт не в боті — зв’яжіться дзвінком'}`)
+  }
+
   async function doSplit() {
     if (!detail || (!splitEntries.size && !splitPhotos.size)) return
     const res = await fetch('/api/dashboard/split', {
@@ -776,11 +832,12 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   }
 
   /** Переписка й нотатки в одній стрічці за часом — нотатки просто виглядають геть інакше. */
-  type TimelineRow = { type: 'message' | 'note'; idx?: number; photo?: string; mergedFrom?: number } & Note
+  type TimelineRow = { type: 'message' | 'note' | 'transfer'; idx?: number; photo?: string; mergedFrom?: number; xfer?: Transfer } & Note
   function mergedTimeline(d: Detail): TimelineRow[] {
     const messages = (d.thread || []).map((m, idx) => ({ type: 'message' as const, idx, ...m }))
     const notes = (d.notes || []).map((n) => ({ type: 'note' as const, ...n }))
-    return [...messages, ...notes].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
+    const transfers = (d.transfers || []).map((t) => ({ type: 'transfer' as const, at: t.at, xfer: t }))
+    return [...messages, ...notes, ...transfers].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
   }
 
   async function deleteCurrent() {
@@ -948,6 +1005,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     {it.client && ['diamond', 'ruby', 'emerald'].includes(it.client.tier) && <TierBadge client={it.client} />}
                     {it.client && <span className="dw-net dw-net--small">{it.client.networks[0]}{it.client.networks.length > 1 ? ` +${it.client.networks.slice(1).join(', ')}` : ''}</span>}
                     {it.client && it.client.people > 1 && <span className="dw-tag dw-tag--people">{it.client.people} клієнти на номері</span>}
+                    {it.transferredFrom && <span className="dw-tag dw-tag--xfer">↪ {it.transferredFrom}</span>}
+                    {(it.transferCount || 0) >= 2 && <span className="dw-tag dw-tag--xfer" title="Звернення передавали між відділами кілька разів">↔ {it.transferCount} передачі</span>}
                     <span className={`dw-tag dw-tag--${it.status}`}>{it.statusLabel}</span>
                     {it.assignedToName && <span className="dw-tag dw-tag--assigned">{it.assignedToName}</span>}
                     {waitingBadge(it.waitingSince) && it.replyToEstimate ? (
@@ -1059,7 +1118,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     {detail.phone ? ` · ${detail.phone}` : ''}
                   </h3>
                   <p>
-                    {detail.kind === 'eval' ? 'Оцінка' : 'Гаряча лінія'}
+                    {detail.kind === 'eval' ? 'Оцінка' : detail.category === 'review' ? 'Відгук' : 'Гаряча лінія'}
                     {detail.brand || detail.model ? ` · ${[detail.brand, detail.model].filter(Boolean).join(' ')}` : ''}
                     {' · заявка №'}{detail.id}
                   </p>
@@ -1087,6 +1146,9 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                       {splitMode ? 'Скасувати виділення' : 'Виділити в нову заявку'}
                     </button>
                   )}
+                  {!detail.transferredTo && detail.mergedInto == null && (
+                    <button type="button" className="dw-btn dw-btn--xfer" onClick={() => openTransfer(detail)}>↪ Передати в…</button>
+                  )}
                   {detail.status !== 'done' && (
                     <button type="button" className="dw-btn dw-btn--primary" onClick={() => update({ status: 'done' })}>Закрити</button>
                   )}
@@ -1098,6 +1160,17 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
               {renderClientBar(detail, openHistory)}
               {renderTiming(detail)}
+
+              {detail.transferredTo && (() => {
+                const [k, n] = detail.transferredTo.split(':')
+                const last = (detail.transfers || [])[(detail.transfers || []).length - 1]
+                return (
+                  <div className="dw-merged-note dw-xfer-note">
+                    ✓ Передано{last ? ` у «${DEPT_LABEL[last.to]}»` : ''} №{n}{last ? ` · ${fmtWhen(last.at)} · ${last.by}` : ''} — розмова триває там.
+                    <button type="button" className="dw-related-link" onClick={() => openItem(`${k}:${n}`)}>Відкрити №{n}</button>
+                  </div>
+                )
+              })()}
 
               {detail.mergedInto != null && (
                 <div className="dw-merged-note">
@@ -1116,6 +1189,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                       </button>
                       {r.mergedInto != null ? (
                         <span className="dw-tag dw-tag--merged">Об’єднано в №{r.mergedInto}</span>
+                      ) : r.transferredTo ? (
+                        <span className="dw-tag dw-tag--xfer">↪ передано в №{r.transferredTo.split(':')[1]}</span>
                       ) : r.key.split(':')[0] === detail.kind && detail.mergedInto == null ? (
                         <button type="button" className="dw-join" onClick={() => askMerge(r.key)}>Приєднати сюди</button>
                       ) : null}
@@ -1158,7 +1233,12 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                         )))}
                         {mergedTimeline(detail).map((m, i) => [
                           daySep(m.at, `day-${i}`),
-                          m.type === 'note' ? (
+                          m.type === 'transfer' && m.xfer ? (
+                            <div key={i} className="dw-xfer-event">
+                              ↪ Передано: {DEPT_LABEL[m.xfer.from]} → {DEPT_LABEL[m.xfer.to]} · {m.xfer.by} · {fmtTime(m.at)}
+                              {m.xfer.note ? ` · «${m.xfer.note}»` : ''}
+                            </div>
+                          ) : m.type === 'note' ? (
                             <div key={i} className="dw-note-card">
                               <div className="dw-note-tag">🔒 Нотатка · тільки команда</div>
                               {renderNoteText(m.text || '')}
@@ -1216,6 +1296,49 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     <div className="dw-merge-row">
                       <button type="button" className="dw-btn" onClick={() => setMergeAsk(null)}>Скасувати</button>
                       <button type="button" className="dw-btn dw-btn--primary" onClick={confirmMerge}>Приєднати</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {transferAsk && (
+                <div className="dw-report-backdrop" onClick={() => !transferAsk.busy && setTransferAsk(null)}>
+                  <div className="dw-merge-modal dw-xfer-modal" onClick={(e) => e.stopPropagation()}>
+                    <h4>Передати звернення №{detail.id}</h4>
+                    <p>Переписка, фото й нотатки переїдуть разом із ним. У новому відділі воно буде новим і непрочитаним.</p>
+                    <div className="dw-xfer-opts">
+                      {(['eval', 'hotline', 'review'] as Dept[]).map((dpt) => {
+                        const here = dpt === deptOfDetail(detail)
+                        return (
+                          <button
+                            type="button" key={dpt} disabled={here}
+                            className={`dw-xfer-opt ${transferAsk.to === dpt ? 'on' : ''}`}
+                            onClick={() => setTransferAsk({ ...transferAsk, to: dpt, error: '' })}
+                          >
+                            <b>{DEPT_ICON[dpt]} {DEPT_LABEL[dpt]}</b>
+                            <small>{here ? 'зараз тут' : DEPT_HINT[dpt]}</small>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input
+                      className="dw-xfer-input" maxLength={300} placeholder="Чому (для колег, необов’язково): напр. «питає ціну на iPhone»"
+                      value={transferAsk.note} onChange={(e) => setTransferAsk({ ...transferAsk, note: e.target.value })}
+                    />
+                    {transferAsk.to && (detail.clientChat ? (
+                      <div className="dw-xfer-client">
+                        <b>Клієнт отримає в боті:</b>
+                        <div className="dw-xfer-preview">{CLIENT_NOTICE[transferAsk.to]}</div>
+                      </div>
+                    ) : (
+                      <div className="dw-xfer-client dw-xfer-client--warn">Клієнт не в боті — повідомити його не вийде, зв’яжіться дзвінком{detail.phone ? `: ${detail.phone}` : ''}.</div>
+                    ))}
+                    {transferAsk.error && <div className="dw-xfer-error">{transferAsk.error}</div>}
+                    <div className="dw-merge-row">
+                      <button type="button" className="dw-btn" disabled={transferAsk.busy} onClick={() => setTransferAsk(null)}>Скасувати</button>
+                      <button type="button" className="dw-btn dw-btn--primary" disabled={!transferAsk.to || transferAsk.busy} onClick={confirmTransfer}>
+                        {transferAsk.busy ? 'Передаю…' : transferAsk.to ? `Передати: ${DEPT_LABEL[transferAsk.to].toLowerCase()}` : 'Оберіть відділ'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1421,6 +1544,13 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     <span>середній час першої відповіді</span>
                   </div>
                 </div>
+
+                {(report.transferred || 0) > 0 && (
+                  <p className="dw-hint dw-report-xfer">
+                    ↪ Передано між відділами: <b>{report.transferred}</b>
+                    {(report.transferPairs || []).map((p) => <span key={p.route}> · {p.route}: {p.count}</span>)}
+                  </p>
+                )}
 
                 {report.staff.length === 0 ? (
                   <p className="dw-hint">За цей період відповідей ще не було.</p>

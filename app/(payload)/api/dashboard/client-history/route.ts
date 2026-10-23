@@ -56,11 +56,11 @@ export async function GET(req: Request) {
       payload.find({ collection: 'bookings', where, limit: 50, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
     ])
     for (const r of ev.docs as Record<string, unknown>[]) {
-      if (normalizePhone(r.phone) !== digits || isEmptyEval(r) || r.mergedInto != null) continue
+      if (normalizePhone(r.phone) !== digits || isEmptyEval(r) || r.mergedInto != null || r.transferredTo) continue
       ours.push({ key: `eval:${r.id}`, channel: 'eval', title: [r.brand, r.model].filter(Boolean).join(' ') || String(r.title || 'Оцінка'), createdAt: String(r.createdAt || ''), status: String(r.status || '') })
     }
     for (const r of ho.docs as Record<string, unknown>[]) {
-      if (normalizePhone(r.phone) !== digits || r.mergedInto != null) continue
+      if (normalizePhone(r.phone) !== digits || r.mergedInto != null || r.transferredTo) continue
       const review = r.kind === 'review'
       ours.push({ key: `hotline:${r.id}`, channel: review ? 'review' : 'hotline', title: review ? 'Відгук' : 'Гаряча лінія', createdAt: String(r.createdAt || ''), status: String(r.status || '') })
     }

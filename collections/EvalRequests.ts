@@ -150,6 +150,9 @@ export const EvalRequests: CollectionConfig = {
         { name: 'noReplyAt', type: 'date', label: 'Позначено «не потребує відповіді»', admin: { readOnly: true, hidden: true } },
       ],
     },
+    // Передача між відділами з робочого столу: журнал переходів і куди передано (див. lib/transfer.ts)
+    { name: 'transfers', type: 'json', label: 'Передачі між відділами (службове)', admin: { readOnly: true, hidden: true } },
+    { name: 'transferredTo', type: 'text', label: 'Передано в (службове)', admin: { readOnly: true, hidden: true } },
     {
       name: 'thread',
       type: 'array',

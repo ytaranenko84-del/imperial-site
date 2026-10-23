@@ -78,7 +78,7 @@ export const NEW_ITEM_HINT = 'Хочете оцінити іншу річ — н
 
 /**
  * Поточна заявка на оцінку цього чату: остання, з рухом за останні 3 дні,
- * не приєднана до іншої. Статус не важливий — «Оцінено» вчора теж та сама розмова.
+ * не приєднана до іншої й не передана в інший відділ. Статус не важливий — «Оцінено» вчора теж та сама розмова.
  */
 export async function currentEvalFor(payload: Payload, chat: string): Promise<EvalDoc | null> {
   const since = new Date(Date.now() - SAME_CONVERSATION_MS).toISOString()
@@ -89,6 +89,8 @@ export async function currentEvalFor(payload: Payload, chat: string): Promise<Ev
       { clientChat: { equals: chat } },
       { updatedAt: { greater_than: since } },
       { mergedInto: { exists: false } },
+      // передана в інший відділ — розмова вже там
+      { transferredTo: { exists: false } },
     ] },
   })
   return (docs[0] as unknown as EvalDoc) || null

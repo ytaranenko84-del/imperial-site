@@ -5,6 +5,7 @@ import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
 import { isCourtesy, isEmptyEval } from '@/lib/evalFlow.ts'
 import { onixClientsByPhones, phone9, type TierKey } from '@/lib/onix.ts'
+import { DEPT_FROM, deptOf, lastTransferInto, transfersOf } from '@/lib/transfer.ts'
 
 /** Єдина стрічка для робочого столу: оцінка + гаряча лінія + відгуки + бронь. */
 
@@ -22,6 +23,9 @@ type Item = {
   channel: Channel
   id: string | number
   title: string
+  /** Звідки передали в цей відділ (порожньо — не передавали) і скільки передач усього. */
+  transferredFrom?: string
+  transferCount?: number
   phone: string
   status: string
   statusLabel: string
@@ -68,13 +72,25 @@ function lastThreadAt(thread: unknown, fallback: unknown): number {
  * вже прийняте; якщо клієнт напише щось по суті — бот сам знову відкриє заявку.
  * «Не потребує відповіді» знімає позначку до наступного слова клієнта.
  */
-function isUnanswered(thread: unknown, status: unknown, noReplyAt: unknown, createdAt: unknown): boolean {
+function isUnanswered(thread: unknown, status: unknown, noReplyAt: unknown, createdAt: unknown, transferAt?: string | null): boolean {
   if (status === 'done' || status === 'reject') return false
+  // Щойно передане з іншого відділу: «без відповіді», поки цей відділ не напише сам
+  if (transferAt && !staffSince(thread, transferAt)) {
+    const marked = noReplyAt ? new Date(String(noReplyAt)).getTime() : 0
+    return !(marked && marked >= new Date(transferAt).getTime())
+  }
   const arr = Array.isArray(thread) ? (thread as { from?: string }[]) : []
   const clientLast = !arr.length || arr[arr.length - 1]?.from === 'клієнт'
   if (!clientLast) return false
   const marked = noReplyAt ? new Date(String(noReplyAt)).getTime() : 0
   return !(marked && marked >= lastThreadAt(thread, createdAt))
+}
+
+/** Чи писав хтось із співробітників після цієї миті (відповіді попереднього відділу не рахуються). */
+function staffSince(thread: unknown, sinceIso: string): boolean {
+  const since = new Date(sinceIso).getTime()
+  const arr = Array.isArray(thread) ? (thread as { from?: string; at?: string }[]) : []
+  return arr.some((t) => t.from && t.from !== 'клієнт' && new Date(String(t.at || 0)).getTime() >= since)
 }
 
 function lastIsClientCourtesy(thread: unknown): boolean {
@@ -90,22 +106,35 @@ function noReplyMarked(thread: unknown, noReplyAt: unknown, createdAt: unknown):
 }
 
 /** Мить, відколи «тікає» таймер очікування — час останнього слова клієнта (чи створення, якщо переписки ще нема). */
-function waitingSinceOf(thread: unknown, createdAt: unknown, unanswered: boolean): string | null {
+function waitingSinceOf(thread: unknown, createdAt: unknown, unanswered: boolean, transferAt?: string | null): string | null {
   if (!unanswered) return null
+  // після передачі «чекає» рахуємо від передачі — скільки чекають саме цей відділ
+  if (transferAt && !staffSince(thread, transferAt)) return transferAt
   const t = lastThreadAt(thread, createdAt)
   return t ? new Date(t).toISOString() : null
 }
 
-function firstReplyAtOf(thread: unknown): string | null {
+function firstReplyAtOf(thread: unknown, sinceIso?: string | null): string | null {
   const arr = Array.isArray(thread) ? (thread as { from?: string; at?: string }[]) : []
-  return arr.find((t) => t.from && t.from !== 'клієнт' && t.at)?.at || null
+  const since = sinceIso ? new Date(sinceIso).getTime() : 0
+  return arr.find((t) => t.from && t.from !== 'клієнт' && t.at && new Date(t.at).getTime() >= since)?.at || null
 }
 
 /** «Непрочитане» — окреме від «не відповідано»: ніхто не відкривав відтоді, як з'явилось останнє повідомлення. */
-function isUnread(lastViewedAt: unknown, thread: unknown, createdAt: unknown): boolean {
+function isUnread(lastViewedAt: unknown, thread: unknown, createdAt: unknown, transferAt?: string | null): boolean {
   const viewed = new Date(String(lastViewedAt || 0)).getTime()
   if (!lastViewedAt || !Number.isFinite(viewed)) return true
+  if (transferAt && viewed < new Date(transferAt).getTime()) return true
   return viewed < lastThreadAt(thread, createdAt)
+}
+
+/** Позначки передачі для списку: звідки щойно передали й скільки разів передавали взагалі. */
+function transferFields(d: Record<string, unknown>, kind: 'eval' | 'hotline') {
+  const last = lastTransferInto(d, deptOf(kind, d))
+  return {
+    transferredFrom: last ? DEPT_FROM[last.from] : '',
+    transferCount: transfersOf(d).length,
+  }
 }
 
 /*
@@ -158,36 +187,39 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
   for (const raw of evalRes.docs) {
     const d = raw as Record<string, unknown>
     // Порожні чернетки з бота й приєднані дублі команді не показуємо зовсім.
-    if (isEmptyEval(d) || d.mergedInto != null) continue
-    const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt)
+    if (isEmptyEval(d) || d.mergedInto != null || d.transferredTo) continue
+    const tAt = lastTransferInto(d, 'eval')?.at || null
+    const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt, tAt)
     items.push({
       key: `eval:${d.id}`,
       kind: 'eval',
       channel: 'eval',
       id: d.id as string | number,
-      title: String(d.title || d.name || 'Заявка'),
+      title: String((d.title && d.title !== 'Без назви' ? d.title : '') || d.name || 'Заявка'),
       phone: String(d.phone || ''),
       status: String(d.status || 'new'),
       statusLabel: EVAL_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
-      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
+      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt, tAt),
       unanswered,
-      waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered),
-      firstReplyAt: firstReplyAtOf(d.thread),
+      waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered, tAt),
+      firstReplyAt: firstReplyAtOf(d.thread, tAt),
       thanked: (d.status === 'done' || d.status === 'reject') && lastIsClientCourtesy(d.thread),
-      replyToEstimate: unanswered && Number(d.estimate || 0) > 0 && Boolean(firstReplyAtOf(d.thread)),
+      replyToEstimate: unanswered && !tAt && Number(d.estimate || 0) > 0 && Boolean(firstReplyAtOf(d.thread)),
       noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
+      ...transferFields(d, 'eval'),
     })
   }
 
   for (const raw of hotlineRes.docs) {
     const d = raw as Record<string, unknown>
-    if (d.mergedInto != null) continue
+    if (d.mergedInto != null || d.transferredTo) continue
     const isReview = d.kind === 'review'
-    const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt)
+    const tAt = lastTransferInto(d, isReview ? 'review' : 'hotline')?.at || null
+    const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt, tAt)
     items.push({
       key: `hotline:${d.id}`,
       kind: 'hotline',
@@ -198,16 +230,17 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       status: String(d.status || 'new'),
       statusLabel: HOTLINE_STATUS[String(d.status)] || String(d.status || ''),
       snippet: lastThreadText(d.thread) || (isReview ? 'Відгук / скарга' : 'Гаряча лінія'),
-      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt),
+      unread: isUnread(d.lastViewedAt, d.thread, d.createdAt, tAt),
       unanswered,
-      waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered),
-      firstReplyAt: firstReplyAtOf(d.thread),
+      waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered, tAt),
+      firstReplyAt: firstReplyAtOf(d.thread, tAt),
       thanked: d.status === 'done' && lastIsClientCourtesy(d.thread),
       replyToEstimate: false,
       noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
+      ...transferFields(d, 'hotline'),
     })
   }
 
