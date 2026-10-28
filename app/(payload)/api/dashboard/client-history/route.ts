@@ -3,7 +3,7 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
-import { isEmptyEval } from '@/lib/evalFlow.ts'
+import { isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
 import { onixBails, onixClientWithLive, onixCustomerName, onixHistoryEnabled, type HistoryBail } from '@/lib/onixHistory.ts'
 
 /**
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
       ours.push({ key: `eval:${r.id}`, channel: 'eval', title: [r.brand, r.model].filter(Boolean).join(' ') || String(r.title || 'Оцінка'), createdAt: String(r.createdAt || ''), status: String(r.status || '') })
     }
     for (const r of ho.docs as Record<string, unknown>[]) {
-      if (normalizePhone(r.phone) !== digits || r.mergedInto != null || r.transferredTo) continue
+      if (normalizePhone(r.phone) !== digits || isEmptyHotline(r) || r.mergedInto != null || r.transferredTo) continue
       const review = r.kind === 'review'
       ours.push({ key: `hotline:${r.id}`, channel: review ? 'review' : 'hotline', title: review ? 'Відгук' : 'Гаряча лінія', createdAt: String(r.createdAt || ''), status: String(r.status || '') })
     }

@@ -3,7 +3,7 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
-import { isCourtesy, isEmptyEval } from '@/lib/evalFlow.ts'
+import { isCourtesy, isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
 import { onixClientsByPhones, phone9, type TierKey } from '@/lib/onix.ts'
 import { DEPT_FROM, deptOf, lastTransferInto, transfersOf } from '@/lib/transfer.ts'
 
@@ -216,7 +216,8 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
 
   for (const raw of hotlineRes.docs) {
     const d = raw as Record<string, unknown>
-    if (d.mergedInto != null || d.transferredTo) continue
+    // Натиснув «Гаряча лінія»/«Відгук», але нічого не написав — команді не показуємо.
+    if (isEmptyHotline(d) || d.mergedInto != null || d.transferredTo) continue
     const isReview = d.kind === 'review'
     const tAt = lastTransferInto(d, isReview ? 'review' : 'hotline')?.at || null
     const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt, tAt)

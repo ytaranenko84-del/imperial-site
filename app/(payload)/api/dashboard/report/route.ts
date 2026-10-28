@@ -1,7 +1,7 @@
 import { getPayload } from 'payload'
 import type { Where } from 'payload'
 import config from '@payload-config'
-import { isEmptyEval } from '@/lib/evalFlow.ts'
+import { isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
 import { DEPT_LABEL, transfersOf } from '@/lib/transfer.ts'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
@@ -59,10 +59,10 @@ export async function GET(req: Request) {
     payload.find({ collection: 'eval-requests', where, limit: 2000, depth: 0, overrideAccess: true }),
     payload.find({ collection: 'hotline-chats', where, limit: 2000, depth: 0, overrideAccess: true }),
   ])
-  // Порожні чернетки з бота й приєднані дублі — не звернення, у звіт не йдуть.
+  // Порожні чернетки з бота (і в оцінці, і на гарячій лінії) та приєднані дублі — не звернення, у звіт не йдуть.
   const docs = [
     ...(evalRes.docs as Record<string, unknown>[]).filter((d) => !isEmptyEval(d)),
-    ...(hotlineRes.docs as Record<string, unknown>[]),
+    ...(hotlineRes.docs as Record<string, unknown>[]).filter((d) => !isEmptyHotline(d)),
   ].filter((d) => d.mergedInto == null)
 
   // Передачі між відділами: скільки звернень передавали й куди найчастіше

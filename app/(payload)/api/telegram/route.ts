@@ -6,7 +6,7 @@ import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 import { logBotEvent } from '@/lib/botEvents.ts'
 import {
-  currentEvalFor, isCourtesy, isEmptyEval, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
+  currentEvalFor, isCourtesy, isEmptyEval, isEmptyHotline, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
 } from '@/lib/evalFlow.ts'
 import { onixClientByPhone, onixClientInfo, tierEmoji, tierLabel } from '@/lib/onix.ts'
 import { DEPT_LABEL, followTransfer } from '@/lib/transfer.ts'
@@ -42,6 +42,13 @@ type TgMessage = {
   caption?: string
   photo?: TgPhotoSize[]
   document?: { file_id: string; mime_type?: string }
+  // Решта типів лише розпізнаємо, щоб підказати клієнту: приймаємо текст і фото
+  voice?: unknown
+  audio?: unknown
+  video?: unknown
+  video_note?: unknown
+  sticker?: unknown
+  animation?: unknown
   contact?: { phone_number: string; user_id?: number }
   location?: { latitude: number; longitude: number }
   migrate_to_chat_id?: number
@@ -488,9 +495,11 @@ function historyInlineKeyboard(prefix: string, buttons: HistoryReport['buttons']
 }
 
 async function historyEvalText(payload: Awaited<ReturnType<typeof getPayload>>): Promise<HistoryReport> {
-  const { docs } = await payload.find({
-    collection: 'eval-requests', limit: HISTORY_LIMIT, depth: 0, overrideAccess: true, sort: '-createdAt',
+  // Беремо із запасом: порожні чернетки (натиснув «Оцінка» й нічого не надіслав) в історію не йдуть
+  const { docs: all } = await payload.find({
+    collection: 'eval-requests', limit: HISTORY_LIMIT * 4, depth: 0, overrideAccess: true, sort: '-createdAt',
   })
+  const docs = all.filter((d) => !isEmptyEval(d as Record<string, unknown>)).slice(0, HISTORY_LIMIT)
   if (!docs.length) return { text: 'Заявок на оцінку ще немає.', buttons: [] }
   const lines = docs.map((d) => {
     const cat = EVAL_CATEGORY_LABEL[String(d.category)] || String(d.category || '')
@@ -511,10 +520,12 @@ async function hotlineHistoryText(
   title: string,
   emptyText: string,
 ): Promise<HistoryReport> {
-  const { docs } = await payload.find({
-    collection: 'hotline-chats', limit: HISTORY_LIMIT, depth: 0, overrideAccess: true, sort: '-createdAt',
+  // Із запасом: порожні звернення (натиснув кнопку й нічого не написав) в історію не йдуть
+  const { docs: all } = await payload.find({
+    collection: 'hotline-chats', limit: HISTORY_LIMIT * 4, depth: 0, overrideAccess: true, sort: '-createdAt',
     where: { kind: { equals: kind } },
   })
+  const docs = all.filter((d) => !isEmptyHotline(d as Record<string, unknown>)).slice(0, HISTORY_LIMIT)
   if (!docs.length) return { text: emptyText, buttons: [] }
   const lines = docs.map((d) => {
     const status = HOTLINE_STATUS_LABEL[String(d.status)] || String(d.status || '')
@@ -913,6 +924,13 @@ export async function POST(req: Request) {
       } else {
         await dispatchClientMessage(payload, msg, chatKey)
       }
+    } else if (
+      msg.chat.type === 'private'
+      && (msg.voice || msg.audio || msg.video || msg.video_note || msg.sticker || msg.animation || msg.document)
+      && !(await isRecipientChat(payload, chatKey))
+    ) {
+      // Голосові, відео, стікери й файли бот не розбирає — раніше вони мовчки губились
+      await send({ chat: chatKey, text: UNSUPPORTED_HINT })
     }
   } catch (e) {
     payload.logger.error({ err: e }, 'telegram webhook')
@@ -1216,20 +1234,12 @@ async function startIntent(
     return
   }
   if (intent === 'hotline') {
-    await payload.create({
-      collection: 'hotline-chats', overrideAccess: true,
-      data: { clientChat: chat, name: displayName(from), phone, status: 'new', kind: 'hotline' },
-    })
-    await logBotEvent(payload, chat, 'form_completed', 'hotline')
+    await openHotlineDraft(payload, chat, displayName(from), phone, 'hotline')
     await send({ chat, text: 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?', replyMarkup: MENU_KEYBOARD })
     return
   }
   if (intent === 'review') {
-    await payload.create({
-      collection: 'hotline-chats', overrideAccess: true,
-      data: { clientChat: chat, name: displayName(from), phone, status: 'new', kind: 'review' },
-    })
-    await logBotEvent(payload, chat, 'form_completed', 'review')
+    await openHotlineDraft(payload, chat, displayName(from), phone, 'review')
     await send({ chat, text: REVIEW_GREETING, replyMarkup: MENU_KEYBOARD })
     return
   }
@@ -1261,6 +1271,34 @@ async function startIntent(
     await createEvalDraft(payload, chat, displayName(from), phone)
     await send({ chat, text: OTSINKA_GUIDE, replyMarkup: MENU_KEYBOARD })
   }
+}
+
+/**
+ * Чернетка звернення на гарячу лінію / відгуку — сюди ляже перше повідомлення
+ * клієнта; до нього команда звернення не бачить (isEmptyHotline). Багато хто
+ * просто гортає меню й тисне кнопки одну за одною — тому попередні порожні
+ * чернетки цього чату закриваємо, щоб не плодити їх і щоб повідомлення не
+ * потрапило в стару.
+ */
+async function openHotlineDraft(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  chat: string,
+  name: string,
+  phone: string,
+  kind: 'hotline' | 'review',
+) {
+  const { docs } = await payload.find({
+    collection: 'hotline-chats', limit: 10, depth: 0, overrideAccess: true, pagination: false,
+    where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
+  })
+  for (const d of docs) {
+    if (!isEmptyHotline(d as Record<string, unknown>)) continue
+    await payload.update({ collection: 'hotline-chats', id: d.id, overrideAccess: true, data: { status: 'done' } }).catch(() => {})
+  }
+  return payload.create({
+    collection: 'hotline-chats', overrideAccess: true,
+    data: { clientChat: chat, name, phone, status: 'new', kind },
+  })
 }
 
 /**
@@ -1919,6 +1957,8 @@ type HotlineDoc = { id: string | number; clientChat?: string; name?: string; pho
   status?: string; kind?: string; thread?: { from: string; text: string; at: string; photo?: number | null }[]
   transfers?: unknown[] }
 
+const UNSUPPORTED_HINT = 'Вибачте, голосові, відео, стікери й файли я поки не можу передати 🙏\nНапишіть, будь ласка, текстом або надішліть фото — і ми одразу відповімо.'
+
 const FIRST_ACK: Record<string, string> = {
   hotline: 'Дякуємо за звернення! Передаю оператору — він ознайомиться і незабаром напише вам особисто.',
   review: 'Дякуємо! Ваше повідомлення передано і обов’язково буде розглянуте.',
@@ -1933,7 +1973,8 @@ async function appendHotline(
   const text = textOf(msg)
   const photo = pickPhoto(msg)
   const entryText = photo ? (text ? `${text} [фото]` : '[фото]') : text
-  const isFirst = !(doc.thread || []).length
+  // Перше саме від клієнта: у порожню чернетку хтось із команди міг написати першим
+  const isFirst = !(doc.thread || []).some((t) => t.from === 'клієнт')
   const kind = doc.kind || 'hotline'
   const label = hotlineLabel(kind)
 
@@ -1970,6 +2011,8 @@ async function appendHotline(
   }
   if (isFirst) {
     await notifyRecipients(payload, chats, { title: `Нове звернення: ${label}`, body: entryText || doc.name || '' })
+    // «Довів до кінця» — коли клієнт справді написав, а не просто натиснув кнопку
+    if (!(doc.transfers || []).length) await logBotEvent(payload, String(doc.clientChat), 'form_completed', kind)
   }
 
   // Передане звернення: клієнту вже написали, куди передали, — не повторюємо

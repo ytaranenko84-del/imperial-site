@@ -37,6 +37,17 @@ export function isEmptyEval(d: { comment?: unknown; photos?: unknown; thread?: u
 }
 
 /**
+ * Порожнє звернення гарячої лінії / відгуку — клієнт натиснув кнопку, але не
+ * написав ні слова (часто просто гортає меню). Запис потрібен, щоб зловити
+ * перше повідомлення, але команді його не показуємо — так само, як чернетки оцінки.
+ */
+export function isEmptyHotline(d: { thread?: unknown; transfers?: unknown }): boolean {
+  const thread = Array.isArray(d.thread) ? (d.thread as { from?: unknown }[]) : []
+  const transfers = Array.isArray(d.transfers) ? d.transfers : []
+  return !transfers.length && !thread.some((t) => t.from === 'клієнт')
+}
+
+/**
  * Коротка ввічливість після оцінки: «дякую», «ок», 👍 — не привід знову
  * вважати заявку невідповіданою. Усе довше чи з іншими словами («мало»,
  * питання) — уже розмова, на яку треба відповісти.

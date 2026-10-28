@@ -4,7 +4,7 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { mediaUrl, normalizePhone } from '@/lib/telegram.ts'
-import { isEmptyEval } from '@/lib/evalFlow.ts'
+import { isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
 import { onixClientWithLive } from '@/lib/onixHistory.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
@@ -53,7 +53,7 @@ async function relatedByPhone(
   for (const raw of hotlineRes.docs) {
     const d = raw as Record<string, unknown>
     const key = `hotline:${d.id}`
-    if (key === excludeKey || normalizePhone(d.phone) !== digits) continue
+    if (key === excludeKey || normalizePhone(d.phone) !== digits || isEmptyHotline(d)) continue
     const isReview = d.kind === 'review'
     related.push({
       key, channel: isReview ? 'review' : 'hotline',
