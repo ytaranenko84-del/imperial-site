@@ -3,7 +3,7 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
-import { isCourtesy, isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
+import { clientClosedConversation, isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
 import { onixClientsByPhones, phone9, type TierKey } from '@/lib/onix.ts'
 import { DEPT_FROM, deptOf, lastTransferInto, transfersOf } from '@/lib/transfer.ts'
 
@@ -82,6 +82,8 @@ function isUnanswered(thread: unknown, status: unknown, noReplyAt: unknown, crea
   const arr = Array.isArray(thread) ? (thread as { from?: string }[]) : []
   const clientLast = !arr.length || arr[arr.length - 1]?.from === 'клієнт'
   if (!clientLast) return false
+  // «Дякую», «ні, спасибі», «гарного вечора» після відповіді команди — відповідати нема на що
+  if (clientClosedConversation(thread)) return false
   const marked = noReplyAt ? new Date(String(noReplyAt)).getTime() : 0
   return !(marked && marked >= lastThreadAt(thread, createdAt))
 }
@@ -91,12 +93,6 @@ function staffSince(thread: unknown, sinceIso: string): boolean {
   const since = new Date(sinceIso).getTime()
   const arr = Array.isArray(thread) ? (thread as { from?: string; at?: string }[]) : []
   return arr.some((t) => t.from && t.from !== 'клієнт' && new Date(String(t.at || 0)).getTime() >= since)
-}
-
-function lastIsClientCourtesy(thread: unknown): boolean {
-  const arr = Array.isArray(thread) ? (thread as { from?: string; text?: string }[]) : []
-  const last = arr[arr.length - 1]
-  return Boolean(last && last.from === 'клієнт' && isCourtesy(last.text))
 }
 
 function noReplyMarked(thread: unknown, noReplyAt: unknown, createdAt: unknown): boolean {
@@ -204,7 +200,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       unanswered,
       waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered, tAt),
       firstReplyAt: firstReplyAtOf(d.thread, tAt),
-      thanked: (d.status === 'done' || d.status === 'reject') && lastIsClientCourtesy(d.thread),
+      thanked: clientClosedConversation(d.thread),
       replyToEstimate: unanswered && !tAt && Number(d.estimate || 0) > 0 && Boolean(firstReplyAtOf(d.thread)),
       noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
@@ -235,7 +231,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       unanswered,
       waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered, tAt),
       firstReplyAt: firstReplyAtOf(d.thread, tAt),
-      thanked: d.status === 'done' && lastIsClientCourtesy(d.thread),
+      thanked: clientClosedConversation(d.thread),
       replyToEstimate: false,
       noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),

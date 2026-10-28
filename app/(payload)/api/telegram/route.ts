@@ -6,7 +6,7 @@ import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 import { logBotEvent } from '@/lib/botEvents.ts'
 import {
-  currentEvalFor, isCourtesy, isEmptyEval, isEmptyHotline, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
+  clientClosedConversation, currentEvalFor, isEmptyEval, isEmptyHotline, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
 } from '@/lib/evalFlow.ts'
 import { onixClientByPhone, onixClientInfo, tierEmoji, tierLabel } from '@/lib/onix.ts'
 import { DEPT_LABEL, followTransfer } from '@/lib/transfer.ts'
@@ -2131,12 +2131,14 @@ async function noteClientMessage(
 
   const status = String(doc.status || 'new')
   const closed = status === 'done' || status === 'reject'
-  const reopen = closed && !(isCourtesy(text) && !photo)
+  const newEntry = { from: 'клієнт', text: entryText, at: new Date().toISOString(), ...(mediaId ? { photo: mediaId } : {}) }
+  // «Дякую» / «ні, спасибі» лишає заявку закритою; питання, торг, фото — знову відкривають
+  const reopen = closed && !clientClosedConversation([...prevThread, newEntry])
 
   await payload.update({
     collection: 'eval-requests', id: doc.id, overrideAccess: true,
     data: {
-      thread: [...prevThread, { from: 'клієнт', text: entryText, at: new Date().toISOString(), ...(mediaId ? { photo: mediaId } : {}) }],
+      thread: [...prevThread, newEntry],
       ...(mediaId ? { photos: [...prevPhotos, mediaId] } : {}),
       ...(reopen ? { status: 'work' } : {}),
     },

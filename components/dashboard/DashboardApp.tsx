@@ -1018,7 +1018,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                         {waitingBadge(it.waitingSince)!.label}
                       </span>
                     ) : it.thanked ? (
-                      <span className="dw-tag dw-tag--muted">клієнт подякував</span>
+                      <span className="dw-tag dw-tag--muted" title="Клієнт подякував чи попрощався — відповідь не потрібна. Відповісти все одно можна.">🙏 подякував</span>
                     ) : it.noReply ? (
                       <span className="dw-tag dw-tag--muted">не потребує відповіді</span>
                     ) : it.firstReplyAt && validDate(it.createdAt) ? (
