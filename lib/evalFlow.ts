@@ -29,11 +29,16 @@ export type EvalDoc = {
   thread?: ThreadEntry[]
 }
 
-/** Порожня — клієнт натиснув «Оцінка», але ще нічого не надіслав. У робочому столі таких не показуємо. */
-export function isEmptyEval(d: { comment?: unknown; photos?: unknown; thread?: unknown }): boolean {
+/**
+ * Порожня — клієнт натиснув «Оцінка» в боті, але ще нічого не надіслав. У робочому столі таких не показуємо.
+ * Заявка з сайту порожньою не буває: навіть без опису й фото в ній ім'я, телефон і річ з форми.
+ */
+export function isEmptyEval(d: { source?: unknown; brand?: unknown; model?: unknown; comment?: unknown; photos?: unknown; thread?: unknown }): boolean {
+  if (d.source === 'site') return false
   const photos = Array.isArray(d.photos) ? d.photos : []
   const thread = Array.isArray(d.thread) ? d.thread : []
-  return !String(d.comment || '').trim() && !photos.length && !thread.length
+  return !String(d.comment || '').trim() && !String(d.brand || '').trim() && !String(d.model || '').trim()
+    && !photos.length && !thread.length
 }
 
 /**
