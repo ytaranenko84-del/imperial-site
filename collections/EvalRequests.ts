@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { itemName } from '../lib/itemName.ts'
 
 /** Напрямки оцінки. Ключ визначає, кому бот надішле заявку. */
 export const EVAL_CATEGORIES = [
@@ -33,7 +34,7 @@ export const EvalRequests: CollectionConfig = {
         const alreadySent = Boolean(originalDoc?.groupSentAt)
         // Для заявок з бота марки й моделі часто немає — річ описана вільним
         // текстом у коментарі, тож для назви беремо початок цього тексту.
-        const title = [data.brand, data.model].filter(Boolean).join(' ')
+        const title = itemName(data.brand, data.model)
           || String(data.comment || '').slice(0, 60)
           || 'Без назви'
         return {

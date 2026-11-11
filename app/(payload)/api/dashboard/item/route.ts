@@ -5,6 +5,8 @@ import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { mediaUrl, normalizePhone } from '@/lib/telegram.ts'
 import { isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
+import { itemName } from '@/lib/itemName.ts'
+import { CATEGORY_LABEL } from '@/lib/telegram.ts'
 import { onixClientWithLive } from '@/lib/onixHistory.ts'
 
 const text = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
@@ -43,7 +45,7 @@ async function relatedByPhone(
     if (key === excludeKey || normalizePhone(d.phone) !== digits || isEmptyEval(d)) continue
     related.push({
       key, channel: 'eval',
-      title: [d.brand, d.model].filter(Boolean).join(' ') || (d.title && d.title !== 'Без назви' ? String(d.title) : 'Оцінка'),
+      title: itemName(d.brand, d.model) || (d.title && d.title !== 'Без назви' ? String(d.title) : 'Оцінка'),
       createdAt: String(d.createdAt || ''),
       mergedInto: (d.mergedInto as number | null | undefined) ?? null,
       transferredTo: String(d.transferredTo || ''),
@@ -198,6 +200,12 @@ export async function GET(req: Request) {
     category: kind === 'eval' ? String(d.category || '') : String(d.kind || ''),
     brand: kind === 'eval' ? String(d.brand || '') : undefined,
     model: kind === 'eval' ? String(d.model || '') : undefined,
+    // Що оцінюємо — для картки першою в переписці
+    itemName: kind === 'eval' ? itemName(d.brand, d.model) : undefined,
+    categoryLabel: kind === 'eval' ? (CATEGORY_LABEL[String(d.category)] || '') : undefined,
+    year: kind === 'eval' ? String(d.year || '').trim() : undefined,
+    condition: kind === 'eval' ? String(d.condition || '').trim() : undefined,
+    source: kind === 'eval' ? String(d.source || '') : undefined,
     comment: kind === 'eval' ? String(d.comment || '') : undefined,
     estimate: kind === 'eval' ? Number(d.estimate || 0) : undefined,
     photos: photoIds.filter((pid) => !inThread.has(pid)).map((pid) => photoUrls.get(pid)).filter(Boolean),

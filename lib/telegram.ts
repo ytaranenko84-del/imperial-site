@@ -149,7 +149,7 @@ export async function downloadTelegramFile(fileId: string): Promise<{ data: Buff
 export const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string))
 
-const CATEGORY_LABEL: Record<string, string> = {
+export const CATEGORY_LABEL: Record<string, string> = {
   watches: 'Годинники',
   digital: 'Цифрова техніка',
   home: 'Побутова техніка',

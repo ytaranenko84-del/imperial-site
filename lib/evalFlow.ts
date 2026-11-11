@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { itemName } from './itemName.ts'
 
 /**
  * Правила «одна річ — одна заявка» спільні для бота, робочого столу й сайту.
@@ -144,7 +145,7 @@ export async function currentEvalFor(payload: Payload, chat: string): Promise<Ev
 
 /** Що написати про річ клієнту: «iPhone 13 Pro» або початок опису. */
 export function itemLabel(d: EvalDoc): string {
-  const named = [d.brand, d.model].filter(Boolean).join(' ')
+  const named = itemName(d.brand, d.model)
   if (named) return named
   const fromComment = String(d.comment || '').split('\n')[0].trim()
   if (fromComment) return fromComment.length > 40 ? `${fromComment.slice(0, 40)}…` : fromComment

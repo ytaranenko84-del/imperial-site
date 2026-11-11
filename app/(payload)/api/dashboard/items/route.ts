@@ -3,6 +3,7 @@ import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { normalizePhone } from '@/lib/telegram.ts'
+import { itemName } from '@/lib/itemName.ts'
 import { clientClosedConversation, isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
 import { onixClientsByPhones, phone9, type TierKey } from '@/lib/onix.ts'
 import { DEPT_FROM, deptOf, lastTransferInto, transfersOf } from '@/lib/transfer.ts'
@@ -191,11 +192,11 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       kind: 'eval',
       channel: 'eval',
       id: d.id as string | number,
-      title: String((d.title && d.title !== 'Без назви' ? d.title : '') || d.name || 'Заявка'),
+      title: String(itemName(d.brand, d.model) || (d.title && d.title !== 'Без назви' ? d.title : '') || d.name || 'Заявка'),
       phone: String(d.phone || ''),
       status: String(d.status || 'new'),
       statusLabel: EVAL_STATUS[String(d.status)] || String(d.status || ''),
-      snippet: lastThreadText(d.thread) || String(d.comment || [d.brand, d.model].filter(Boolean).join(' ')) || 'Заявка на оцінку',
+      snippet: lastThreadText(d.thread) || String(d.comment || itemName(d.brand, d.model)) || 'Заявка на оцінку',
       unread: isUnread(d.lastViewedAt, d.thread, d.createdAt, tAt),
       unanswered,
       waitingSince: waitingSinceOf(d.thread, d.createdAt, unanswered, tAt),

@@ -92,6 +92,11 @@ type Detail = {
   category?: string
   brand?: string
   model?: string
+  itemName?: string
+  categoryLabel?: string
+  year?: string
+  condition?: string
+  source?: string
   comment?: string
   estimate?: number
   photos?: string[]
@@ -1119,7 +1124,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   </h3>
                   <p>
                     {detail.kind === 'eval' ? 'Оцінка' : detail.category === 'review' ? 'Відгук' : 'Гаряча лінія'}
-                    {detail.brand || detail.model ? ` · ${[detail.brand, detail.model].filter(Boolean).join(' ')}` : ''}
+                    {detail.itemName ? ` · ${detail.itemName}` : ''}
                     {' · заявка №'}{detail.id}
                   </p>
                 </div>
@@ -1213,24 +1218,38 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     }
                     return (
                       <>
-                        {detail.comment && daySep(detail.createdAt, 'day-ctx')}
-                        {detail.comment && (
-                          <div className="dw-ctx">
-                            <b>{[detail.brand, detail.model].filter(Boolean).join(' ') || 'Опис від клієнта'}</b>
-                            <span>{detail.comment}</span>
-                            {fmtTime(detail.createdAt) && <time>{fmtTime(detail.createdAt)}</time>}
+                        {detail.kind === 'eval' && daySep(detail.createdAt, 'day-ctx')}
+                        {detail.kind === 'eval' ? (
+                          // Що оцінюємо — першим у переписці завжди, навіть без опису й фото
+                          <div className="dw-ctx dw-what">
+                            <span className="dw-what-lbl">Що оцінюємо{detail.source === 'site' ? ' · з сайту' : ''}</span>
+                            <b>{detail.itemName || detail.categoryLabel || 'Річ ще не названа'}</b>
+                            {(detail.categoryLabel || detail.year || detail.condition) && (
+                              <div className="dw-what-tags">
+                                {detail.categoryLabel && detail.itemName && <span>{detail.categoryLabel}</span>}
+                                {detail.year && <span>рік: {detail.year}</span>}
+                                {detail.condition && <span>стан: {detail.condition}</span>}
+                              </div>
+                            )}
+                            {detail.comment && (
+                              <div className="dw-what-desc"><i>Опис від клієнта</i>{detail.comment}</div>
+                            )}
+                            {(detail.photos || []).map((url) => (splitMode ? (
+                              <label key={url} className={`dw-pick ${splitPhotos.has(url) ? 'on' : ''}`}>
+                                <input type="checkbox" checked={splitPhotos.has(url)} onChange={() => setSplitPhotos((p) => toggleIn(p, url))} />
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt="" className="dw-photo" />
+                              </label>
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img key={url} src={url} alt="" className="dw-photo" />
+                            )))}
+                            <time>
+                              {fmtTime(detail.createdAt)}
+                              {!detail.comment && !(detail.photos || []).length && !(detail.thread || []).length ? `${fmtTime(detail.createdAt) ? ' · ' : ''}опису й фото клієнт не додав` : ''}
+                            </time>
                           </div>
-                        )}
-                        {(detail.photos || []).map((url) => (splitMode ? (
-                          <label key={url} className={`dw-pick ${splitPhotos.has(url) ? 'on' : ''}`}>
-                            <input type="checkbox" checked={splitPhotos.has(url)} onChange={() => setSplitPhotos((p) => toggleIn(p, url))} />
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={url} alt="" className="dw-photo" />
-                          </label>
-                        ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img key={url} src={url} alt="" className="dw-photo" />
-                        )))}
+                        ) : null}
                         {mergedTimeline(detail).map((m, i) => [
                           daySep(m.at, `day-${i}`),
                           m.type === 'transfer' && m.xfer ? (
@@ -1270,7 +1289,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                       </>
                     )
                   })()}
-                  {!mergedTimeline(detail).length && !detail.comment && <p className="dw-empty">Ще немає переписки</p>}
+                  {detail.kind !== 'eval' && !mergedTimeline(detail).length && <p className="dw-empty">Ще немає переписки</p>}
                 </div>
               </div>
 

@@ -450,3 +450,13 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
   .dw-history-table td:nth-child(5), .dw-history-table td:nth-child(6) { display: none; }
   .dw-history-table td { font-size: 12px; padding: 6px 4px; }
 }
+
+/* «Що оцінюємо» — першим у переписці заявки на оцінку */
+.dw-what b { font-size: 15px; margin: 2px 0 4px; }
+.dw-what .dw-what-tags span, .dw-what time { white-space: normal; }
+.dw-what-lbl { display: block; font-size: 9.5px !important; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--dim); }
+.dw-what-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.dw-what-tags span { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; font-size: 11.5px !important; color: var(--ink) !important; }
+.dw-what-desc { font-size: 12.5px; border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 4px; white-space: pre-wrap; }
+.dw-what-desc i { display: block; font-style: normal; font-size: 10.5px; color: var(--dim); }
+.dw-what .dw-photo { margin-top: 6px; }
