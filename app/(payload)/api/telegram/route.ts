@@ -1234,13 +1234,13 @@ async function startIntent(
     return
   }
   if (intent === 'hotline') {
-    await openHotlineDraft(payload, chat, displayName(from), phone, 'hotline')
-    await send({ chat, text: 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?', replyMarkup: MENU_KEYBOARD })
+    const { reused } = await openHotlineDraft(payload, chat, displayName(from), phone, 'hotline')
+    await send({ chat, text: reused ? CONTINUE_HINT : 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?', replyMarkup: MENU_KEYBOARD })
     return
   }
   if (intent === 'review') {
-    await openHotlineDraft(payload, chat, displayName(from), phone, 'review')
-    await send({ chat, text: REVIEW_GREETING, replyMarkup: MENU_KEYBOARD })
+    const { reused } = await openHotlineDraft(payload, chat, displayName(from), phone, 'review')
+    await send({ chat, text: reused ? CONTINUE_HINT : REVIEW_GREETING, replyMarkup: MENU_KEYBOARD })
     return
   }
   if (intent === 'otsinka') {
@@ -1273,12 +1273,18 @@ async function startIntent(
   }
 }
 
+/** Скільки після останнього руху звернення гарячої лінії ще вважається тією самою розмовою. */
+const HOTLINE_SAME_CONVERSATION_MS = 24 * 60 * 60 * 1000
+
 /**
- * Чернетка звернення на гарячу лінію / відгуку — сюди ляже перше повідомлення
- * клієнта; до нього команда звернення не бачить (isEmptyHotline). Багато хто
- * просто гортає меню й тисне кнопки одну за одною — тому попередні порожні
- * чернетки цього чату закриваємо, щоб не плодити їх і щоб повідомлення не
- * потрапило в стару.
+ * Звернення на гарячу лінію / відгук для натиснутої кнопки.
+ *
+ * Розмова вже йде (відкрита, того самого відділу, рух за добу) — продовжуємо
+ * її: клієнти гортають меню й тиснуть «Гаряча лінія» знову посеред розмови,
+ * і кожне натискання давало окреме звернення — у робочому столі одна розмова
+ * розсипалась на п'ять. Інакше — нова чернетка: сюди ляже перше повідомлення,
+ * до нього команда звернення не бачить (isEmptyHotline). Попередні порожні
+ * чернетки чату закриваємо, щоб не плодити їх і щоб повідомлення не потрапило в стару.
  */
 async function openHotlineDraft(
   payload: Awaited<ReturnType<typeof getPayload>>,
@@ -1286,19 +1292,32 @@ async function openHotlineDraft(
   name: string,
   phone: string,
   kind: 'hotline' | 'review',
-) {
+): Promise<{ reused: boolean }> {
   const { docs } = await payload.find({
-    collection: 'hotline-chats', limit: 10, depth: 0, overrideAccess: true, pagination: false,
+    collection: 'hotline-chats', limit: 10, depth: 0, overrideAccess: true, pagination: false, sort: '-updatedAt',
     where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
   })
+  const since = Date.now() - HOTLINE_SAME_CONVERSATION_MS
+  const ongoing = (docs as Record<string, unknown>[]).find((d) => (d.kind || 'hotline') === kind
+    && !isEmptyHotline(d) && d.mergedInto == null && !d.transferredTo
+    && new Date(String(d.updatedAt || 0)).getTime() >= since)
   for (const d of docs) {
     if (!isEmptyHotline(d as Record<string, unknown>)) continue
     await payload.update({ collection: 'hotline-chats', id: d.id, overrideAccess: true, data: { status: 'done' } }).catch(() => {})
   }
-  return payload.create({
+  if (ongoing) {
+    // Оновлюємо updatedAt — наступне повідомлення клієнта має лягти саме сюди, а не в свіжішу заявку на оцінку
+    await payload.update({
+      collection: 'hotline-chats', id: ongoing.id as number, overrideAccess: true,
+      data: { name: String(ongoing.name || '') || name, phone: String(ongoing.phone || '') || phone },
+    })
+    return { reused: true }
+  }
+  await payload.create({
     collection: 'hotline-chats', overrideAccess: true,
     data: { clientChat: chat, name, phone, status: 'new', kind },
   })
+  return { reused: false }
 }
 
 /**
@@ -1956,6 +1975,9 @@ async function dispatchClientMessage(
 type HotlineDoc = { id: string | number; clientChat?: string; name?: string; phone?: string
   status?: string; kind?: string; thread?: { from: string; text: string; at: string; photo?: number | null }[]
   transfers?: unknown[] }
+
+/** Клієнт знову натиснув кнопку посеред розмови — продовжуємо ту саму. */
+const CONTINUE_HINT = 'Ми на зв’язку 🙂 Напишіть, будь ласка, ваше питання — оператор бачить усе попереднє листування.'
 
 const UNSUPPORTED_HINT = 'Вибачте, голосові, відео, стікери й файли я поки не можу передати 🙏\nНапишіть, будь ласка, текстом або надішліть фото — і ми одразу відповімо.'
 
