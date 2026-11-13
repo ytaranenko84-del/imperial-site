@@ -7,6 +7,7 @@ import { itemName } from '@/lib/itemName.ts'
 import { clientClosedConversation, isEmptyEval, isEmptyHotline } from '@/lib/evalFlow.ts'
 import { onixClientsByPhones, phone9, type TierKey } from '@/lib/onix.ts'
 import { DEPT_FROM, deptOf, lastTransferInto, transfersOf } from '@/lib/transfer.ts'
+import { lastClientActivity } from '@/lib/activity.ts'
 
 /** Єдина стрічка для робочого столу: оцінка + гаряча лінія + відгуки + бронь. */
 
@@ -52,6 +53,8 @@ type Item = {
   assignedToName: string
   updatedAt: string
   createdAt: string
+  /** Коли востаннє писав клієнт (чи передали у відділ) — за цим список і впорядкований. */
+  activityAt: string
 }
 
 function lastThreadText(thread: unknown): string {
@@ -161,12 +164,43 @@ function assignedFields(
 let itemsCache: { items: Item[]; ts: number } | null = null
 const ITEMS_CACHE_TTL_MS = 8000
 
+/**
+ * Звернення для списку: 200 найсвіжіших за останнім словом клієнта — а не
+ * за датою створення, інакше давнє звернення, куди клієнт щойно написав,
+ * лишалося внизу чи й зовсім випадало за межу у 200 записів.
+ * Плюс старіші відкриті — серед них ті, що досі чекають відповіді, видно
+ * завжди, хоч би якими давніми вони були (решту відсіюємо нижче).
+ */
+const LIST_LIMIT = 200
+async function findByActivity(
+  payload: Awaited<ReturnType<typeof getPayload>>, collection: 'eval-requests' | 'hotline-chats',
+): Promise<{ docs: unknown[]; olderOpen: Set<string> }> {
+  const top = await payload.find({
+    collection, limit: LIST_LIMIT, depth: 0, overrideAccess: true, sort: '-lastClientAt', pagination: false,
+  })
+  const olderOpen = new Set<string>()
+  if (top.docs.length < LIST_LIMIT) return { docs: top.docs, olderOpen }
+  const edge = (top.docs[top.docs.length - 1] as { lastClientAt?: string }).lastClientAt
+  if (!edge) return { docs: top.docs, olderOpen }
+  const older = await payload.find({
+    collection, limit: 500, depth: 0, overrideAccess: true, sort: '-lastClientAt', pagination: false,
+    where: { and: [
+      { lastClientAt: { less_than: edge } },
+      { status: { in: ['new', 'work'] } },
+      { mergedInto: { exists: false } },
+      { transferredTo: { exists: false } },
+    ] },
+  })
+  for (const d of older.docs) olderOpen.add(String((d as { id: unknown }).id))
+  return { docs: [...top.docs, ...older.docs], olderOpen }
+}
+
 async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Promise<Item[]> {
   if (itemsCache && Date.now() - itemsCache.ts < ITEMS_CACHE_TTL_MS) return itemsCache.items
 
   const [evalRes, hotlineRes, bookingRes, recipientsRes, branchesRes] = await Promise.all([
-    payload.find({ collection: 'eval-requests', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
-    payload.find({ collection: 'hotline-chats', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
+    findByActivity(payload, 'eval-requests'),
+    findByActivity(payload, 'hotline-chats'),
     payload.find({ collection: 'bookings', limit: 200, depth: 0, overrideAccess: true, sort: '-createdAt', pagination: false }),
     payload.find({ collection: 'recipients', limit: 200, depth: 0, overrideAccess: true, pagination: false }),
     // branches.address — локалізоване поле; без явного locale Payload не гарантує, яку мову підставить.
@@ -187,6 +221,8 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
     if (isEmptyEval(d) || d.mergedInto != null || d.transferredTo) continue
     const tAt = lastTransferInto(d, 'eval')?.at || null
     const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt, tAt)
+    // Давні відкриті беремо лише ті, що чекають відповіді
+    if (evalRes.olderOpen.has(String(d.id)) && !unanswered) continue
     items.push({
       key: `eval:${d.id}`,
       kind: 'eval',
@@ -206,6 +242,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
+      activityAt: String(d.lastClientAt || lastClientActivity(d)),
       ...assignedFields(d, names),
       ...transferFields(d, 'eval'),
     })
@@ -218,6 +255,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
     const isReview = d.kind === 'review'
     const tAt = lastTransferInto(d, isReview ? 'review' : 'hotline')?.at || null
     const unanswered = isUnanswered(d.thread, d.status, d.noReplyAt, d.createdAt, tAt)
+    if (hotlineRes.olderOpen.has(String(d.id)) && !unanswered) continue
     items.push({
       key: `hotline:${d.id}`,
       kind: 'hotline',
@@ -237,6 +275,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       noReply: noReplyMarked(d.thread, d.noReplyAt, d.createdAt),
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
+      activityAt: String(d.lastClientAt || lastClientActivity(d)),
       ...assignedFields(d, names),
       ...transferFields(d, 'hotline'),
     })
@@ -266,13 +305,16 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       noReply: false,
       updatedAt: String(d.updatedAt || d.createdAt || ''),
       createdAt: String(d.createdAt || ''),
+      activityAt: String(d.createdAt || ''),
       ...assignedFields(d, names),
     })
   }
 
-  // Сортуємо за тим, коли заявка надійшла, а не коли її востаннє
-  // переглядали чи відповідали — інакше список стрибав би від власних дій.
-  items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  // Вгорі — де клієнт написав останнім (як чати в Telegram). Відповіді,
+  // перегляди й призначення команди порядок не змінюють — інакше список
+  // стрибав би від власних дій.
+  const ms = (v: string) => { const t = new Date(v).getTime(); return Number.isFinite(t) ? t : 0 }
+  items.sort((a, b) => ms(b.activityAt) - ms(a.activityAt))
 
   // Статус з Оникса — одним запитом до нічного довідника на весь список, Оникс не чіпаємо.
   const clients = await onixClientsByPhones(payload, items.map((it) => it.phone))

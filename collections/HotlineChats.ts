@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { lastClientActivity } from '../lib/activity.ts'
 
 /**
  * Звернення через бота, окремо від «Заявки: оцінка» — не оцінка речі,
@@ -25,6 +26,15 @@ export const HotlineChats: CollectionConfig = {
   hooks: {
     beforeChange: [
       ({ data }) => ({ ...data, title: data.name ? String(data.name) : 'Звернення' }),
+      // Коли востаннє писав клієнт — за цим робочий стіл піднімає звернення вгору
+      ({ data, originalDoc }) => ({
+        ...data,
+        lastClientAt: lastClientActivity({
+          createdAt: originalDoc?.createdAt,
+          thread: data.thread ?? originalDoc?.thread,
+          transfers: data.transfers ?? originalDoc?.transfers,
+        }),
+      }),
     ],
   },
   fields: [
@@ -57,6 +67,7 @@ export const HotlineChats: CollectionConfig = {
     { name: 'answeredAt', type: 'date', label: 'Коли', admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } } },
     { name: 'mergedInto', type: 'number', label: 'Об’єднано в звернення №', admin: { readOnly: true } },
     { name: 'noReplyAt', type: 'date', label: 'Позначено «не потребує відповіді»', admin: { readOnly: true, hidden: true } },
+    { name: 'lastClientAt', type: 'date', index: true, label: 'Востаннє писав клієнт', admin: { readOnly: true, hidden: true } },
     // Передача між відділами з робочого столу: журнал переходів і куди передано (див. lib/transfer.ts)
     { name: 'transfers', type: 'json', label: 'Передачі між відділами (службове)', admin: { readOnly: true, hidden: true } },
     { name: 'transferredTo', type: 'text', label: 'Передано в (службове)', admin: { readOnly: true, hidden: true } },

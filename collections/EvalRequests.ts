@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { itemName } from '../lib/itemName.ts'
+import { lastClientActivity } from '../lib/activity.ts'
 
 /** Напрямки оцінки. Ключ визначає, кому бот надішле заявку. */
 export const EVAL_CATEGORIES = [
@@ -44,6 +45,12 @@ export const EvalRequests: CollectionConfig = {
           // Окремим записом із afterChange не виходить: він потрапляє в ту саму
           // транзакцію й перезаписує заявку недописаними даними.
           ...(sum > 0 && !alreadySent ? { groupSentAt: new Date().toISOString() } : {}),
+          // Коли востаннє писав клієнт — за цим робочий стіл піднімає заявку вгору
+          lastClientAt: lastClientActivity({
+            createdAt: originalDoc?.createdAt,
+            thread: data.thread ?? originalDoc?.thread,
+            transfers: data.transfers ?? originalDoc?.transfers,
+          }),
         }
       },
     ],
@@ -139,6 +146,7 @@ export const EvalRequests: CollectionConfig = {
         { name: 'clientKey', type: 'text', label: 'Ключ посилання', admin: { hidden: true } },
         { name: 'lastReply', type: 'json', label: 'Останнє надіслане (службове)', admin: { readOnly: true, hidden: true } },
         { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
+    { name: 'lastClientAt', type: 'date', index: true, label: 'Востаннє писав клієнт', admin: { readOnly: true, hidden: true } },
     { name: 'lastViewedAt', type: 'date', label: 'Востаннє переглянуто', admin: { readOnly: true, hidden: true,
       date: { pickerAppearance: 'dayAndTime' } } },
         { name: 'groupSentAt', type: 'date', label: 'У групу надіслано', admin: { readOnly: true,

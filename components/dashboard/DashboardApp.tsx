@@ -36,6 +36,8 @@ type Item = {
   assignedToName: string
   updatedAt: string
   createdAt: string
+  /** Коли востаннє писав клієнт — за цим список упорядкований і фільтрується за періодом */
+  activityAt?: string
 }
 
 type Note = { from?: string; text?: string; at?: string; mentions?: string[] }
@@ -593,7 +595,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
   const byChannel = (items || []).filter((it) =>
     (channel === 'all' || it.channel === channel)
-    && (cutoff === 0 || new Date(it.createdAt).getTime() >= cutoff))
+    // Період — за останнім словом клієнта: «Сьогодні» показує й давнє звернення, куди він написав сьогодні
+    && (cutoff === 0 || new Date(it.activityAt || it.createdAt).getTime() >= cutoff))
 
   const filtered = byChannel.filter((it) => {
     if (filter === 'mine') return String(it.assignedTo) === String(me.id)
@@ -1003,7 +1006,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     {it.client?.fullName
                       ? <b>{it.client.fullName}{it.phone && <span className="dw-item-phone"> · {it.phone}</span>}</b>
                       : <b>{it.title}</b>}
-                    <time>{fmtWhen(it.createdAt)}</time>
+                    <time title={`Звернення від ${fmtWhen(it.createdAt)}`}>{fmtWhen(it.activityAt || it.createdAt)}</time>
                   </div>
                   <div className="dw-snippet">{it.client?.fullName && it.kind === 'eval' && it.title ? `${it.title} · ${it.snippet}` : it.snippet}</div>
                   <div className="dw-tags">
