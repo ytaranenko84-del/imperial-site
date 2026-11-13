@@ -349,7 +349,12 @@ export async function GET(req: Request) {
    * і жоден з них не є підрядком іншого при порівнянні «як є».
    */
   const qDigits = normalizePhone(q)
-  const filtered = q
+  // Номер звернення: «№60» — лише воно; просто «60» — теж воно, якщо таке є (інакше звичайний пошук)
+  const num = /^(№|#|n)?\s*(\d{1,5})$/.exec(q)
+  const byNumber = num ? items.filter((it) => String(it.id) === num[2]) : []
+  const filtered = num && (num[1] || byNumber.length)
+    ? byNumber
+    : q
     ? items.filter((it) =>
         `${it.title} ${it.client?.fullName || ''} ${it.phone} ${it.snippet}`.toLowerCase().includes(q)
         || (qDigits.length >= 3 && normalizePhone(it.phone).includes(qDigits)))

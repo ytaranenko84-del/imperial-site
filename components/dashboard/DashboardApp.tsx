@@ -888,7 +888,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
           </div>
           <input
             className="dw-search"
-            placeholder="Пошук за ім’ям, телефоном…"
+            placeholder="Пошук за ім’ям, телефоном, №…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -1003,9 +1003,10 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                 <div className="dw-item-body">
                   {/* Клієнт є в Ониксі — ПІБ і телефон замість ніка; оцінка — річ іде в рядок нижче */}
                   <div className="dw-item-top">
+                    {/* Номер — той самий, що в Telegram («Гаряча лінія №60»); тип показує значок ліворуч */}
                     {it.client?.fullName
-                      ? <b>{it.client.fullName}{it.phone && <span className="dw-item-phone"> · {it.phone}</span>}</b>
-                      : <b>{it.title}</b>}
+                      ? <b><span className="dw-item-num">№{it.id}</span>{it.client.fullName}{it.phone && <span className="dw-item-phone"> · {it.phone}</span>}</b>
+                      : <b><span className="dw-item-num">№{it.id}</span>{it.title}</b>}
                     <time title={`Звернення від ${fmtWhen(it.createdAt)}`}>{fmtWhen(it.activityAt || it.createdAt)}</time>
                   </div>
                   <div className="dw-snippet">{it.client?.fullName && it.kind === 'eval' && it.title ? `${it.title} · ${it.snippet}` : it.snippet}</div>
