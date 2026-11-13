@@ -68,6 +68,8 @@ export const HotlineChats: CollectionConfig = {
     { name: 'mergedInto', type: 'number', label: 'Об’єднано в звернення №', admin: { readOnly: true } },
     { name: 'noReplyAt', type: 'date', label: 'Позначено «не потребує відповіді»', admin: { readOnly: true, hidden: true } },
     { name: 'lastClientAt', type: 'date', index: true, label: 'Востаннє писав клієнт', admin: { readOnly: true, hidden: true } },
+    // Видалені з робочого столу повідомлення й нотатки — у переписці лишається слід «хто й коли видалив»
+    { name: 'removed', type: 'json', label: 'Видалені повідомлення (службове)', admin: { readOnly: true, hidden: true } },
     // Передача між відділами з робочого столу: журнал переходів і куди передано (див. lib/transfer.ts)
     { name: 'transfers', type: 'json', label: 'Передачі між відділами (службове)', admin: { readOnly: true, hidden: true } },
     { name: 'transferredTo', type: 'text', label: 'Передано в (службове)', admin: { readOnly: true, hidden: true } },
@@ -83,6 +85,11 @@ export const HotlineChats: CollectionConfig = {
         // id фото з медіатеки — щоб фото клієнта не губились, зокрема при передачі в оцінку
         { name: 'photo', type: 'number', label: 'Фото (службове)', admin: { hidden: true } },
         { name: 'mergedFrom', type: 'number', label: 'Із звернення №', admin: { hidden: true } },
+        // «Змінити / Видалити» з робочого столу (lib/threadEdit.ts): хто писав, де це повідомлення в Telegram, історія правок
+        { name: 'authorId', type: 'text', label: 'Автор (службове)', admin: { hidden: true } },
+        { name: 'tg', type: 'json', label: 'Telegram (службове)', admin: { hidden: true } },
+        { name: 'editedAt', type: 'date', label: 'Змінено', admin: { hidden: true } },
+        { name: 'history', type: 'json', label: 'Попередні версії (службове)', admin: { hidden: true } },
       ],
     },
     {
@@ -94,6 +101,9 @@ export const HotlineChats: CollectionConfig = {
         { name: 'from', type: 'text', label: 'Хто' },
         { name: 'text', type: 'textarea', label: 'Текст' },
         { name: 'mentions', type: 'text', label: 'Згадані (службове)' },
+        { name: 'authorId', type: 'text', label: 'Автор (службове)', admin: { hidden: true } },
+        { name: 'editedAt', type: 'date', label: 'Змінено', admin: { hidden: true } },
+        { name: 'history', type: 'json', label: 'Попередні версії (службове)', admin: { hidden: true } },
         { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
       ],
     },

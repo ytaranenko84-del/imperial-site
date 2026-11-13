@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import './dashboard.css'
 
 /** Chrome/Edge; відсутнє в стандартних типах DOM. */
@@ -40,7 +40,12 @@ type Item = {
   activityAt?: string
 }
 
-type Note = { from?: string; text?: string; at?: string; mentions?: string[] }
+/** Поля «Змінити / Видалити»: id рядка, чи можна мені його чіпати, коли змінено й попередні версії (лише адміністратору). */
+type EditMeta = { id?: string; editable?: boolean; editedAt?: string; history?: { text?: string; at?: string; by?: string }[] }
+type Note = { from?: string; text?: string; at?: string; mentions?: string[] } & EditMeta
+type Removed = { type: 'message' | 'note'; from?: string; at?: string; deletedAt?: string; deletedBy?: string; text?: string }
+/** Telegram дає боту видаляти повідомлення лише 48 годин — і змінювати даємо стільки ж. */
+const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000
 type Dept = 'eval' | 'hotline' | 'review'
 type Transfer = { from: Dept; to: Dept; by: string; note: string; at: string; fromKey: string }
 const DEPT_LABEL: Record<Dept, string> = { eval: 'Оцінка', hotline: 'Гаряча лінія', review: 'Відгуки' }
@@ -109,8 +114,9 @@ type Detail = {
   transfers?: Transfer[]
   /** «eval:412» — звернення передано туди, тут лише історія */
   transferredTo?: string
-  thread?: { from?: string; text?: string; at?: string; photo?: string; mergedFrom?: number }[]
+  thread?: ({ from?: string; text?: string; at?: string; photo?: string; mergedFrom?: number } & EditMeta)[]
   notes?: Note[]
+  removed?: Removed[]
   // лише для брони
   amount?: number
   purity?: string
@@ -399,6 +405,21 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [noteMentions, setNoteMentions] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [note, setNote] = useState('')
+  // «Змінити / Видалити» своє повідомлення: що редагуємо (і чернетка, яку повернемо після),
+  // що чекає підтвердження видалення, меню довгого натискання на телефоні, відкрита історія правок
+  type MsgRef = { target: 'thread' | 'note'; entry: string }
+  const [editing, setEditing] = useState<(MsgRef & { original: string; draft: string }) | null>(null)
+  const [confirmDel, setConfirmDel] = useState<(MsgRef & { sheet: boolean }) | null>(null)
+  const [msgMenu, setMsgMenu] = useState<(MsgRef & { text: string; out: boolean; rect: { top: number; bottom: number; left: number; right: number; width: number } }) | null>(null)
+  const [editsOpen, setEditsOpen] = useState<string | null>(null)
+  const pressTimer = useRef<number | null>(null)
+  // Інша заявка — незавершене редагування й меню не тягнемо за собою
+  useEffect(() => {
+    setEditing(null)
+    setConfirmDel(null)
+    setMsgMenu(null)
+    setEditsOpen(null)
+  }, [selectedKey])
   // «Приєднати сюди»: чекаємо підтвердження з переліком того, що переїде
   const [mergeAsk, setMergeAsk] = useState<{ key: string; id: string; messages: number; photos: number; notes: number } | null>(null)
   // «Виділити в нову заявку»: позначені повідомлення (індекси в переписці) й фото з блоку згори
@@ -840,12 +861,160 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   }
 
   /** Переписка й нотатки в одній стрічці за часом — нотатки просто виглядають геть інакше. */
-  type TimelineRow = { type: 'message' | 'note' | 'transfer'; idx?: number; photo?: string; mergedFrom?: number; xfer?: Transfer } & Note
+  type TimelineRow = { type: 'message' | 'note' | 'transfer' | 'removed'; idx?: number; photo?: string; mergedFrom?: number; xfer?: Transfer; rm?: Removed } & Note
   function mergedTimeline(d: Detail): TimelineRow[] {
     const messages = (d.thread || []).map((m, idx) => ({ type: 'message' as const, idx, ...m }))
     const notes = (d.notes || []).map((n) => ({ type: 'note' as const, ...n }))
     const transfers = (d.transfers || []).map((t) => ({ type: 'transfer' as const, at: t.at, xfer: t }))
-    return [...messages, ...notes, ...transfers].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
+    // Видалене лишається слідом на своєму місці в стрічці
+    const removed = (d.removed || []).map((r) => ({ type: 'removed' as const, at: r.at, rm: r }))
+    return [...messages, ...notes, ...transfers, ...removed].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
+  }
+
+  /** Чи показувати «Змінити / Видалити» на цьому рядку. */
+  function canTouch(m: TimelineRow): boolean {
+    if (splitMode || !m.editable || !m.id) return false
+    if (m.type === 'note') return true
+    const t = new Date(String(m.at || 0)).getTime()
+    return m.type === 'message' && Number.isFinite(t) && Date.now() - t < EDIT_WINDOW_MS
+  }
+
+  function startEdit(ref: MsgRef, text: string) {
+    setMsgMenu(null)
+    setConfirmDel(null)
+    setNote('')
+    if (ref.target === 'note') {
+      setEditing({ ...ref, original: text, draft: editing ? editing.draft : noteText })
+      setComposerMode('note')
+      setNoteText(text)
+    } else {
+      setEditing({ ...ref, original: text, draft: editing ? editing.draft : composer })
+      setComposerMode('reply')
+      setComposer(text)
+    }
+  }
+
+  function cancelEdit() {
+    if (!editing) return
+    if (editing.target === 'note') setNoteText(editing.draft)
+    else setComposer(editing.draft)
+    setEditing(null)
+  }
+
+  async function messageAction(ref: MsgRef, action: 'edit' | 'delete', text?: string): Promise<boolean> {
+    if (!detail) return false
+    setSending(true)
+    setNote('')
+    try {
+      const res = await fetch('/api/dashboard/message', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: detail.kind, id: detail.id, entry: ref.entry, target: ref.target, action, text }),
+      }).catch(() => null)
+      const json = res ? await res.json().catch(() => null) : null
+      if (!res || !json) { setNote('Немає зв’язку з сервером — спробуйте ще раз'); return false }
+      if (!res.ok) { setNote(json.error || 'Не вдалося'); return false }
+      setNote(json.note || (action === 'edit' ? '✓ Змінено' : '✓ Видалено'))
+      await Promise.all([loadDetail(detail.key), loadItems(q)])
+      return true
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function saveEdit() {
+    if (!editing || sending) return
+    const text = (editing.target === 'note' ? noteText : composer).trim()
+    if (!text) { setNote('Порожній текст — щоб прибрати повідомлення, натисніть «Видалити»'); return }
+    if (text === editing.original.trim()) { cancelEdit(); return }
+    const ok = await messageAction(editing, 'edit', text)
+    if (ok) cancelEdit()
+  }
+
+  async function confirmDelete() {
+    if (!confirmDel) return
+    const ref = confirmDel
+    setConfirmDel(null)
+    if (editing?.entry === ref.entry) cancelEdit()
+    await messageAction(ref, 'delete')
+  }
+
+  /** Телефон: затиснув повідомлення — меню як у Telegram. Комп'ютер: правий клік робить те саме. */
+  function openMsgMenu(el: HTMLElement, ref: MsgRef, text: string, out: boolean) {
+    const r = el.getBoundingClientRect()
+    setConfirmDel(null)
+    setMsgMenu({ ...ref, text, out, rect: { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width } })
+  }
+  function pressHandlers(m: TimelineRow, ref: MsgRef, out: boolean) {
+    if (!canTouch(m)) return {}
+    const clear = () => { if (pressTimer.current) { window.clearTimeout(pressTimer.current); pressTimer.current = null } }
+    return {
+      onTouchStart: (e: React.TouchEvent<HTMLElement>) => {
+        const el = e.currentTarget
+        clear()
+        pressTimer.current = window.setTimeout(() => {
+          pressTimer.current = null
+          try { navigator.vibrate?.(15) } catch { /* не всі телефони вміють */ }
+          openMsgMenu(el, ref, m.text || '', out)
+        }, 450)
+      },
+      onTouchEnd: clear,
+      onTouchMove: clear,
+      onTouchCancel: clear,
+      onContextMenu: (e: React.MouseEvent<HTMLElement>) => { e.preventDefault(); clear(); openMsgMenu(e.currentTarget, ref, m.text || '', out) },
+    }
+  }
+
+  /** Кнопки над повідомленням (комп'ютер, наведення) і все, що під ним: підтвердження видалення, історія правок. */
+  function msgTools(m: TimelineRow, ref: MsgRef) {
+    if (!canTouch(m)) return null
+    return (
+      <span className="dw-msg-tools" onClick={(e) => e.stopPropagation()}>
+        <button type="button" onClick={() => startEdit(ref, m.text || '')}>✏️ Змінити</button>
+        <button type="button" className="del" onClick={() => { setMsgMenu(null); setConfirmDel({ ...ref, sheet: false }) }}>🗑 Видалити</button>
+      </span>
+    )
+  }
+  function editedMark(m: TimelineRow) {
+    if (!m.editedAt) return null
+    const canSee = Boolean(m.history?.length)
+    return (
+      <>
+        {' · '}
+        <span
+          className={`dw-edited ${canSee ? 'can' : ''}`}
+          title={canSee ? 'Показати, що було спершу' : undefined}
+          onClick={canSee ? (e) => { e.stopPropagation(); setEditsOpen(editsOpen === m.id ? null : m.id || null) } : undefined}
+        >
+          змінено {fmtTime(m.editedAt)}
+        </span>
+      </>
+    )
+  }
+  function msgAfter(m: TimelineRow, ref: MsgRef | null, align: 'out' | 'in' | 'note') {
+    if (!ref) return null
+    return (
+      <>
+        {editsOpen === ref.entry && m.history?.length ? (
+          <div className={`dw-edits-pop dw-edits-pop--${align}`}>
+            <b>Було (бачить адміністратор)</b>
+            {m.history.map((h, k) => (
+              <div key={k}><s>{h.text}</s><span>{h.by ? `змінив(ла) ${h.by}` : 'змінено'}{h.at ? ` о ${fmtTime(h.at)}` : ''}</span></div>
+            ))}
+          </div>
+        ) : null}
+        {confirmDel && !confirmDel.sheet && confirmDel.entry === ref.entry && (
+          <div className={`dw-del-confirm dw-del-confirm--${align}`}>
+            {ref.target === 'note'
+              ? 'Видалити нотатку? Колеги її більше не побачать.'
+              : 'Видалити це повідомлення у клієнта й у колег у Telegram?'}
+            <div>
+              <button type="button" className="yes" disabled={sending} onClick={confirmDelete}>🗑 Видалити</button>
+              <button type="button" onClick={() => setConfirmDel(null)}>Скасувати</button>
+            </div>
+          </div>
+        )}
+      </>
+    )
   }
 
   async function deleteCurrent() {
@@ -1261,18 +1430,37 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                               ↪ Передано: {DEPT_LABEL[m.xfer.from]} → {DEPT_LABEL[m.xfer.to]} · {m.xfer.by} · {fmtTime(m.at)}
                               {m.xfer.note ? ` · «${m.xfer.note}»` : ''}
                             </div>
-                          ) : m.type === 'note' ? (
-                            <div key={i} className="dw-note-card">
-                              <div className="dw-note-tag">🔒 Нотатка · тільки команда</div>
-                              {renderNoteText(m.text || '')}
-                              <time>{m.from}{m.at ? ` · ${fmtTime(m.at)}` : ''}</time>
+                          ) : m.type === 'removed' && m.rm ? (
+                            <div key={i} className={`dw-removed ${m.rm.type === 'note' ? 'note' : ''}`}>
+                              🗑 {m.rm.deletedBy || 'Хтось'} видалив(ла) {m.rm.type === 'note' ? 'нотатку' : 'повідомлення'}{m.rm.deletedAt ? ` о ${fmtTime(m.rm.deletedAt)}` : ''}
+                              {m.rm.text ? <s>{m.rm.text}</s> : null}
                             </div>
-                          ) : (
+                          ) : m.type === 'note' ? (() => {
+                            const ref: MsgRef | null = m.id ? { target: 'note', entry: m.id } : null
+                            return [
+                              <div
+                                key={i}
+                                className={`dw-note-card ${canTouch(m) ? 'dw-touchable' : ''} ${editing && ref && editing.entry === ref.entry ? 'dw-being-edited' : ''}`}
+                                {...(ref ? pressHandlers(m, ref, false) : {})}
+                              >
+                                {ref && msgTools(m, ref)}
+                                <div className="dw-note-tag">🔒 Нотатка · тільки команда</div>
+                                {renderNoteText(m.text || '')}
+                                <time>{m.from}{m.at ? ` · ${fmtTime(m.at)}` : ''}{editedMark(m)}</time>
+                              </div>,
+                              <Fragment key={`${i}-after`}>{msgAfter(m, ref, 'note')}</Fragment>,
+                            ]
+                          })() : (() => {
+                            const out = Boolean(m.from && m.from !== 'клієнт')
+                            const ref: MsgRef | null = m.id && out ? { target: 'thread', entry: m.id } : null
+                            return [
                             <div
                               key={i}
-                              className={`dw-bubble ${m.from && m.from !== 'клієнт' ? 'out' : 'in'} ${splitMode && m.idx != null && splitEntries.has(m.idx) ? 'picked' : ''}`}
+                              className={`dw-bubble ${out ? 'out' : 'in'} ${splitMode && m.idx != null && splitEntries.has(m.idx) ? 'picked' : ''} ${ref && canTouch(m) ? 'dw-touchable' : ''} ${editing && ref && editing.entry === ref.entry ? 'dw-being-edited' : ''}`}
                               onClick={splitMode && m.idx != null ? () => setSplitEntries((p) => toggleIn(p, m.idx!)) : undefined}
+                              {...(ref ? pressHandlers(m, ref, true) : {})}
                             >
+                              {ref && msgTools(m, ref)}
                               {splitMode && m.idx != null && (
                                 <input type="checkbox" className="dw-pick-box" checked={splitEntries.has(m.idx)} readOnly />
                               )}
@@ -1286,9 +1474,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                                 ? (m.text === '[фото]' ? null : (m.text || '').replace(/\s*\[фото\]$/, ''))
                                 // старі повідомлення: фото лише пересилалось у Telegram, у заявці лишилась позначка
                                 : (m.text || '').replace(/\[фото\]/g, '📷 фото')}
-                              {m.at && <time>{fmtTime(m.at)}</time>}
-                            </div>
-                          ),
+                              {m.at && <time>{fmtTime(m.at)}{editedMark(m)}</time>}
+                            </div>,
+                            <Fragment key={`${i}-after`}>{msgAfter(m, ref, out ? 'out' : 'in')}</Fragment>,
+                            ]
+                          })(),
                         ])}
                       </>
                     )
@@ -1368,18 +1558,27 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
               )}
 
               <div className="dw-composer">
-                <div className="dw-mode-tabs">
+                {editing && (
+                  <div className="dw-editbar">
+                    <div>
+                      <b>✏️ Редагування {editing.target === 'note' ? 'нотатки' : 'повідомлення'}</b>
+                      <span>{editing.original}</span>
+                    </div>
+                    <button type="button" onClick={cancelEdit} aria-label="Скасувати редагування">✕</button>
+                  </div>
+                )}
+                {!editing && <div className="dw-mode-tabs">
                   <button type="button" className={`dw-mode-tab ${composerMode === 'reply' ? 'on-reply' : ''}`} onClick={() => setComposerMode('reply')}>
                     💬 Відповідь клієнту
                   </button>
                   <button type="button" className={`dw-mode-tab ${composerMode === 'note' ? 'on-note' : ''}`} onClick={() => setComposerMode('note')}>
                     📝 Нотатка команді
                   </button>
-                </div>
+                </div>}
 
                 {composerMode === 'reply' && (
                   <>
-                    {templates.length > 0 && (
+                    {templates.length > 0 && !editing && (
                       <div className="dw-templates">
                         {templates.map((t) => (
                           <button type="button" key={t.code} className="dw-tpl" onClick={() => insertTemplate(t.code)}>
@@ -1392,10 +1591,15 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                       <input
                         value={composer}
                         onChange={(e) => setComposer(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') sendReply() }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape' && editing) cancelEdit()
+                          if (e.key === 'Enter') { if (editing) saveEdit(); else sendReply() }
+                        }}
                         placeholder="Напишіть відповідь або код шаблону…"
                       />
-                      <button type="button" className="dw-send" disabled={sending || !composer.trim()} onClick={sendReply}>➤</button>
+                      {editing
+                        ? <button type="button" className="dw-send dw-send--edit" title="Зберегти" disabled={sending || !composer.trim()} onClick={saveEdit}>✓</button>
+                        : <button type="button" className="dw-send" disabled={sending || !composer.trim()} onClick={sendReply}>➤</button>}
                     </div>
                     {note && <p className="dw-note">{note}</p>}
                     <p className="dw-hint">
@@ -1406,7 +1610,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
 
                 {composerMode === 'note' && (
                   <>
-                    {staff.length > 0 && (
+                    {staff.length > 0 && !editing && (
                       <div className="dw-mentions">
                         {staff.filter((s) => s.id !== me.id).map((s) => (
                           <button
@@ -1424,10 +1628,15 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                       <input
                         value={noteText}
                         onChange={(e) => setNoteText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') sendNote() }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape' && editing) cancelEdit()
+                          if (e.key === 'Enter') { if (editing) saveEdit(); else sendNote() }
+                        }}
                         placeholder="Нотатка для колег — клієнт цього не побачить…"
                       />
-                      <button type="button" className="dw-send dw-send--note" disabled={sending || !noteText.trim()} onClick={sendNote}>➤</button>
+                      {editing
+                        ? <button type="button" className="dw-send dw-send--edit" title="Зберегти" disabled={sending || !noteText.trim()} onClick={saveEdit}>✓</button>
+                        : <button type="button" className="dw-send dw-send--note" disabled={sending || !noteText.trim()} onClick={sendNote}>➤</button>}
                     </div>
                     {note && <p className="dw-note">{note}</p>}
                     <p className="dw-hint">
@@ -1440,6 +1649,56 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
           )}
         </section>
       </div>
+
+      {msgMenu && (() => {
+        // Меню під повідомленням; біля низу екрана піднімаємо і повідомлення, і меню
+        const MENU_H = 150
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 400
+        const menuTop = Math.min(msgMenu.rect.bottom + 8, vh - MENU_H - 12)
+        const shift = msgMenu.rect.bottom + 8 - menuTop
+        const side = msgMenu.out ? { right: Math.max(8, vw - msgMenu.rect.right) } : { left: Math.max(8, msgMenu.rect.left) }
+        const ref = { target: msgMenu.target, entry: msgMenu.entry }
+        return (
+          <div className="dw-msg-overlay" onClick={() => setMsgMenu(null)}>
+            <div
+              className={`dw-msg-lift ${msgMenu.target === 'note' ? 'note' : msgMenu.out ? 'out' : 'in'}`}
+              style={{ top: Math.max(8, msgMenu.rect.top - shift), width: msgMenu.rect.width, ...side }}
+            >
+              {msgMenu.text}
+            </div>
+            <div className="dw-msg-menu" style={{ top: menuTop, ...side }} onClick={(e) => e.stopPropagation()}>
+              <button type="button" onClick={() => startEdit(ref, msgMenu.text)}>✏️ Змінити</button>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(msgMenu.text).then(() => setNote('✓ Скопійовано')).catch(() => setNote('Не вдалося скопіювати'))
+                  setMsgMenu(null)
+                }}
+              >
+                📋 Копіювати
+              </button>
+              <button type="button" className="del" onClick={() => { setMsgMenu(null); setConfirmDel({ ...ref, sheet: true }) }}>🗑 Видалити</button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {confirmDel?.sheet && (
+        <div className="dw-sheet-backdrop" onClick={() => setConfirmDel(null)}>
+          <div className="dw-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="dw-sheet-grab" />
+            <b>{confirmDel.target === 'note' ? 'Видалити нотатку?' : 'Видалити повідомлення?'}</b>
+            <p>
+              {confirmDel.target === 'note'
+                ? 'Колеги її більше не побачать. На робочому столі лишиться позначка, хто й коли видалив.'
+                : 'Воно зникне в чаті клієнта й у колег у Telegram. На робочому столі лишиться позначка, хто й коли видалив.'}
+            </p>
+            <button type="button" className="dw-sheet-del" disabled={sending} onClick={confirmDelete}>🗑 Видалити</button>
+            <button type="button" className="dw-sheet-cancel" onClick={() => setConfirmDel(null)}>Скасувати</button>
+          </div>
+        </div>
+      )}
 
       {history && (
         <div className="dw-report-backdrop" onClick={() => setHistory(null)}>

@@ -162,7 +162,26 @@ export async function GET(req: Request) {
   if (!doc) return Response.json({ error: 'Не знайдено' }, { status: 404 })
 
   const d = doc as Record<string, unknown>
-  type ThreadRow = { from?: string; text?: string; at?: string; photo?: number | null; mergedFrom?: number | null }
+  type ThreadRow = {
+    id?: string; from?: string; text?: string; at?: string; photo?: number | null; mergedFrom?: number | null
+    authorId?: string | null; tg?: { msg?: number } | null; editedAt?: string | null; history?: { text?: string; at?: string; by?: string }[] | null
+  }
+  const isAdmin = me.kind === 'admin'
+  /*
+   * Змінити/видалити: автор — свої, адміністратор — будь-які. Відповідь клієнту —
+   * лише якщо знаємо її номер у Telegram (48 годин рахує вже екран).
+   * Попередні версії й текст видаленого бачить лише адміністратор.
+   */
+  const canTouch = (r: { authorId?: string | null; from?: string }, note: boolean) =>
+    isAdmin || (r.authorId ? String(r.authorId) === String(me.id) : note && r.from === me.title)
+  const editMeta = (r: ThreadRow, note: boolean) => ({
+    ...(r.id ? { id: r.id } : {}),
+    ...(r.editedAt ? { editedAt: r.editedAt } : {}),
+    ...(isAdmin && r.history?.length ? { history: r.history } : {}),
+    editable: note
+      ? canTouch(r, true)
+      : Boolean(r.from && r.from !== 'клієнт' && r.tg?.msg && canTouch(r, false)),
+  })
   const threadRows = ((d.thread as ThreadRow[] | undefined) || [])
   // Фото, надіслані повідомленнями, показуємо в стрічці на своєму місці; решта — блоком згори.
   const inThread = new Set(threadRows.map((t) => t.photo).filter((x) => x != null).map(String))
@@ -218,13 +237,22 @@ export async function GET(req: Request) {
     transferredTo: String(d.transferredTo || ''),
     thread: threadRows.map((t) => ({
       from: t.from, text: t.text, at: t.at,
+      ...editMeta(t, false),
       ...(t.photo != null && photoUrls.get(String(t.photo)) ? { photo: photoUrls.get(String(t.photo)) } : {}),
       ...(t.mergedFrom != null ? { mergedFrom: t.mergedFrom } : {}),
     })),
-    notes: ((d.notes as { from?: string; text?: string; mentions?: string; at?: string }[] | undefined) || [])
+    notes: ((d.notes as (ThreadRow & { mentions?: string })[] | undefined) || [])
       .map((n) => ({
         from: n.from, text: n.text, at: n.at,
+        ...editMeta(n, true),
         mentions: (() => { try { return JSON.parse(n.mentions || '[]') as string[] } catch { return [] } })(),
+      })),
+    // Слід видалених: хто й коли; сам текст — лише адміністратору
+    removed: ((d.removed as (ThreadRow & { type?: string; deletedAt?: string; deletedBy?: string })[] | undefined) || [])
+      .map((r) => ({
+        type: r.type === 'note' ? 'note' : 'message',
+        from: r.from, at: r.at, deletedAt: r.deletedAt, deletedBy: r.deletedBy,
+        ...(isAdmin ? { text: r.text } : {}),
       })),
     related,
     client,

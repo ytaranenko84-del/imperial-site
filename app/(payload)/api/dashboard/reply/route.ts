@@ -2,10 +2,11 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
-import { esc, hotlineRecipients, recipientsFor, resolveTemplate, send, sumFromText } from '@/lib/telegram.ts'
+import { hotlineRecipients, recipientsFor, resolveTemplate, send, sumFromText } from '@/lib/telegram.ts'
 import { sendSms } from '@/lib/sms.ts'
 import { runAfterResponse } from '@/lib/groupCard.ts'
 import { NEW_ITEM_HINT, statusAfterStaffReply } from '@/lib/evalFlow.ts'
+import { clientBody, copyBody, newEntryId, saveTgCopies, type TgRef } from '@/lib/threadEdit.ts'
 
 /**
  * Відповідь клієнту з веб-робочого столу — той самий канал доставки
@@ -59,13 +60,19 @@ export async function POST(req: Request) {
 
   let deliveredVia: 'telegram' | 'sms' | 'none' = 'none'
   let deliveryNote = ''
+  // Де це повідомлення в Telegram — щоб потім його можна було змінити чи видалити
+  let tg: TgRef | null = null
+  const entryId = newEntryId()
+  const copyLabel = kind === 'eval' ? 'Заявка' : (doc as { kind?: string }).kind === 'review' ? 'Відгук' : 'Гаряча лінія'
 
   if (clientChat) {
     // Telegram може відмовити (клієнт заблокував бота, видалив чат) — раніше
     // це валило весь запит: відповідь не зберігалась, а співробітник бачив
     // лише «Помилка мережі». Тепер — збережено, і видно справжню причину.
     try {
-      await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(clientText)}` })
+      const hint = clientText !== replyText
+      const r = await send({ chat: clientChat, text: clientBody(replyText, hint) })
+      tg = { chat: clientChat, msg: r.message_id, copies: [], hint, label: copyLabel }
       deliveredVia = 'telegram'
     } catch (e) {
       deliveryNote = `Telegram: ${(e as Error).message || 'помилка'}`
@@ -87,7 +94,7 @@ export async function POST(req: Request) {
     answeredAt: now,
     // Хто відповідає — той і бачив заявку, тож заразом знімаємо «непрочитане».
     lastViewedAt: now,
-    thread: [...thread, { from: who, text: replyText, at: now }],
+    thread: [...thread, { id: entryId, from: who, authorId: String(me.id), text: replyText, at: now, tg }],
   }
 
   if (kind === 'eval' && sum != null && sum !== already) data.estimate = sum
@@ -96,18 +103,17 @@ export async function POST(req: Request) {
 
   // Копія іншим отримувачам заявки — щоб і в Telegram було видно, що вже відповіли.
   // Після відповіді співробітнику: ці розсилки не мають тримати запит.
-  const copyLabel = kind === 'eval' ? 'Заявка' : (doc as { kind?: string }).kind === 'review' ? 'Відгук' : 'Гаряча лінія'
   await runAfterResponse(async () => {
     const others = kind === 'eval'
       ? await recipientsFor(payload, String((doc as { category?: string }).category || ''))
       : await hotlineRecipients(payload)
     for (const chat of others.keys()) {
-      await send({
-        chat,
-        // Підпис як на картці цього звернення: Reply на копію мусить знайти саме його
-        text: `<b>${copyLabel} №${id}</b> · ${esc(who)} відповів:\n${esc(replyText)}`,
-      }).catch(() => {})
+      // Підпис як на картці цього звернення: Reply на копію мусить знайти саме його
+      const r = await send({ chat, text: copyBody(copyLabel, id, who, replyText) }).catch(() => null)
+      if (r && tg) tg.copies!.push({ chat, msgId: r.message_id })
     }
+    // Номери копій — щоб «Змінити»/«Видалити» дістали й їх
+    if (tg?.copies?.length) await saveTgCopies(payload, collection, entryId, tg)
   }, 'копії відповіді не пішли')
 
   return Response.json({ ok: true, deliveredVia, deliveryNote, text: replyText })

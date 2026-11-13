@@ -66,6 +66,28 @@ export async function deleteMessage(chat: string, messageId: number) {
 }
 
 /**
+ * Змінює текст уже надісланого ботом повідомлення. Telegram сам позначає
+ * його в клієнта «изменено». «message is not modified» — текст той самий,
+ * це не помилка.
+ */
+export async function editMessageText(chat: string, messageId: number, text: string) {
+  const t = token()
+  if (!t) throw new Error('немає токена бота')
+  const [chatId] = String(chat).split(':')
+  const res = await fetch(`${API}${t}/editMessageText`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true },
+    }),
+  })
+  const json = await res.json()
+  if (!json.ok && !/message is not modified/i.test(String(json.description || ''))) {
+    throw new Error(json.description || `telegram ${res.status}`)
+  }
+}
+
+/**
  * Прибирає «годинник завантаження» з інлайн-кнопки. Без цього виклику
  * Telegram сам зніме його за кілька секунд, але кнопка виглядає завислою.
  * Best-effort: неполадка тут не має ламати основну дію кнопки.

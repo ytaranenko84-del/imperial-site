@@ -147,6 +147,8 @@ export const EvalRequests: CollectionConfig = {
         { name: 'lastReply', type: 'json', label: 'Останнє надіслане (службове)', admin: { readOnly: true, hidden: true } },
         { name: 'answeredBy', type: 'text', label: 'Відповів', admin: { readOnly: true } },
     { name: 'lastClientAt', type: 'date', index: true, label: 'Востаннє писав клієнт', admin: { readOnly: true, hidden: true } },
+    // Видалені з робочого столу повідомлення й нотатки — у переписці лишається слід «хто й коли видалив»
+    { name: 'removed', type: 'json', label: 'Видалені повідомлення (службове)', admin: { readOnly: true, hidden: true } },
     { name: 'lastViewedAt', type: 'date', label: 'Востаннє переглянуто', admin: { readOnly: true, hidden: true,
       date: { pickerAppearance: 'dayAndTime' } } },
         { name: 'groupSentAt', type: 'date', label: 'У групу надіслано', admin: { readOnly: true,
@@ -175,6 +177,11 @@ export const EvalRequests: CollectionConfig = {
         { name: 'photo', type: 'number', label: 'Фото (службове)', admin: { hidden: true } },
         // з якої заявки перенесено кнопкою «Приєднати сюди»
         { name: 'mergedFrom', type: 'number', label: 'Із заявки №', admin: { hidden: true } },
+        // «Змінити / Видалити» з робочого столу (lib/threadEdit.ts): хто писав, де це повідомлення в Telegram, історія правок
+        { name: 'authorId', type: 'text', label: 'Автор (службове)', admin: { hidden: true } },
+        { name: 'tg', type: 'json', label: 'Telegram (службове)', admin: { hidden: true } },
+        { name: 'editedAt', type: 'date', label: 'Змінено', admin: { hidden: true } },
+        { name: 'history', type: 'json', label: 'Попередні версії (службове)', admin: { hidden: true } },
       ],
     },
     { name: 'note', type: 'textarea', label: 'Нотатка оцінювача' },
@@ -188,6 +195,9 @@ export const EvalRequests: CollectionConfig = {
         { name: 'text', type: 'textarea', label: 'Текст' },
         // JSON-масив id отримувачів, кого згадали — рядком, щоб не плодити ще одну вкладену таблицю
         { name: 'mentions', type: 'text', label: 'Згадані (службове)' },
+        { name: 'authorId', type: 'text', label: 'Автор (службове)', admin: { hidden: true } },
+        { name: 'editedAt', type: 'date', label: 'Змінено', admin: { hidden: true } },
+        { name: 'history', type: 'json', label: 'Попередні версії (службове)', admin: { hidden: true } },
         { name: 'at', type: 'date', label: 'Коли', admin: { date: { pickerAppearance: 'dayAndTime' } } },
       ],
     },

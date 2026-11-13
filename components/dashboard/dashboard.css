@@ -461,3 +461,87 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
 .dw-what-desc { font-size: 12.5px; border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 4px; white-space: pre-wrap; }
 .dw-what-desc i { display: block; font-style: normal; font-size: 10.5px; color: var(--dim); }
 .dw-what .dw-photo { margin-top: 6px; }
+
+/* «Змінити / Видалити» своє повідомлення */
+.dw-touchable { position: relative; -webkit-touch-callout: none; }
+.dw-msg-tools {
+  position: absolute; top: -26px; right: 6px; display: none; gap: 5px; z-index: 3;
+}
+.dw-note-card .dw-msg-tools { right: 10px; }
+.dw-msg-tools button {
+  font: inherit; font-size: 11px; font-weight: 700; border: 1px solid var(--line); background: #fff; color: var(--ink);
+  border-radius: 999px; padding: 3px 9px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.1); white-space: nowrap;
+}
+.dw-msg-tools button.del { color: var(--late); }
+.dw-msg-tools button:hover { background: var(--surface2); }
+@media (hover: hover) {
+  .dw-touchable:hover .dw-msg-tools { display: flex; }
+  /* щоб кнопки не зникали, поки ведеш до них мишку через проміжок */
+  .dw-touchable:hover::before { content: ''; position: absolute; left: 0; right: 0; top: -28px; height: 28px; }
+}
+.dw-being-edited { opacity: .55; }
+.dw-edited.can { text-decoration: underline dotted; cursor: pointer; }
+.dw-edits-pop {
+  align-self: flex-end; max-width: 68%; margin-top: -6px; background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.1); padding: 8px 11px; font-size: 12px; line-height: 1.4; display: flex; flex-direction: column; gap: 6px;
+}
+.dw-edits-pop--in { align-self: flex-start; } .dw-edits-pop--note { align-self: center; }
+.dw-edits-pop b { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+.dw-edits-pop s { display: block; color: var(--dim); white-space: pre-wrap; }
+.dw-edits-pop span { font-size: 10.5px; color: var(--dim); }
+.dw-del-confirm {
+  align-self: flex-end; max-width: 68%; margin-top: -4px; background: #fff; border: 1px solid var(--late); border-radius: 10px;
+  padding: 8px 11px; font-size: 12px;
+}
+.dw-del-confirm--in { align-self: flex-start; } .dw-del-confirm--note { align-self: center; }
+.dw-del-confirm div { display: flex; gap: 6px; margin-top: 7px; }
+.dw-del-confirm button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 11px; cursor: pointer; }
+.dw-del-confirm button.yes { background: var(--late); border-color: var(--late); color: #fff; font-weight: 700; }
+.dw-removed {
+  align-self: flex-end; max-width: 68%; border: 1.5px dashed #c9c9cf; border-radius: 14px; padding: 7px 12px;
+  font-size: 12px; color: var(--dim); background: #fff;
+}
+.dw-removed.note { align-self: center; }
+.dw-removed s { display: block; margin-top: 3px; color: #9a9aa0; white-space: pre-wrap; }
+.dw-editbar {
+  display: flex; gap: 8px; align-items: flex-start; border-left: 3px solid var(--new); background: var(--new-soft);
+  border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 12px; min-width: 0;
+}
+.dw-editbar div { min-width: 0; flex: 1; }
+.dw-editbar b { color: var(--new); display: block; }
+.dw-editbar span { color: var(--dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dw-editbar button { border: 0; background: none; color: var(--dim); font-size: 15px; font-weight: 700; cursor: pointer; padding: 0 4px; }
+.dw-send--edit { background: var(--new); border-radius: 50%; font-weight: 800; }
+
+/* Телефон: меню довгого натискання й нижня панель — як у Telegram */
+.dw-msg-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(20, 20, 25, .45); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.dw-msg-lift {
+  position: fixed; padding: 9px 13px; border-radius: 14px; font-size: 13px; line-height: 1.45; max-height: 40vh; overflow: hidden;
+  white-space: pre-wrap; box-shadow: 0 8px 24px rgba(0,0,0,.35); pointer-events: none;
+}
+.dw-msg-lift.out { background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+.dw-msg-lift.in { background: var(--surface2); }
+.dw-msg-lift.note { background: var(--note-bg); border: 1.5px dashed var(--note); }
+.dw-msg-menu {
+  position: fixed; width: 200px; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  display: flex; flex-direction: column;
+}
+.dw-msg-menu button {
+  font: inherit; font-size: 14px; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: #fff;
+  padding: 12px 14px; color: var(--ink); cursor: pointer;
+}
+.dw-msg-menu button:last-child { border-bottom: 0; }
+.dw-msg-menu button.del { color: var(--late); }
+.dw-sheet-backdrop { position: fixed; inset: 0; z-index: 61; background: rgba(20, 20, 25, .45); display: flex; align-items: flex-end; justify-content: center; }
+.dw-sheet {
+  width: 100%; max-width: 480px; background: #fff; border-radius: 16px 16px 0 0;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); font-size: 13px; line-height: 1.45;
+}
+.dw-sheet-grab { width: 36px; height: 4px; border-radius: 2px; background: #d5d5da; margin: 0 auto 12px; }
+.dw-sheet b { display: block; font-size: 15px; margin-bottom: 4px; }
+.dw-sheet p { margin: 0; color: var(--dim); }
+.dw-sheet button { display: block; width: 100%; font: inherit; font-size: 14px; border-radius: 11px; padding: 11px; margin-top: 8px; cursor: pointer; }
+.dw-sheet-del { background: var(--late); border: 0; color: #fff; font-weight: 700; margin-top: 14px !important; }
+.dw-sheet-cancel { background: #fff; border: 1px solid var(--line); font-weight: 600; }
+/* на телефоні довге натискання відкриває меню, а не виділення тексту (скопіювати — пунктом меню) */
+@media (hover: none) { .dw-touchable { -webkit-user-select: none; user-select: none; } }

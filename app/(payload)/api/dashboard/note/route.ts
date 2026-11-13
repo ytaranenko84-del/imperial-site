@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   await payload.update({
     collection, id, overrideAccess: true,
     data: {
-      notes: [...notes, { from: me.title, text: noteText, mentions: JSON.stringify(mentionIds), at: new Date().toISOString() }],
+      notes: [...notes, { from: me.title, authorId: String(me.id), text: noteText, mentions: JSON.stringify(mentionIds), at: new Date().toISOString() }],
     },
   })
 

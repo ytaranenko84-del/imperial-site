@@ -327,6 +327,15 @@ async function staffNameFor(
   return person?.title || displayName(from, fallback)
 }
 
+/** Id співробітника за його чатом — автор відповіді для «Змінити / Видалити» на робочому столі. */
+async function staffIdFor(payload: Awaited<ReturnType<typeof getPayload>>, chat: string): Promise<string | null> {
+  const { docs } = await payload.find({
+    collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
+    where: { chatId: { equals: chat }, active: { equals: true } },
+  })
+  return docs[0] ? String((docs[0] as { id: unknown }).id) : null
+}
+
 type GoldRow = {
   id: string | number; purity: number; purityLabel: string
   oldBase: number; newBase: number; oldBuyout: number; newBuyout: number
@@ -671,7 +680,19 @@ async function handleDeleteCallback(
     await deleteMessage(c.chat, c.msgId).catch(() => {})
   }
 
-  await payload.update({ collection, id, overrideAccess: true, data: { lastReply: null } })
+  // На робочому столі — той самий слід, що й при видаленні звідти: «хто й коли видалив»
+  const thread = ((doc as { thread?: { tg?: { msg?: number } | null }[] }).thread || [])
+  const gone = thread.find((t) => t.tg?.msg === lastReply.clientMsgId)
+  const removedData = gone
+    ? {
+      thread: thread.filter((t) => t !== gone),
+      removed: [
+        ...(((doc as { removed?: unknown[] }).removed) || []),
+        { ...gone, type: 'message', deletedAt: new Date().toISOString(), deletedBy: await staffNameFor(payload, chat, cq.from, 'співробітник') },
+      ],
+    }
+    : {}
+  await payload.update({ collection, id, overrideAccess: true, data: { lastReply: null, ...removedData } })
   await answerCallback(cq.id, '✓ Видалено у клієнта й колег')
 }
 
@@ -1806,6 +1827,9 @@ async function relayAnswer(
 
   const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
+  // Де ця відповідь у Telegram — щоб її можна було змінити чи видалити з робочого столу
+  const tg = clientMsgId ? { chat: clientChat, msg: clientMsgId, copies: staffCopies, hint: clientText !== text, label: 'Заявка' } : null
+  const authorId = await staffIdFor(payload, chat).catch(() => null)
 
   await payload.update({
     collection: 'eval-requests', id, overrideAccess: true,
@@ -1817,7 +1841,7 @@ async function relayAnswer(
       lastViewedAt: new Date().toISOString(),
       lastReply,
       ...(changed ? { estimate: sum } : {}),
-      thread: [...thread, { from: who, text, at: new Date().toISOString() }],
+      thread: [...thread, { from: who, authorId, text, at: new Date().toISOString(), tg }],
     },
   })
 
@@ -1897,6 +1921,9 @@ async function relayHotlineAnswer(
 
   const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
+  // Лише текст (фото змінити не можна); копії колегам — з тим самим підписом
+  const tg = clientMsgId && text ? { chat: clientChat, msg: clientMsgId, copies: staffCopies, hint: false, label } : null
+  const authorId = await staffIdFor(payload, chat).catch(() => null)
   await payload.update({
     collection: 'hotline-chats', id, overrideAccess: true,
     data: {
@@ -1905,7 +1932,7 @@ async function relayHotlineAnswer(
       answeredAt: new Date().toISOString(),
       lastViewedAt: new Date().toISOString(),
       lastReply,
-      thread: [...thread, { from: who, text: text || '[фото]', at: new Date().toISOString() }],
+      thread: [...thread, { from: who, authorId, text: text || '[фото]', at: new Date().toISOString(), tg }],
     },
   })
 }
