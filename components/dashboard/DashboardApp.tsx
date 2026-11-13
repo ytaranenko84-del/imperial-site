@@ -1497,11 +1497,17 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                         {history.bails.map((b) => (
                           <tr key={`${b.network}-${b.id}`}>
                             <td>{fmtDateShort(b.createdAt)}</td>
-                            <td className="dw-history-product">{b.product || '—'}</td>
+                            <td className="dw-history-product">
+                              {b.product || '—'}
+                              {/* Де заклав — під річчю, щоб було видно на будь-якій ширині (окрема колонка ховалась на вузькому екрані) */}
+                              {(b.branch || history.client!.networks.length > 1) && (
+                                <div className="dw-history-branch">
+                                  📍 {[b.branch, history.client!.networks.length > 1 ? b.networkLabel : ''].filter(Boolean).join(' · ')}
+                                </div>
+                              )}
+                            </td>
                             <td className="dw-history-amt">{b.loan.toLocaleString('uk-UA')} ₴</td>
                             <td><span className={`dw-bail dw-bail--${b.statusKind}`}>{b.statusLabel}</span></td>
-                            <td>{b.branch}</td>
-                            {history.client!.networks.length > 1 && <td className="dw-dim">{b.networkLabel}</td>}
                           </tr>
                         ))}
                       </tbody>

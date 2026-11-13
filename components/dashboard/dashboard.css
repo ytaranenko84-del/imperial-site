@@ -345,6 +345,7 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
 .dw-history-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .dw-history-table td { padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .dw-history-product { white-space: normal !important; min-width: 160px; }
+.dw-history-branch { margin-top: 2px; font-size: 11.5px; color: var(--dim); }
 .dw-history-amt { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dw-bail { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
 .dw-bail--active { background: var(--new-soft); color: var(--new); }
@@ -448,7 +449,6 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
   .dw-history { max-width: none; max-height: none; height: 100%; border-radius: 0; }
   .dw-history-stats { grid-template-columns: repeat(3, 1fr); }
   .dw-history-net .dw-net--btn { margin-left: 0; }
-  .dw-history-table td:nth-child(5), .dw-history-table td:nth-child(6) { display: none; }
   .dw-history-table td { font-size: 12px; padding: 6px 4px; }
 }
 
