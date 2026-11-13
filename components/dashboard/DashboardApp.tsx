@@ -43,6 +43,14 @@ type Item = {
 /** Поля «Змінити / Видалити»: id рядка, чи можна мені його чіпати, коли змінено й попередні версії (лише адміністратору). */
 type EditMeta = { id?: string; editable?: boolean; editedAt?: string; history?: { text?: string; at?: string; by?: string }[] }
 type Note = { from?: string; text?: string; at?: string; mentions?: string[] } & EditMeta
+/** Під нашою відповіддю: ✓ доставлено, ✓✓ прочитано (клієнт після неї щось робив у боті), ✗ не дійшло, SMS. */
+type Delivery = 'read' | 'sent' | 'failed' | 'sms'
+const DELIVERY: Record<Delivery, { mark: string; title: string }> = {
+  read: { mark: '✓✓', title: 'Прочитано: клієнт після цього писав або натискав кнопки в боті' },
+  sent: { mark: '✓', title: 'Доставлено в Telegram. Клієнт ще нічого не робив у боті після цього' },
+  failed: { mark: '✗ не доставлено', title: 'Клієнт не отримав повідомлення' },
+  sms: { mark: 'SMS', title: 'Надіслано SMS — клієнта немає в боті' },
+}
 type Removed = { type: 'message' | 'note'; from?: string; at?: string; deletedAt?: string; deletedBy?: string; text?: string }
 /** Telegram дає боту видаляти повідомлення лише 48 годин — і змінювати даємо стільки ж. */
 const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000
@@ -114,7 +122,7 @@ type Detail = {
   transfers?: Transfer[]
   /** «eval:412» — звернення передано туди, тут лише історія */
   transferredTo?: string
-  thread?: ({ from?: string; text?: string; at?: string; photo?: string; mergedFrom?: number } & EditMeta)[]
+  thread?: ({ from?: string; text?: string; at?: string; photo?: string; mergedFrom?: number; delivery?: Delivery; deliveryError?: string } & EditMeta)[]
   notes?: Note[]
   removed?: Removed[]
   // лише для брони
@@ -861,7 +869,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   }
 
   /** Переписка й нотатки в одній стрічці за часом — нотатки просто виглядають геть інакше. */
-  type TimelineRow = { type: 'message' | 'note' | 'transfer' | 'removed'; idx?: number; photo?: string; mergedFrom?: number; xfer?: Transfer; rm?: Removed } & Note
+  type TimelineRow = { type: 'message' | 'note' | 'transfer' | 'removed'; idx?: number; photo?: string; mergedFrom?: number; xfer?: Transfer; rm?: Removed; delivery?: Delivery; deliveryError?: string } & Note
   function mergedTimeline(d: Detail): TimelineRow[] {
     const messages = (d.thread || []).map((m, idx) => ({ type: 'message' as const, idx, ...m }))
     const notes = (d.notes || []).map((n) => ({ type: 'note' as const, ...n }))
@@ -1474,7 +1482,19 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                                 ? (m.text === '[фото]' ? null : (m.text || '').replace(/\s*\[фото\]$/, ''))
                                 // старі повідомлення: фото лише пересилалось у Telegram, у заявці лишилась позначка
                                 : (m.text || '').replace(/\[фото\]/g, '📷 фото')}
-                              {m.at && <time>{fmtTime(m.at)}{editedMark(m)}</time>}
+                              {m.at && (
+                                <time>
+                                  {fmtTime(m.at)}{editedMark(m)}
+                                  {out && m.delivery && (
+                                    <span
+                                      className={`dw-dlv dw-dlv--${m.delivery}`}
+                                      title={m.delivery === 'failed' && m.deliveryError ? `Клієнт не отримав: ${m.deliveryError}` : DELIVERY[m.delivery].title}
+                                    >
+                                      {DELIVERY[m.delivery].mark}
+                                    </span>
+                                  )}
+                                </time>
+                              )}
                             </div>,
                             <Fragment key={`${i}-after`}>{msgAfter(m, ref, out ? 'out' : 'in')}</Fragment>,
                             ]

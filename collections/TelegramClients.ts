@@ -28,6 +28,9 @@ export const TelegramClients: CollectionConfig = {
     { name: 'name', type: 'text', label: 'Ім’я в Telegram', admin: { readOnly: true } },
     { name: 'linkedAt', type: 'date', label: 'Поділився номером',
       admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } } },
+    // Остання дія клієнта в боті — для ✓✓ «прочитано» на робочому столі (lib/botEvents.ts → touchClient)
+    { name: 'lastActionAt', type: 'date', label: 'Остання дія в боті',
+      admin: { readOnly: true, date: { pickerAppearance: 'dayAndTime' } } },
     { name: 'pendingIntent', type: 'text', label: 'Очікує після номера',
       admin: { readOnly: true, hidden: true } },
     { name: 'pendingLogin', type: 'text', label: 'Очікує токен входу',

@@ -72,19 +72,25 @@ export async function POST(req: Request) {
     try {
       const hint = clientText !== replyText
       const r = await send({ chat: clientChat, text: clientBody(replyText, hint) })
-      tg = { chat: clientChat, msg: r.message_id, copies: [], hint, label: copyLabel }
+      tg = { chat: clientChat, msg: r.message_id, via: 'telegram', copies: [], hint, label: copyLabel }
       deliveredVia = 'telegram'
     } catch (e) {
       deliveryNote = `Telegram: ${(e as Error).message || 'помилка'}`
+      tg = { via: 'none', error: deliveryNote }
     }
   } else if (kind === 'eval' && phone) {
     // SMS-резерв поки лише для заявок на оцінку — так само, як і в боті.
     try {
       await sendSms(phone, replyText)
       deliveredVia = 'sms'
+      tg = { via: 'sms' }
     } catch (e) {
       deliveryNote = (e as Error).message || 'помилка SMS'
+      tg = { via: 'none', error: `SMS: ${deliveryNote}` }
     }
+  } else {
+    // ✗ під повідомленням на робочому столі — щоб було видно, що клієнт його не отримав
+    tg = { via: 'none', error: 'клієнта немає в боті' }
   }
 
   const now = new Date().toISOString()
@@ -110,7 +116,7 @@ export async function POST(req: Request) {
     for (const chat of others.keys()) {
       // Підпис як на картці цього звернення: Reply на копію мусить знайти саме його
       const r = await send({ chat, text: copyBody(copyLabel, id, who, replyText) }).catch(() => null)
-      if (r && tg) tg.copies!.push({ chat, msgId: r.message_id })
+      if (r && tg?.msg) (tg.copies ||= []).push({ chat, msgId: r.message_id })
     }
     // Номери копій — щоб «Змінити»/«Видалити» дістали й їх
     if (tg?.copies?.length) await saveTgCopies(payload, collection, entryId, tg)

@@ -18,9 +18,13 @@ export const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000
 
 export type TgCopy = { chat: string; msgId: number }
 export type TgRef = {
-  /** чат і номер повідомлення в клієнта */
-  chat: string
-  msg: number
+  /** чат і номер повідомлення в клієнта (немає — пішло SMS чи не дійшло) */
+  chat?: string
+  msg?: number
+  /** як дійшло: Telegram, SMS чи ніяк — для ✓ / ✗ на робочому столі */
+  via?: 'telegram' | 'sms' | 'none'
+  /** чому не дійшло: «Forbidden: bot was blocked by the user», «клієнта немає в боті» */
+  error?: string
   /** копії у колег («Гаряча лінія №60 · Оксана відповів: …») */
   copies?: TgCopy[]
   /** до тексту дописано підказку «Хочете оцінити іншу річ…» — при зміні дописуємо так само */

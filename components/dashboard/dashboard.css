@@ -545,3 +545,13 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
 .dw-sheet-cancel { background: #fff; border: 1px solid var(--line); font-weight: 600; }
 /* на телефоні довге натискання відкриває меню, а не виділення тексту (скопіювати — пунктом меню) */
 @media (hover: none) { .dw-touchable { -webkit-user-select: none; user-select: none; } }
+
+/* ✓ доставлено / ✓✓ прочитано / ✗ не доставлено під нашою відповіддю */
+.dw-dlv { margin-left: 6px; font-weight: 700; letter-spacing: -1px; cursor: help; }
+.dw-dlv--read { opacity: 1; }
+.dw-dlv--sent { opacity: .85; }
+.dw-dlv--failed {
+  letter-spacing: 0; background: #fff; color: var(--late); border-radius: 6px; padding: 1px 6px; font-size: 10px; opacity: 1;
+}
+.dw-dlv--sms { letter-spacing: 0; border: 1px solid currentColor; border-radius: 5px; padding: 0 4px; font-size: 9.5px; }
+.dw-bubble.out time { opacity: .85; }

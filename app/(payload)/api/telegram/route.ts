@@ -4,7 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { answerCallback, esc, normalizePhone, resolveTemplate, send, sumFromText, token } from '@/lib/telegram.ts'
 import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
-import { logBotEvent } from '@/lib/botEvents.ts'
+import { logBotEvent, touchClient } from '@/lib/botEvents.ts'
 import {
   clientClosedConversation, currentEvalFor, isEmptyEval, isEmptyHotline, itemLabel, NEW_ITEM_HINT, statusAfterStaffReply, type EvalDoc,
 } from '@/lib/evalFlow.ts'
@@ -754,6 +754,12 @@ export async function POST(req: Request) {
     }
     return Response.json({ ok: true })
   }
+
+  // Будь-яка дія клієнта в особистому чаті — для ✓✓ «прочитано» під нашими відповідями
+  const privateChat = update.callback_query?.message?.chat.type === 'private'
+    ? String(update.callback_query.message.chat.id)
+    : update.message?.chat.type === 'private' ? String(update.message.chat.id) : ''
+  if (privateChat) await touchClient(payload, privateChat)
 
   // ── натиснута інлайн-кнопка («Історія», «Видалити») ──
   if (update.callback_query) {
@@ -1828,7 +1834,7 @@ async function relayAnswer(
   const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
   // Де ця відповідь у Telegram — щоб її можна було змінити чи видалити з робочого столу
-  const tg = clientMsgId ? { chat: clientChat, msg: clientMsgId, copies: staffCopies, hint: clientText !== text, label: 'Заявка' } : null
+  const tg = clientMsgId ? { chat: clientChat, msg: clientMsgId, via: 'telegram', copies: staffCopies, hint: clientText !== text, label: 'Заявка' } : null
   const authorId = await staffIdFor(payload, chat).catch(() => null)
 
   await payload.update({
@@ -1922,7 +1928,9 @@ async function relayHotlineAnswer(
   const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
   // Лише текст (фото змінити не можна); копії колегам — з тим самим підписом
-  const tg = clientMsgId && text ? { chat: clientChat, msg: clientMsgId, copies: staffCopies, hint: false, label } : null
+  const tg = clientMsgId && text
+    ? { chat: clientChat, msg: clientMsgId, via: 'telegram', copies: staffCopies, hint: false, label }
+    : !clientChat ? { via: 'none', error: 'клієнта немає в боті' } : null
   const authorId = await staffIdFor(payload, chat).catch(() => null)
   await payload.update({
     collection: 'hotline-chats', id, overrideAccess: true,

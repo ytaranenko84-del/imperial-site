@@ -164,7 +164,7 @@ export async function GET(req: Request) {
   const d = doc as Record<string, unknown>
   type ThreadRow = {
     id?: string; from?: string; text?: string; at?: string; photo?: number | null; mergedFrom?: number | null
-    authorId?: string | null; tg?: { msg?: number } | null; editedAt?: string | null; history?: { text?: string; at?: string; by?: string }[] | null
+    authorId?: string | null; tg?: { msg?: number; via?: string; error?: string } | null; editedAt?: string | null; history?: { text?: string; at?: string; by?: string }[] | null
   }
   const isAdmin = me.kind === 'admin'
   /*
@@ -188,6 +188,35 @@ export async function GET(req: Request) {
   const photoIds = kind === 'eval'
     ? Array.from(new Set([...(((d.photos as (string | number)[] | undefined) || []).map(String)), ...inThread]))
     : Array.from(inThread)
+
+  /*
+   * ✓ / ✓✓ / ✗ під нашими відповідями. Telegram не каже ботам, чи прочитано,
+   * тож ✓✓ ставимо, коли клієнт після нашої відповіді щось зробив: написав
+   * (у будь-яку заявку) або натиснув кнопку в боті — чат він точно відкривав.
+   */
+  const clientChat = String(d.clientChat || '')
+  const lastActionMs = clientChat
+    ? await payload.find({
+      collection: 'telegram-clients', where: { chatId: { equals: clientChat } }, limit: 1, depth: 0, overrideAccess: true, pagination: false,
+    }).then((r) => new Date(String((r.docs[0] as { lastActionAt?: string } | undefined)?.lastActionAt || 0)).getTime()).catch(() => 0)
+    : 0
+  const clientAfter: number[] = []
+  {
+    let latest = 0
+    for (let i = threadRows.length - 1; i >= 0; i--) {
+      clientAfter[i] = latest
+      if (threadRows[i].from === 'клієнт') latest = Math.max(latest, new Date(String(threadRows[i].at || 0)).getTime() || 0)
+    }
+  }
+  const deliveryOf = (t: ThreadRow, i: number): { delivery?: 'read' | 'sent' | 'failed' | 'sms'; deliveryError?: string } => {
+    if (!t.from || t.from === 'клієнт') return {}
+    if (t.tg?.via === 'sms') return { delivery: 'sms' }
+    if (t.tg?.via === 'none' || t.tg?.error) return { delivery: 'failed', deliveryError: t.tg?.error || '' }
+    const at = new Date(String(t.at || 0)).getTime() || 0
+    if (at && (clientAfter[i] > at || lastActionMs > at)) return { delivery: 'read' }
+    if (t.tg?.msg) return { delivery: 'sent' }
+    return {}
+  }
 
   const [assignedToName, photoUrls, related, client] = await Promise.all([
     d.assignedTo != null
@@ -235,9 +264,10 @@ export async function GET(req: Request) {
     // журнал передач між відділами й куди передано (якщо це вже закрите «джерело»)
     transfers: Array.isArray(d.transfers) ? d.transfers : [],
     transferredTo: String(d.transferredTo || ''),
-    thread: threadRows.map((t) => ({
+    thread: threadRows.map((t, i) => ({
       from: t.from, text: t.text, at: t.at,
       ...editMeta(t, false),
+      ...deliveryOf(t, i),
       ...(t.photo != null && photoUrls.get(String(t.photo)) ? { photo: photoUrls.get(String(t.photo)) } : {}),
       ...(t.mergedFrom != null ? { mergedFrom: t.mergedFrom } : {}),
     })),
