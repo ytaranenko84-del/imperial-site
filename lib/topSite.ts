@@ -69,35 +69,38 @@ const grn = (n: number) => Math.round(n).toLocaleString('uk-UA')
 export async function topConditionsText(): Promise<string> {
   const [rates, tiers, tariffs] = await Promise.all([
     getJson<{ docs: { rate: number; unit?: string }[] }>('/api/rate-tiers?limit=50&depth=0'),
-    getJson<{ docs: { discount?: number; publicName?: boolean }[] }>('/api/loyalty-tiers?limit=50&depth=0'),
+    getJson<{ docs: { name?: string; discount?: number; metalBonus?: number; publicName?: boolean }[] }>('/api/loyalty-tiers?limit=50&depth=0'),
     getJson<{ docs: { metal: string; purityLabel: string; basePrice: number; active?: boolean }[] }>(
       '/api/tariffs?limit=100&depth=0&sort=order',
     ),
   ])
   const percent = rates.docs.filter((r) => (r.unit || 'percent') === 'percent').map((r) => Number(r.rate))
   const from = percent.length ? Math.min(...percent) : null
-  const maxDiscount = Math.max(0, ...tiers.docs.filter((t) => t.publicName !== false).map((t) => Number(t.discount || 0)))
+  const pub = tiers.docs.filter((t) => t.publicName !== false)
+  const maxDiscount = Math.max(0, ...pub.map((t) => Number(t.discount || 0)))
+  // Ціни — «до»: максимум, зі статусом з найбільшою надбавкою («Діамантовий»), як на сайті ТОП
+  const best = pub.reduce<(typeof pub)[number] | null>((m, t) => (!m || Number(t.metalBonus || 0) > Number(m.metalBonus || 0) ? t : m), null)
+  const bonus = Number(best?.metalBonus || 0)
+  const upTo = (price: number) => Math.round(price * (1 + bonus / 100))
   const active = tariffs.docs.filter((t) => t.active !== false)
   const gold = active.filter((t) => t.metal === 'gold')
   const silver = active.filter((t) => t.metal === 'silver')
 
   const lines = ['<b>Умови застави в ломбарді «ТОП»</b>', '']
-  if (from != null) {
-    lines.push(`Ставка — від <b>${pct(from)}%</b> на день`
-      + (maxDiscount > 0 ? `, зі статусом — від <b>${pct(from * (1 - maxDiscount / 100))}%</b>.` : '.'))
-  }
+  // Ставка — лише «від»: найнижча зі знижкою статусу (0,5% × (1 − 22%) = 0,39%)
+  if (from != null) lines.push(`Ставка — від <b>${pct(from * (1 - maxDiscount / 100))}%</b> на день.`)
   lines.push('Строк — від 5 до 30 днів.')
   if (gold.length) {
     lines.push('', '<b>Золото</b>, ціна за грам під заставу:')
-    for (const t of gold) lines.push(`${t.purityLabel} проба — ${grn(t.basePrice)} грн`)
+    for (const t of gold) lines.push(`${t.purityLabel} проба — до ${grn(upTo(t.basePrice))} грн`)
   }
   if (silver.length) {
     const prices = [...new Set(silver.map((t) => t.basePrice))]
     lines.push('', prices.length === 1
-      ? `<b>Срібло</b> — ${grn(prices[0])} грн за грам.`
-      : `<b>Срібло</b>: ${silver.map((t) => `${t.purityLabel} — ${grn(t.basePrice)} грн`).join(', ')}.`)
+      ? `<b>Срібло</b> — до ${grn(upTo(prices[0]))} грн за грам.`
+      : `<b>Срібло</b>: ${silver.map((t) => `${t.purityLabel} — до ${grn(upTo(t.basePrice))} грн`).join(', ')}.`)
   }
-  lines.push('', 'Зі статусом ціна за грам вища. Точну суму порахує калькулятор:')
-  lines.push(`<a href="${topPublicUrl()}/zoloto">Калькулятор застави →</a>`)
+  lines.push('', best?.name ? `«До» — максимальна ціна, зі статусом «${best.name}». Свою суму порахує калькулятор:` : 'Свою суму порахує калькулятор:')
+  lines.push(`<a href="${topPublicUrl()}/tsina-zolota">Ціна золота й калькулятор →</a>`)
   return lines.join('\n')
 }
