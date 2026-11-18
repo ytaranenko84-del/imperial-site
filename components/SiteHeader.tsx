@@ -6,8 +6,8 @@ import PromoRibbon from '@/components/PromoRibbon'
 import TrackedLink from '@/components/TrackedLink.tsx'
 
 const NAV_LABELS = {
-  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини та акції', branches: 'Відділення', roundClock: 'Цілодобово · безкоштовно' },
-  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости и акции', branches: 'Отделения', roundClock: 'Круглосуточно · бесплатно' },
+  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', gold: 'Ціна золота', watches: 'Годинники', news: 'Новини та акції', branches: 'Відділення', roundClock: 'Цілодобово · безкоштовно' },
+  ru: { catalog: 'Что принимаем', calc: 'Оценка', gold: 'Цена золота', watches: 'Часы', news: 'Новости и акции', branches: 'Отделения', roundClock: 'Круглосуточно · бесплатно' },
 } satisfies Record<'uk' | 'ru', unknown>
 
 /** Шапка внутрішніх сторінок. Одна на всіх, щоб меню не розповзалося по копіях. */
@@ -29,6 +29,7 @@ export default function SiteHeader({
         items={[
           { href: '/zastava', label: n.catalog },
           { href: '/calc', label: n.calc },
+          { href: '/tsina-zolota', label: n.gold },
           { href: '/zastava/hodynnyky', label: n.watches },
           { href: '/novyny', label: n.news },
           { href: '/viddilennya', label: n.branches },

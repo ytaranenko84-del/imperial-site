@@ -1,0 +1,64 @@
+/* Сторінка «Ціна золота» — ескіз imperial-tsina-zolota-eskiz-v2 */
+
+.gp__h1 { font-size: var(--s3); letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 0.7rem; max-width: 22ch; text-wrap: balance; }
+.gp__lede { color: var(--dim); font-size: 1.08rem; max-width: 60ch; margin: 0 0 1rem; }
+.gp__date {
+  display: inline-block; background: var(--gold-soft); color: var(--gold);
+  border-radius: var(--pill); padding: 0.2rem 0.8rem; font-size: var(--s-1); font-weight: 600;
+}
+.gp__h2 { font-size: var(--s2); letter-spacing: -0.015em; margin: 0 0 0.4rem; }
+.gp__sub { color: var(--dim); margin: 0 0 1.3rem; max-width: 64ch; }
+.gp__text { max-width: 68ch; margin: 0; }
+
+.gp__hero { display: grid; gap: 1rem; margin: 1.6rem 0 2rem; }
+@media (min-width: 760px) { .gp__hero { grid-template-columns: 1.15fr 1fr; align-items: center; gap: 1.6rem; } }
+.gp__big { background: var(--gray-bg); border-radius: var(--r); padding: 1.2rem 1.4rem; }
+.gp__big-lbl { color: var(--dim); font-size: var(--s-1); }
+.gp__big-v { font-size: clamp(2.6rem, 1.8rem + 3vw, 3.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.gp__big-v small { font-size: 0.38em; font-weight: 600; color: var(--dim); letter-spacing: 0; }
+.gp__big-sub { margin: 0.35rem 0 0; font-size: var(--s-1); color: var(--dim); }
+.gp__big-sub b { color: var(--ink); }
+.gp__cta { display: flex; flex-direction: column; gap: 0.6rem; }
+.gp__cta .pill { text-align: center; }
+.gp__ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.gp__ghost:hover { background: var(--gray-bg); }
+
+.gp__scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.gp__t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.98rem; }
+.gp__t th {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); font-weight: 600;
+  text-align: right; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.gp__t td { text-align: right; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.gp__t th:first-child, .gp__t td:first-child { text-align: left; }
+.gp__t tr.is-main td { background: var(--gold-soft); font-weight: 700; }
+.gp__t tr.is-silver td:first-child { white-space: normal; }
+.gp__gold { color: var(--gold); font-weight: 600; }
+.gp__t--plain { max-width: 760px; }
+.sec--gray .gp__t td, .sec--gray .gp__t th { border-color: rgba(0, 0, 0, 0.08); }
+.gp__note { color: var(--dim); font-size: var(--s-1); margin: 0.6rem 0 0; }
+
+/* Повна таблиця — на широкому екрані, коротка «до» — на телефоні */
+.gp__short { display: none; }
+@media (max-width: 699px) {
+  .gp__full { display: none; }
+  .gp__short { display: block; }
+  .gp__t { font-size: 0.92rem; }
+  .gp__t th, .gp__t td { padding-inline: 0.45rem; }
+}
+
+.gp__vs { display: grid; gap: 1rem; }
+@media (min-width: 700px) { .gp__vs { grid-template-columns: 1fr 1fr; max-width: 900px; } }
+.gp__card { background: var(--surface); border-radius: var(--r); padding: 1.2rem 1.4rem; box-shadow: var(--shadow); }
+.gp__card h3 { margin: 0 0 0.2rem; font-size: var(--s1); }
+.gp__card p { margin: 0; color: var(--dim); }
+.gp__card-v { font-size: var(--s2); font-weight: 700; margin: 0.5rem 0 0.3rem; font-variant-numeric: tabular-nums; }
+.gp__card b { color: var(--ink); }
+
+.gp__cities { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.gp__cities a {
+  background: var(--gray-bg); border-radius: var(--pill); padding: 0.4rem 0.95rem;
+  color: var(--ink); text-decoration: none; font-size: 0.95rem;
+}
+.gp__cities a:hover { background: var(--gold-soft); }
+.gp__cities i { font-style: normal; color: var(--dim); }

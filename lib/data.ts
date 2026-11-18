@@ -9,6 +9,8 @@ export type Tariff = {
   basePrice: number
   purchasePrice: number | null
   note?: string | null
+  /** Дата прайсу, з якого взято цифри (поле «Затверджено» в адмінці). */
+  approvedAt?: string | null
 }
 
 export type RateTier = {
@@ -97,6 +99,7 @@ export async function getSiteData(locale: 'uk' | 'ru' = 'uk'): Promise<SiteData>
         basePrice: Number(d.basePrice),
         purchasePrice: d.purchasePrice != null ? Number(d.purchasePrice) : null,
         note: d.note ?? null,
+        approvedAt: (d.approvedAt as string | null | undefined) ?? null,
       })),
       rateTiers: rateTiers.docs.map((d) => ({
         amountFrom: Number(d.amountFrom),
