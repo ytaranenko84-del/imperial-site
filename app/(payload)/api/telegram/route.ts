@@ -483,10 +483,12 @@ async function confirmGoldPrice(
     return
   }
 
+  // Дата прайсу — сьогоднішня (за Києвом): її показує сторінка «Ціна золота»
+  const approvedAt = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Kyiv' })
   for (const r of rows) {
     await payload.update({
       collection: 'tariffs', id: r.id, overrideAccess: true,
-      data: { basePrice: r.newBase, purchasePrice: r.newBuyout },
+      data: { basePrice: r.newBase, purchasePrice: r.newBuyout, approvedAt },
     }).catch(() => {})
   }
 
