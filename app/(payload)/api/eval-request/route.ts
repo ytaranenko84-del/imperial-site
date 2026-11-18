@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { evalCard, mediaUrl, normalizePhone, recipientsFor, send, sendPhotos, token } from '@/lib/telegram.ts'
 import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
 import { notifyRecipients } from '@/lib/push.ts'
+import { requestNetwork, topBotUsername, type Network } from '@/lib/network.ts'
 import convertHeic from 'heic-convert'
 import libheif from 'libheif-js/wasm-bundle'
 
@@ -42,12 +43,12 @@ type PayloadInstance = Awaited<ReturnType<typeof getPayload>>
  * (годинник і телефон за 2 хвилини) злилися б в одну.
  */
 async function findRecentDuplicate(
-  payload: PayloadInstance, phone: string, category: string, brand: string, model: string,
+  payload: PayloadInstance, phone: string, category: string, brand: string, model: string, network: Network,
 ): Promise<Record<string, unknown> | null> {
   const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString()
   const { docs } = await payload.find({
     collection: 'eval-requests',
-    where: { and: [{ category: { equals: category } }, { createdAt: { greater_than: since } }] },
+    where: { and: [{ category: { equals: category } }, { createdAt: { greater_than: since } }, { network: { equals: network } }] },
     sort: '-createdAt',
     limit: 20,
     overrideAccess: true,
@@ -95,6 +96,10 @@ async function toUploadable(f: File): Promise<{ buffer: Buffer; name: string; mi
 }
 
 export async function POST(req: Request) {
+  // Сайт ТОП пересилає свої заявки сюди — на спільний робочий стіл
+  const network = requestNetwork(req)
+  if (network === 'forbidden') return Response.json({ error: 'Доступ заборонено' }, { status: 403 })
+
   let form: FormData
   try {
     form = await req.formData()
@@ -130,10 +135,13 @@ export async function POST(req: Request) {
   }
 
   const payload = await getPayload({ config })
-  const ip = clientIp(req)
-  const tooMany = await tooManyRequests(payload, 'eval-requests', { phone, ip }, { perPhone: 5, perIp: 10, perSite: 30 })
+  // Заявка з сайту ТОП приходить з його сервера: IP клієнта він передає сам (ключ уже перевірено),
+  // а ліміти рахуються окремо — щоб форми однієї мережі не вичерпували ліміт іншої
+  const ip = network === 'top' ? (req.headers.get('x-client-ip') || '').slice(0, 64) : clientIp(req)
+  const scope = network === 'top' ? 'eval-requests-top' : 'eval-requests'
+  const tooMany = await tooManyRequests(payload, scope, { phone, ip }, { perPhone: 5, perIp: 10, perSite: 30 })
   if (tooMany) return Response.json({ error: tooMany }, { status: 429 })
-  await recordHit(payload, 'eval-requests', { phone, ip })
+  await recordHit(payload, scope, { phone, ip })
 
   const files = form.getAll('photos').filter((f): f is File => f instanceof File && f.size > 0)
   if (files.length > MAX_FILES) {
@@ -174,7 +182,7 @@ export async function POST(req: Request) {
       if (doc.filename) urls.push(mediaUrl(String(doc.filename)))
     }
 
-    const dup = await findRecentDuplicate(payload, phone, category, brand, model)
+    const dup = await findRecentDuplicate(payload, phone, category, brand, model, network)
 
     let doc: Record<string, unknown>
     if (dup) {
@@ -213,6 +221,7 @@ export async function POST(req: Request) {
           comment: text(form.get('comment'), 2000),
           status: 'new',
           photos,
+          network,
           // ключ для посилання в Telegram: без нього чужу заявку не привласнити
           clientKey: randomBytes(16).toString('hex'),
         },
@@ -220,7 +229,7 @@ export async function POST(req: Request) {
     }
 
     // ── надсилання в Telegram — лише для справді нової заявки, не для дубля ──
-    if (!dup && token()) {
+    if (!dup && token('imperial')) {
       let sent = 'вимкнено: немає токена бота'
       const chats = await recipientsFor(payload, category)
       if (!chats.size) {
@@ -233,7 +242,7 @@ export async function POST(req: Request) {
         const problems: string[] = []
         for (const [chat, info] of chats) {
           try {
-            await send({ chat, text: card })
+            await send({ chat, text: card, bot: 'imperial' })
             okTo.push(info.title || chat)
           } catch (e) {
             payload.logger.error({ err: e, chat }, 'eval-request telegram')
@@ -242,7 +251,7 @@ export async function POST(req: Request) {
           }
           // світлини окремо: якщо альбом не пройшов, картка все одно дійшла
           try {
-            await sendPhotos(chat, urls)
+            await sendPhotos(chat, urls, 'imperial')
           } catch (e) {
             payload.logger.error({ err: e, chat }, 'eval-request photos')
             problems.push(`${info.title || chat}: ${(e as Error).message}`)
@@ -260,10 +269,13 @@ export async function POST(req: Request) {
       await payload.update({ collection: 'eval-requests', id: doc.id as string | number, data: { sent }, overrideAccess: true })
     }
 
-    const bot = await payload
-      .findGlobal({ slug: 'settings', overrideAccess: true })
-      .then((s) => String((s as { botUsername?: string }).botUsername || ''))
-      .catch(() => '')
+    // Клієнт ТОП вмикає відповіді в боті ТОП, клієнт Імперіалу — у своєму
+    const bot = network === 'top'
+      ? topBotUsername()
+      : await payload
+        .findGlobal({ slug: 'settings', overrideAccess: true })
+        .then((s) => String((s as { botUsername?: string }).botUsername || ''))
+        .catch(() => '')
 
     return Response.json({
       ok: true,

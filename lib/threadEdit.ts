@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import type { Payload } from 'payload'
 import { sql } from '@payloadcms/db-postgres'
 import { esc } from './telegram.ts'
+import { NETWORK, type Network } from './network.ts'
 import { NEW_ITEM_HINT } from './evalFlow.ts'
 
 /**
@@ -31,6 +32,8 @@ export type TgRef = {
   hint?: boolean
   /** «Заявка» / «Гаряча лінія» / «Відгук» — підпис копії */
   label?: string
+  /** яким ботом пішло клієнту (немає — Імперіал) */
+  bot?: Network
 }
 
 export type ThreadEntry = {
@@ -54,8 +57,8 @@ export function newEntryId(): string {
 }
 
 /** Текст повідомлення клієнту — той самий вигляд, що й при відправці. */
-export function clientBody(text: string, hint?: boolean): string {
-  return `<b>Ломбард «Імперіал»</b>\n${esc(hint ? `${text}\n\n${NEW_ITEM_HINT}` : text)}`
+export function clientBody(text: string, hint?: boolean, network: Network = 'imperial'): string {
+  return `<b>${NETWORK[network].brand}</b>\n${esc(hint ? `${text}\n\n${NEW_ITEM_HINT}` : text)}`
 }
 
 /** Текст копії колегам. */

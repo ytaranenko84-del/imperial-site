@@ -1,3 +1,5 @@
+import { smsSenderFor, type Network } from './network.ts'
+
 const API = 'https://api.turbosms.ua'
 
 export const smsConfigured = () => Boolean(process.env.TURBOSMS_API_KEY)
@@ -13,7 +15,7 @@ function toIntlPhone(phone: string): string {
  * що пішов би в Telegram, летить SMS-кою. Ключ і ім'я відправника — ті самі,
  * що вже використовує KeyCRM на цьому акаунті TurboSMS.
  */
-export async function sendSms(phone: string, text: string) {
+export async function sendSms(phone: string, text: string, network: Network = 'imperial') {
   const key = process.env.TURBOSMS_API_KEY || ''
   if (!key) throw new Error('немає ключа TurboSMS')
 
@@ -25,7 +27,8 @@ export async function sendSms(phone: string, text: string) {
     headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
     body: JSON.stringify({
       recipients: [recipient],
-      sms: { sender: process.env.TURBOSMS_SENDER || 'Imperial24', text },
+      // ім'я відправника — своє в кожної мережі («Imperial24» / «TOP Lombard»)
+      sms: { sender: smsSenderFor(network), text },
     }),
   })
   const json = await res.json().catch(() => ({})) as {

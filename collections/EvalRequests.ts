@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { networkField } from '../lib/network.ts'
 import { itemName } from '../lib/itemName.ts'
 import { lastClientActivity } from '../lib/activity.ts'
 
@@ -92,6 +93,7 @@ export const EvalRequests: CollectionConfig = {
     delete: ({ req }) => Boolean(req.user),
   },
   fields: [
+    networkField,
     { name: 'title', type: 'text', label: 'Річ', admin: { readOnly: true } },
     { name: 'source', type: 'select', label: 'Джерело', defaultValue: 'site',
       options: [{ label: 'Сайт', value: 'site' }, { label: 'Telegram-бот', value: 'bot' }],

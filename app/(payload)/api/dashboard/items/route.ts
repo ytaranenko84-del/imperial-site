@@ -23,6 +23,8 @@ type Item = {
   key: string
   kind: 'eval' | 'hotline' | 'booking'
   channel: Channel
+  /** Мережа: Імперіал чи ТОП — позначка й фільтр на робочому столі. */
+  network: 'imperial' | 'top'
   id: string | number
   title: string
   /** Звідки передали в цей відділ (порожньо — не передавали) і скільки передач усього. */
@@ -227,6 +229,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       key: `eval:${d.id}`,
       kind: 'eval',
       channel: 'eval',
+      network: d.network === 'top' ? 'top' : 'imperial',
       id: d.id as string | number,
       title: String(itemName(d.brand, d.model) || (d.title && d.title !== 'Без назви' ? d.title : '') || d.name || 'Заявка'),
       phone: String(d.phone || ''),
@@ -260,6 +263,7 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
       key: `hotline:${d.id}`,
       kind: 'hotline',
       channel: isReview ? 'review' : 'hotline',
+      network: d.network === 'top' ? 'top' : 'imperial',
       id: d.id as string | number,
       title: String(d.name || (isReview ? 'Відгук' : 'Гаряча лінія')),
       phone: String(d.phone || ''),
@@ -283,12 +287,14 @@ async function loadAllItems(payload: Awaited<ReturnType<typeof getPayload>>): Pr
 
   for (const raw of bookingRes.docs) {
     const d = raw as Record<string, unknown>
-    const branchAddress = d.branch != null ? branchAddr.get(String(d.branch)) : ''
+    // бронь ТОП — відділення з сайту ТОП, збережене текстом
+    const branchAddress = (d.branch != null ? branchAddr.get(String(d.branch)) : '') || String(d.branchLabel || '')
     const amount = Number(d.amount || 0).toLocaleString('uk-UA')
     items.push({
       key: `booking:${d.id}`,
       kind: 'booking',
       channel: 'booking',
+      network: d.network === 'top' ? 'top' : 'imperial',
       id: d.id as string | number,
       title: String(d.name || 'Бронь'),
       phone: String(d.phone || ''),

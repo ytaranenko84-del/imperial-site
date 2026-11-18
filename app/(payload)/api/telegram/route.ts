@@ -2,6 +2,10 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { answerCallback, esc, normalizePhone, resolveTemplate, send, sumFromText, token } from '@/lib/telegram.ts'
+import {
+  asNetwork, botContext, cardTag, currentNet, NETWORK, netWhere, topPublicUrl, webhookSecretFor, type Network,
+} from '@/lib/network.ts'
+import { topBranches, topConditionsText } from '@/lib/topSite.ts'
 import { distanceKm } from '@/lib/geo.ts'
 import { notifyRecipients } from '@/lib/push.ts'
 import { logBotEvent, touchClient } from '@/lib/botEvents.ts'
@@ -22,6 +26,10 @@ import { DEPT_LABEL, followTransfer } from '@/lib/transfer.ts'
  *   • відповідь на картку (Reply) — пересилає клієнтові й зберігає листування.
  *
  * Адреса приймання одна на бота, тож цей бот обслуговує лише сайт.
+ *
+ * Сюди ж приходить і бот ТОП (@topzajavka_bot) — адреса та сама з «?bot=top».
+ * Він лише для клієнтів: картки співробітникам і їхні відповіді йдуть, як і
+ * раніше, через бот Імперіалу, а клієнту ТОП відповідь іде його ботом.
  */
 
 export const dynamic = 'force-dynamic'
@@ -96,6 +104,7 @@ const BTN = {
   historyReview: '💬 Історія відгуків',
   historyBooking: '📋 Всі брони',
   back: '⬅️ Назад',
+  cabinet: '🔑 Особистий кабінет',
 } as const
 type Intent = keyof typeof BTN
 
@@ -107,6 +116,19 @@ const MENU_KEYBOARD = {
   ],
   resize_keyboard: true,
 }
+
+/** Меню бота ТОП: те саме, плюс вхід в «ТОП особистий кабінет» (перезалог, добор, оплата). */
+const TOP_MENU_KEYBOARD = {
+  keyboard: [...MENU_KEYBOARD.keyboard, [{ text: BTN.cabinet }]],
+  resize_keyboard: true,
+}
+
+/** Меню клієнта тієї мережі, в чиєму боті він пише. */
+const menuFor = (n: Network) => (n === 'top' ? TOP_MENU_KEYBOARD : MENU_KEYBOARD)
+const clientMenu = () => menuFor(currentNet())
+
+/** Бот особистого кабінету ТОП — окремий, його ми не чіпаємо. */
+const TOP_CABINET_BOT = process.env.TOP_CABINET_BOT || 'top_lombard_bot'
 
 /** Те саме меню, плюс службові кнопки — бачить лише зареєстрований адміністратор. */
 const ADMIN_MENU_KEYBOARD = {
@@ -167,6 +189,15 @@ const HELLO_NEW = [
   'Якщо ви <b>клієнт</b> — поділіться номером: запам’ятаю його один раз і більше не питатиму.',
 ].join('\n')
 
+/** Бот ТОП — лише для клієнтів: співробітники працюють через бот Імперіалу. */
+const HELLO_NEW_TOP = [
+  'Вітаємо в «ТОП» 👋',
+  '',
+  'Поділіться, будь ласка, номером телефону — запам’ятаю його один раз і більше не питатиму.',
+].join('\n')
+
+const helloNew = () => (currentNet() === 'top' ? HELLO_NEW_TOP : HELLO_NEW)
+
 const HELLO_KNOWN = 'Раді бачити знову! Оберіть, будь ласка, що вас цікавить 👇'
 
 /** Текст повідомлення незалежно від того, підпис це під фото чи звичайний текст. */
@@ -204,7 +235,8 @@ function commandFrom(text?: string): string | null {
 function matchIntent(text?: string): Intent | null {
   const t = (text || '').trim()
   for (const [key, label] of Object.entries(BTN)) {
-    if (t === label) return key as Intent
+    // кнопка кабінету є лише в меню ТОП
+    if (t === label && (key !== 'cabinet' || currentNet() === 'top')) return key as Intent
   }
   const cmd = commandFrom(text)
   if (cmd === 'bron') return 'bron'
@@ -283,7 +315,7 @@ async function sendTemplatesList(payload: Awaited<ReturnType<typeof getPayload>>
 async function closeOpenHotline(payload: Awaited<ReturnType<typeof getPayload>>, chat: string) {
   const { docs } = await payload.find({
     collection: 'hotline-chats', limit: 5, depth: 0, overrideAccess: true,
-    where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
+    where: { clientChat: { equals: chat }, status: { not_equals: 'done' }, ...netWhere(currentNet()) },
   })
   for (const d of docs) {
     await payload.update({
@@ -294,6 +326,9 @@ async function closeOpenHotline(payload: Awaited<ReturnType<typeof getPayload>>,
 
 /** Чи це чат зареєстрованого співробітника (адмін, оцінювач, гаряча лінія). */
 async function isRecipientChat(payload: Awaited<ReturnType<typeof getPayload>>, chat: string): Promise<boolean> {
+  // Бот ТОП — лише клієнтський: співробітник, що пише туди, для нього звичайний клієнт
+  // (номер чату той самий, що й у боті Імперіалу, тож без цього його б «впізнало»).
+  if (currentNet() === 'top') return false
   const { docs } = await payload.find({
     collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
     where: { chatId: { equals: chat }, active: { equals: true } },
@@ -303,6 +338,7 @@ async function isRecipientChat(payload: Awaited<ReturnType<typeof getPayload>>, 
 
 /** Чи це чат саме адміністратора — керування ціною на золото бачить лише він. */
 async function isAdminChat(payload: Awaited<ReturnType<typeof getPayload>>, chat: string): Promise<boolean> {
+  if (currentNet() === 'top') return false
   const { docs } = await payload.find({
     collection: 'recipients', limit: 1, depth: 0, overrideAccess: true,
     where: { chatId: { equals: chat }, active: { equals: true }, kind: { equals: 'admin' } },
@@ -514,7 +550,7 @@ async function historyEvalText(payload: Awaited<ReturnType<typeof getPayload>>):
     const cat = EVAL_CATEGORY_LABEL[String(d.category)] || String(d.category || '')
     const status = EVAL_STATUS_LABEL[String(d.status)] || String(d.status || '')
     const sum = Number(d.estimate || 0)
-    return `№${d.id} · ${shortWhen(d.createdAt)} · ${esc(cat)} · ${esc(d.name || '')} · ${status}`
+    return `${cardTag(asNetwork(d.network))}№${d.id} · ${shortWhen(d.createdAt)} · ${esc(cat)} · ${esc(d.name || '')} · ${status}`
       + (sum > 0 ? ` · ${sum.toLocaleString('uk-UA')} грн` : '')
   })
   return {
@@ -538,7 +574,7 @@ async function hotlineHistoryText(
   if (!docs.length) return { text: emptyText, buttons: [] }
   const lines = docs.map((d) => {
     const status = HOTLINE_STATUS_LABEL[String(d.status)] || String(d.status || '')
-    return `№${d.id} · ${shortWhen(d.createdAt)} · ${esc(d.name || '')} · ${status}`
+    return `${cardTag(asNetwork(d.network))}№${d.id} · ${shortWhen(d.createdAt)} · ${esc(d.name || '')} · ${status}`
   })
   return {
     text: `<b>${esc(title)}:</b>\n\n${lines.join('\n')}\n\nПовна переписка — за кнопкою нижче:`,
@@ -654,7 +690,7 @@ async function handleDeleteCallback(
   const doc = await payload.findByID({ collection, id, depth: 0, overrideAccess: true }).catch(() => null)
   const lastReply = (doc as {
     lastReply?: {
-      clientChat?: string; clientMsgId?: number; staffCopies?: { chat: string; msgId: number }[]; key?: string
+      clientChat?: string; clientMsgId?: number; staffCopies?: { chat: string; msgId: number }[]; key?: string; bot?: string
     } | null
   } | null)?.lastReply
 
@@ -674,7 +710,7 @@ async function handleDeleteCallback(
 
   const { deleteMessage } = await import('@/lib/telegram.ts')
   if (lastReply.clientChat) {
-    await deleteMessage(lastReply.clientChat, lastReply.clientMsgId).catch(() => {})
+    await deleteMessage(lastReply.clientChat, lastReply.clientMsgId, asNetwork(lastReply.bot)).catch(() => {})
   }
   for (const c of lastReply.staffCopies || []) {
     await deleteMessage(c.chat, c.msgId).catch(() => {})
@@ -704,9 +740,9 @@ async function historyBookingText(payload: Awaited<ReturnType<typeof getPayload>
   const lines = docs.map((d) => {
     const status = BOOKING_STATUS_LABEL[String(d.status)] || String(d.status || '')
     const br = d.branch as { displayAddress?: string; address?: string } | null
-    const addr = br?.displayAddress || br?.address || ''
+    const addr = br?.displayAddress || br?.address || String(d.branchLabel || '')
     const sum = Number(d.amount || 0)
-    return `№${d.id} · ${shortWhen(d.createdAt)} · ${sum.toLocaleString('uk-UA')} грн`
+    return `${cardTag(asNetwork(d.network))}№${d.id} · ${shortWhen(d.createdAt)} · ${sum.toLocaleString('uk-UA')} грн`
       + (addr ? ` · ${esc(addr)}` : '') + ` · ${status}`
   })
   return `<b>Останні брони:</b>\n\n${lines.join('\n')}`
@@ -722,7 +758,13 @@ function sameSecret(a: string, b: string) {
 }
 
 export async function POST(req: Request) {
-  if (!token()) return Response.json({ ok: true })
+  // Бот ТОП приходить на ту саму адресу з «?bot=top» і своїм умовним словом
+  const net: Network = new URL(req.url).searchParams.get('bot') === 'top' ? 'top' : 'imperial'
+  return botContext.run(net, () => handleUpdate(req, net))
+}
+
+async function handleUpdate(req: Request, net: Network) {
+  if (!token(net)) return Response.json({ ok: true })
 
   /**
    * Адреса приймання відкрита всьому інтернету, тож без перевірки будь-хто
@@ -730,7 +772,7 @@ export async function POST(req: Request) {
    * або змусити бота написати клієнтові. Telegram додає до кожного запиту
    * умовне слово, яке ми задали разом із адресою.
    */
-  const expected = process.env.TELEGRAM_WEBHOOK_SECRET || ''
+  const expected = webhookSecretFor(net)
   const given = req.headers.get('x-telegram-bot-api-secret-token') || ''
   if (!expected || !sameSecret(given, expected)) {
     return Response.json({ ok: false }, { status: 401 })
@@ -745,8 +787,9 @@ export async function POST(req: Request) {
 
   const payload = await getPayload({ config })
 
-  // ── бота додали в групу або прибрали з неї ──
+  // ── бота додали в групу або прибрали з неї (група оцінок — лише бот Імперіалу) ──
   if (update.my_chat_member) {
+    if (net === 'top') return Response.json({ ok: true })
     try {
       await handleGroupMembership(payload, update.my_chat_member)
     } catch (e) {
@@ -759,13 +802,16 @@ export async function POST(req: Request) {
   const privateChat = update.callback_query?.message?.chat.type === 'private'
     ? String(update.callback_query.message.chat.id)
     : update.message?.chat.type === 'private' ? String(update.message.chat.id) : ''
-  if (privateChat) await touchClient(payload, privateChat)
+  if (privateChat) await touchClient(payload, privateChat, net)
 
   // ── натиснута інлайн-кнопка («Історія», «Видалити») ──
   if (update.callback_query) {
     try {
       const cqData = update.callback_query.data || ''
-      if (cqData.startsWith('del:')) {
+      if (net === 'top' && !/^ev(s|n|ps|pn):/.test(cqData)) {
+        // у боті ТОП лише кнопки клієнта «Та сама / Інша річ»
+        await answerCallback(update.callback_query.id)
+      } else if (cqData.startsWith('del:')) {
         await handleDeleteCallback(payload, update.callback_query)
       } else if (/^ev(s|n|ps|pn):/.test(cqData)) {
         await handleItemChoice(payload, update.callback_query)
@@ -812,7 +858,7 @@ export async function POST(req: Request) {
        * чи особистий номер, міг би «перехопити» чуже відділення чи роль.
        */
       if (msg.contact.user_id && msg.contact.user_id === msg.from?.id) {
-        await handleContact(payload, chatKey, msg.contact.phone_number, msg.from)
+        await handleContact(payload, chatKey, msg.contact.phone_number, msg.from, net)
       } else {
         await send({
           chat: chatKey,
@@ -826,7 +872,7 @@ export async function POST(req: Request) {
 
     // ── поділився геолокацією: підказуємо найближче відділення ──
     if (msg.location) {
-      await nearestBranch(payload, msg.location, chatKey)
+      await nearestBranch(payload, msg.location, chatKey, net)
       return Response.json({ ok: true })
     }
 
@@ -844,7 +890,7 @@ export async function POST(req: Request) {
       const arg = msg.text.split(' ')[1] || ''
 
       const loginMatch = /^login_([A-Za-z0-9]{8,64})$/.exec(arg)
-      if (loginMatch) {
+      if (loginMatch && net === 'imperial') {
         await handleLoginStart(payload, chatKey, loginMatch[1])
         return Response.json({ ok: true })
       }
@@ -853,9 +899,11 @@ export async function POST(req: Request) {
 
       if (m) {
         const [, id, key] = m
-        const doc = await payload.findByID({
+        const found = await payload.findByID({
           collection: 'eval-requests', id, depth: 0, overrideAccess: true,
         }).catch(() => null)
+        // посилання з «Дякуємо» сайту ТОП веде в бот ТОП — заявку Імперіалу ним не взяти, і навпаки
+        const doc = found && asNetwork((found as { network?: string }).network) === net ? found : null
 
         // ключ із посилання має збігтися, і заявку ще не мають бути прив'язані
         const stored = String((doc as { clientKey?: string } | null)?.clientKey || '')
@@ -882,17 +930,18 @@ export async function POST(req: Request) {
             for (const target of chats.keys()) {
               await send({
                 chat: target,
-                text: `<b>Заявка №${id}</b> · клієнт приєднався до бота. Тепер можна відповідати тут напряму.`,
+                bot: 'imperial',
+                text: `${cardTag(net)}<b>Заявка №${id}</b> · клієнт приєднався до бота. Тепер можна відповідати тут напряму.`,
               }).catch(() => {})
             }
           }
           await send({
             chat: chatKey,
             text: `Ваша заявка №${id} прийнята. Надсилайте сюди фото й уточнення — додамо до неї. Відповідь оцінювача прийде сюди.`,
-            replyMarkup: MENU_KEYBOARD,
+            replyMarkup: clientMenu(),
           })
         } else {
-          await send({ chat: chatKey, text: 'Посилання застаріло. Зателефонуйте нам, будь ласка.', replyMarkup: MENU_KEYBOARD })
+          await send({ chat: chatKey, text: 'Посилання застаріло. Зателефонуйте нам, будь ласка.', replyMarkup: clientMenu() })
         }
         return Response.json({ ok: true })
       }
@@ -903,7 +952,7 @@ export async function POST(req: Request) {
       if (known) {
         await send({ chat: chatKey, text: await helloKnown(payload, known), replyMarkup: menu })
       } else {
-        await send({ chat: chatKey, text: HELLO_NEW, replyMarkup: CONTACT_KEYBOARD })
+        await send({ chat: chatKey, text: helloNew(), replyMarkup: CONTACT_KEYBOARD })
       }
       return Response.json({ ok: true })
     }
@@ -923,7 +972,8 @@ export async function POST(req: Request) {
     }
 
     // ── відповідь на картку (Reply) → клієнтові ──
-    if (msg.reply_to_message && (msg.text || msg.caption || msg.photo)) {
+    // У боті ТОП Reply робить лише клієнт (на повідомлення бота) — це звичайне повідомлення
+    if (net === 'imperial' && msg.reply_to_message && (msg.text || msg.caption || msg.photo)) {
       await redirectTransferredReply(payload, msg, chatKey)
       const goldProposal = goldPriceProposalFrom(msg.reply_to_message.text)
       if (goldProposal != null) {
@@ -971,7 +1021,7 @@ export async function POST(req: Request) {
 async function findTelegramClient(payload: Awaited<ReturnType<typeof getPayload>>, chat: string) {
   const { docs } = await payload.find({
     collection: 'telegram-clients', limit: 1, depth: 0, overrideAccess: true,
-    where: { chatId: { equals: chat } },
+    where: { chatId: { equals: chat }, ...netWhere(currentNet()) },
   })
   return docs[0] as { id: string | number; phone?: string; pendingIntent?: string; pendingLogin?: string } | undefined
 }
@@ -988,7 +1038,7 @@ async function saveKnownPhone(
   name: string,
 ) {
   const doc = await findTelegramClient(payload, chat)
-  const data = { chatId: chat, phone, name, linkedAt: new Date().toISOString() }
+  const data = { chatId: chat, phone, name, linkedAt: new Date().toISOString(), network: currentNet() }
   if (doc) {
     await payload.update({ collection: 'telegram-clients', id: doc.id, overrideAccess: true, data })
   } else {
@@ -1001,7 +1051,7 @@ async function setPendingIntent(payload: Awaited<ReturnType<typeof getPayload>>,
   if (doc) {
     await payload.update({ collection: 'telegram-clients', id: doc.id, overrideAccess: true, data: { pendingIntent: intent } })
   } else {
-    await payload.create({ collection: 'telegram-clients', overrideAccess: true, data: { chatId: chat, pendingIntent: intent } })
+    await payload.create({ collection: 'telegram-clients', overrideAccess: true, data: { chatId: chat, pendingIntent: intent, network: currentNet() } })
   }
 }
 
@@ -1148,8 +1198,11 @@ async function handleLoginConfirm(payload: Awaited<ReturnType<typeof getPayload>
 
 // ────────────────────────── кнопки меню ──────────────────────────
 
+/** «ломбарду «Імперіал»» / «ломбарду «ТОП»» — у текстах бота тієї мережі, де пише клієнт. */
+const brandOf = () => `«${NETWORK[currentNet()].label}»`
+
 const PHONE_PROMPT: Record<Intent, string> = {
-  hotline: 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Щоб оператор зміг вам відповісти, '
+  hotline: 'Добрий день! Це гаряча лінія ломбарду {brand}. Щоб оператор зміг вам відповісти, '
     + 'поділіться, будь ласка, номером телефону:',
   otsinka: 'Щоб оформити заявку на оцінку, спершу поділіться, будь ласка, номером телефону:',
   bron: 'Щоб показати ваші активні брони, поділіться, будь ласка, номером телефону:',
@@ -1163,6 +1216,7 @@ const PHONE_PROMPT: Record<Intent, string> = {
   historyReview: '', // лише для адміна, без телефону
   historyBooking: '', // лише для адміна, без телефону
   back: '', // лише для адміна, без телефону
+  cabinet: '', // посилання на інший бот, телефон не потрібен
 }
 
 async function handleIntent(
@@ -1181,10 +1235,21 @@ async function handleIntent(
   }
 
   if (intent === 'umovy') {
+    // ТОП: ставки, строк і ціни — з адмінки сайту ТОП. Імперіал — як і було, поки готується.
+    const topText = currentNet() === 'top' ? await topConditionsText().catch(() => null) : null
     await send({
       chat,
-      text: 'Ця функція ще готується. Актуальні умови — на сайті або запитайте на гарячій лінії ☎️',
-      replyMarkup: MENU_KEYBOARD,
+      text: topText || 'Ця функція ще готується. Актуальні умови — на сайті або запитайте на гарячій лінії ☎️',
+      replyMarkup: clientMenu(),
+    })
+    return
+  }
+
+  if (intent === 'cabinet') {
+    await send({
+      chat,
+      text: 'Перезалог, добор на карту, оплата й ваш бонусний рахунок — в окремому боті «ТОП особистий кабінет»:',
+      replyMarkup: { inline_keyboard: [[{ text: '🔑 Відкрити особистий кабінет', url: `https://t.me/${TOP_CABINET_BOT}` }]] },
     })
     return
   }
@@ -1242,7 +1307,7 @@ async function handleIntent(
   const known = await getKnownPhone(payload, chat)
   if (!known) {
     await setPendingIntent(payload, chat, intent)
-    await send({ chat, text: PHONE_PROMPT[intent], replyMarkup: CONTACT_KEYBOARD })
+    await send({ chat, text: PHONE_PROMPT[intent].replace('{brand}', brandOf()), replyMarkup: CONTACT_KEYBOARD })
     return
   }
 
@@ -1262,12 +1327,12 @@ async function startIntent(
   }
   if (intent === 'hotline') {
     const { reused } = await openHotlineDraft(payload, chat, displayName(from), phone, 'hotline')
-    await send({ chat, text: reused ? CONTINUE_HINT : 'Добрий день! Це гаряча лінія ломбарду «Імперіал». Чим можемо допомогти?', replyMarkup: MENU_KEYBOARD })
+    await send({ chat, text: reused ? CONTINUE_HINT : `Добрий день! Це гаряча лінія ломбарду ${brandOf()}. Чим можемо допомогти?`, replyMarkup: clientMenu() })
     return
   }
   if (intent === 'review') {
     const { reused } = await openHotlineDraft(payload, chat, displayName(from), phone, 'review')
-    await send({ chat, text: reused ? CONTINUE_HINT : REVIEW_GREETING, replyMarkup: MENU_KEYBOARD })
+    await send({ chat, text: reused ? CONTINUE_HINT : REVIEW_GREETING, replyMarkup: clientMenu() })
     return
   }
   if (intent === 'otsinka') {
@@ -1279,9 +1344,9 @@ async function startIntent(
      * порожні заявки (третина всіх). Тепер: є свіжа заявка — питаємо, про ту
      * саму річ чи про іншу; порожня чернетка вже є — просто ще раз підказка.
      */
-    const current = await currentEvalFor(payload, chat)
+    const current = await currentEvalFor(payload, chat, currentNet())
     if (current && isEmptyEval(current)) {
-      await send({ chat, text: OTSINKA_GUIDE, replyMarkup: MENU_KEYBOARD })
+      await send({ chat, text: OTSINKA_GUIDE, replyMarkup: clientMenu() })
       return
     }
     if (current) {
@@ -1296,7 +1361,7 @@ async function startIntent(
       return
     }
     await createEvalDraft(payload, chat, displayName(from), phone)
-    await send({ chat, text: OTSINKA_GUIDE, replyMarkup: MENU_KEYBOARD })
+    await send({ chat, text: OTSINKA_GUIDE, replyMarkup: clientMenu() })
   }
 }
 
@@ -1322,7 +1387,7 @@ async function openHotlineDraft(
 ): Promise<{ reused: boolean }> {
   const { docs } = await payload.find({
     collection: 'hotline-chats', limit: 10, depth: 0, overrideAccess: true, pagination: false, sort: '-updatedAt',
-    where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
+    where: { clientChat: { equals: chat }, status: { not_equals: 'done' }, ...netWhere(currentNet()) },
   })
   const since = Date.now() - HOTLINE_SAME_CONVERSATION_MS
   const ongoing = (docs as Record<string, unknown>[]).find((d) => (d.kind || 'hotline') === kind
@@ -1342,7 +1407,7 @@ async function openHotlineDraft(
   }
   await payload.create({
     collection: 'hotline-chats', overrideAccess: true,
-    data: { clientChat: chat, name, phone, status: 'new', kind },
+    data: { clientChat: chat, name, phone, status: 'new', kind, network: currentNet() },
   })
   return { reused: false }
 }
@@ -1356,7 +1421,7 @@ async function createEvalDraft(payload: Awaited<ReturnType<typeof getPayload>>, 
     collection: 'eval-requests', overrideAccess: true,
     data: {
       category: 'other', source: 'bot', clientChat: chat,
-      name, phone, status: 'new', comment: '', photos: [],
+      name, phone, status: 'new', comment: '', photos: [], network: currentNet(),
     },
   })
 }
@@ -1373,7 +1438,7 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
   const [kind, idStr, photoFromStr, threadFromStr] = (cq.data || '').split(':')
   const doc = await payload.findByID({ collection: 'eval-requests', id: idStr, depth: 0, overrideAccess: true })
     .catch(() => null) as EvalDoc | null
-  if (!doc || String(doc.clientChat || '') !== chat) {
+  if (!doc || String(doc.clientChat || '') !== chat || asNetwork((doc as { network?: string }).network) !== currentNet()) {
     await answerCallback(cq.id, 'Заявка вже недоступна')
     return
   }
@@ -1385,15 +1450,15 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
       text: kind === 'evs'
         ? `Добре — надсилайте, додамо до заявки <b>№${doc.id}</b>.`
         : `Добре, це до заявки <b>№${doc.id}</b>.`,
-      replyMarkup: MENU_KEYBOARD,
+      replyMarkup: clientMenu(),
     })
     return
   }
 
   if (kind === 'evn') {
-    const current = await currentEvalFor(payload, chat)
+    const current = await currentEvalFor(payload, chat, currentNet())
     if (!current || !isEmptyEval(current)) await createEvalDraft(payload, chat, String(doc.name || 'клієнт'), String(doc.phone || ''))
-    await send({ chat, text: 'Добре, це нова річ. Опишіть її й надішліть фото — створимо окрему заявку.', replyMarkup: MENU_KEYBOARD })
+    await send({ chat, text: 'Добре, це нова річ. Опишіть її й надішліть фото — створимо окрему заявку.', replyMarkup: clientMenu() })
     return
   }
 
@@ -1405,7 +1470,7 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
   const movedPhotos = photos.slice(photoFrom)
   const movedEntries = thread.slice(threadFrom).filter((t) => t.from === 'клієнт')
   if (!movedPhotos.length && !movedEntries.length) {
-    await send({ chat, text: 'Добре, це нова річ. Опишіть її й надішліть фото — створимо окрему заявку.', replyMarkup: MENU_KEYBOARD })
+    await send({ chat, text: 'Добре, це нова річ. Опишіть її й надішліть фото — створимо окрему заявку.', replyMarkup: clientMenu() })
     await createEvalDraft(payload, chat, String(doc.name || 'клієнт'), String(doc.phone || ''))
     return
   }
@@ -1426,10 +1491,10 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
     collection: 'eval-requests', overrideAccess: true,
     data: {
       category: 'other', source: 'bot', clientChat: chat, name: String(doc.name || 'клієнт'), phone: String(doc.phone || ''),
-      status: 'new', comment: movedText, photos: movedPhotos,
+      status: 'new', comment: movedText, photos: movedPhotos, network: currentNet(),
     },
   })
-  await send({ chat, text: `Створили окрему заявку <b>№${created.id}</b> для нової речі — оцінювач скоро відповість.`, replyMarkup: MENU_KEYBOARD })
+  await send({ chat, text: `Створили окрему заявку <b>№${created.id}</b> для нової речі — оцінювач скоро відповість.`, replyMarkup: clientMenu() })
 
   const { recipientsFor, evalCard, mediaUrl, sendPhotos } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, 'other')
@@ -1437,7 +1502,7 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
   const cardDoc = { ...(created as Record<string, unknown>) }
   if (onix.fullName) cardDoc.name = onix.fullName
   for (const target of chats.keys()) {
-    await send({ chat: target, text: evalCard(cardDoc, { clientInBot: true, clientLine: onix.line }) }).catch(() => {})
+    await send({ chat: target, bot: 'imperial', text: evalCard(cardDoc, { clientInBot: true, clientLine: onix.line }) }).catch(() => {})
   }
   await notifyRecipients(payload, chats, { title: 'Нова заявка на оцінку', body: movedText || `Окрема річ із заявки №${doc.id}` })
   if (movedPhotos.length) {
@@ -1445,7 +1510,7 @@ async function handleItemChoice(payload: Awaited<ReturnType<typeof getPayload>>,
       collection: 'media', where: { id: { in: movedPhotos } }, limit: movedPhotos.length, depth: 0, overrideAccess: true, pagination: false,
     })
     const urls = media.docs.map((m) => String((m as unknown as { filename?: string }).filename || '')).filter(Boolean).map(mediaUrl)
-    for (const target of chats.keys()) await sendPhotos(target, urls).catch(() => {})
+    for (const target of chats.keys()) await sendPhotos(target, urls, 'imperial').catch(() => {})
   }
 }
 
@@ -1453,6 +1518,7 @@ async function showBookings(payload: Awaited<ReturnType<typeof getPayload>>, cha
   const digits = normalizePhone(phone)
   const { docs: bookings } = await payload.find({
     collection: 'bookings', limit: 200, depth: 1, overrideAccess: true, sort: '-createdAt',
+    where: netWhere(currentNet()),
   })
   const now = Date.now()
   const mine = bookings.filter((b) => {
@@ -1461,21 +1527,21 @@ async function showBookings(payload: Awaited<ReturnType<typeof getPayload>>, cha
   })
 
   if (!mine.length) {
-    await send({ chat, text: 'Активних бронь на цей номер не знайшли.', replyMarkup: MENU_KEYBOARD })
+    await send({ chat, text: 'Активних бронь на цей номер не знайшли.', replyMarkup: clientMenu() })
     return
   }
 
   const lines = mine.slice(0, 5).map((b) => {
-    const bb = b as { amount?: number; expiresAt?: string; branch?: unknown }
+    const bb = b as { amount?: number; expiresAt?: string; branch?: unknown; branchLabel?: string }
     const br = bb.branch as { displayAddress?: string; address?: string } | null
-    const addr = br?.displayAddress || br?.address || ''
+    const addr = br?.displayAddress || br?.address || bb.branchLabel || ''
     const till = bb.expiresAt
       ? new Date(bb.expiresAt).toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
       : ''
     return `• <b>${Number(bb.amount || 0).toLocaleString('uk-UA')} грн</b>${addr ? ` · ${esc(addr)}` : ''}`
       + `${till ? `\n  діє до ${till}` : ''}`
   })
-  await send({ chat, text: `<b>Ваші активні брони:</b>\n\n${lines.join('\n\n')}`, replyMarkup: MENU_KEYBOARD })
+  await send({ chat, text: `<b>Ваші активні брони:</b>\n\n${lines.join('\n\n')}`, replyMarkup: clientMenu() })
 }
 
 /** Найближче активне відділення за геолокацією клієнта, з маршрутом. */
@@ -1483,20 +1549,24 @@ async function nearestBranch(
   payload: Awaited<ReturnType<typeof getPayload>>,
   loc: { latitude: number; longitude: number },
   chat: string,
+  net: Network,
 ) {
-  const { docs } = await payload.find({
-    collection: 'branches', limit: 300, depth: 0, overrideAccess: true,
-    where: { active: { equals: true } },
-  })
   type B = { id: string; address: string; displayAddress?: string; phone?: string; paused?: boolean
     pauseReason?: string; coords?: { lat?: number; lng?: number }
     schedule?: { roundClock?: boolean; openTime?: string; closeTime?: string } }
-  const withCoords = (docs as B[]).filter(
+  // Відділення ТОП — з адмінки сайту ТОП, Імперіалу — з цієї бази
+  const docs: B[] = net === 'top'
+    ? await topBranches().catch(() => [])
+    : (await payload.find({
+      collection: 'branches', limit: 300, depth: 0, overrideAccess: true,
+      where: { active: { equals: true } },
+    })).docs as unknown as B[]
+  const withCoords = docs.filter(
     (b) => typeof b.coords?.lat === 'number' && typeof b.coords?.lng === 'number',
   )
 
   if (!withCoords.length) {
-    await send({ chat, text: 'Не вдалось підібрати відділення. Зателефонуйте нам, будь ласка.', replyMarkup: MENU_KEYBOARD })
+    await send({ chat, text: 'Не вдалось підібрати відділення. Зателефонуйте нам, будь ласка.', replyMarkup: clientMenu() })
     return
   }
 
@@ -1521,7 +1591,7 @@ async function nearestBranch(
       + `<b>${esc(best.displayAddress || best.address)}</b>\n`
       + `Графік: ${esc(hours)}${best.phone ? `\nТелефон: ${esc(best.phone)}` : ''}${pausedNote}\n\n`
       + `<a href="${esc(route)}">Маршрут →</a>`,
-    replyMarkup: MENU_KEYBOARD,
+    replyMarkup: clientMenu(),
   })
 }
 
@@ -1539,13 +1609,20 @@ async function handleContact(
   payload: Awaited<ReturnType<typeof getPayload>>,
   chat: string,
   phone: string,
-  from?: TgUser,
+  from: TgUser | undefined,
+  net: Network,
 ) {
   const digits = normalizePhone(phone)
   const who = displayName(from, '')
 
   await logBotEvent(payload, chat, 'contact_shared')
   await saveKnownPhone(payload, chat, phone, who)
+
+  // Бот ТОП робочі номери не звіряє: відділення й співробітники підключаються лише в боті Імперіалу
+  if (net === 'top') {
+    await finishClientContact(payload, chat, phone, digits, from)
+    return
+  }
 
   const branches = await payload.find({
     collection: 'branches', limit: 300, depth: 0, overrideAccess: true,
@@ -1608,6 +1685,17 @@ async function handleContact(
    * сторінки «Дякуємо» — знаходимо його свіжу заявку з сайту за номером,
    * щойно Telegram підтвердив, що номер саме його.
    */
+  await finishClientContact(payload, chat, phone, digits, from)
+}
+
+/** Клієнт підтвердив номер: привʼязуємо його заявки з сайту й продовжуємо те, що він натискав. */
+async function finishClientContact(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  chat: string,
+  phone: string,
+  digits: string,
+  from: TgUser | undefined,
+) {
   await bindSiteRequestsByPhone(payload, chat, digits)
 
   const intent = await takePendingIntent(payload, chat)
@@ -1617,7 +1705,7 @@ async function handleContact(
   }
 
   const status = await statusGreeting(payload, phone)
-  await send({ chat, text: status ? `Дякуємо! ${status}\nОсь що я вмію:` : 'Дякуємо! Ось що я вмію:', replyMarkup: MENU_KEYBOARD })
+  await send({ chat, text: status ? `Дякуємо! ${status}\nОсь що я вмію:` : 'Дякуємо! Ось що я вмію:', replyMarkup: clientMenu() })
 }
 
 /**
@@ -1642,6 +1730,7 @@ async function bindSiteRequestsByPhone(payload: Awaited<ReturnType<typeof getPay
     collection: 'eval-requests', limit: 5, depth: 0, overrideAccess: true, pagination: false, sort: '-createdAt',
     where: { and: [
       { source: { equals: 'site' } },
+      netWhere(currentNet()),
       { phone: { contains: digits } },
       { createdAt: { greater_than: since } },
       { or: [{ clientChat: { exists: false } }, { clientChat: { equals: '' } }] },
@@ -1748,8 +1837,10 @@ async function relayAnswer(
   if (!doc) return
 
   const who = await staffNameFor(payload, chat, msg.from, 'оцінювач')
+  // Мережа заявки: клієнту ТОП відповідь іде ботом ТОП, з його підписом і шаблонами
+  const net = asNetwork((doc as { network?: string }).network)
   const rawText = textOf(msg)
-  const resolved = await resolveTemplate(payload, rawText)
+  const resolved = await resolveTemplate(payload, rawText, net)
   if ('warn' in resolved) {
     await send({ chat, text: resolved.warn })
     return
@@ -1783,7 +1874,7 @@ async function relayAnswer(
   const replyKey = randomBytes(4).toString('hex')
   if (clientChat) {
     if (text) {
-      const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(clientText)}`, replyMarkup: MENU_KEYBOARD })
+      const r = await send({ chat: clientChat, bot: net, text: `<b>${NETWORK[net].brand}</b>\n${esc(clientText)}`, replyMarkup: menuFor(net) })
       clientMsgId = r.message_id
     }
     const delKeyboard = clientMsgId
@@ -1795,7 +1886,7 @@ async function relayAnswer(
     if (text) {
       try {
         const { sendSms } = await import('@/lib/sms.ts')
-        await sendSms(phone, text)
+        await sendSms(phone, text, net)
         await send({ chat, text: `✓ Клієнт не в боті — надіслано SMS на ${esc(phone)}` })
       } catch (e) {
         payload.logger.error({ err: e, phone }, 'sms fallback failed')
@@ -1825,16 +1916,16 @@ async function relayAnswer(
     try {
       const r = await send({
         chat: target,
-        text: `<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(text)}`,
+        text: `${cardTag(net)}<b>Заявка №${id}</b> · ${esc(who)} відповів:\n${esc(text)}`,
       })
       staffCopies.push({ chat: target, msgId: r.message_id })
     } catch { /* копія не критична — головне, щоб дійшло клієнту */ }
   }
 
-  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
+  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey, bot: net } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
   // Де ця відповідь у Telegram — щоб її можна було змінити чи видалити з робочого столу
-  const tg = clientMsgId ? { chat: clientChat, msg: clientMsgId, via: 'telegram', copies: staffCopies, hint: clientText !== text, label: 'Заявка' } : null
+  const tg = clientMsgId ? { chat: clientChat, msg: clientMsgId, via: 'telegram', copies: staffCopies, hint: clientText !== text, label: 'Заявка', bot: net } : null
   const authorId = await staffIdFor(payload, chat).catch(() => null)
 
   await payload.update({
@@ -1875,8 +1966,9 @@ async function relayHotlineAnswer(
   if (!doc) return
 
   const who = await staffNameFor(payload, chat, msg.from, 'оператор')
+  const net = asNetwork((doc as { network?: string }).network)
   const rawText = textOf(msg)
-  const resolved = await resolveTemplate(payload, rawText)
+  const resolved = await resolveTemplate(payload, rawText, net)
   if ('warn' in resolved) {
     await send({ chat, text: resolved.warn })
     return
@@ -1895,12 +1987,17 @@ async function relayHotlineAnswer(
   let clientMsgId: number | undefined
   const replyKey = randomBytes(4).toString('hex')
   if (clientChat) {
-    const { sendPhoto } = await import('@/lib/telegram.ts')
+    const { sendPhoto, downloadTelegramFile, sendPhotoFile } = await import('@/lib/telegram.ts')
     if (text) {
-      const r = await send({ chat: clientChat, text: `<b>Ломбард «Імперіал»</b>\n${esc(text)}`, replyMarkup: MENU_KEYBOARD })
+      const r = await send({ chat: clientChat, bot: net, text: `<b>${NETWORK[net].brand}</b>\n${esc(text)}`, replyMarkup: menuFor(net) })
       clientMsgId = r.message_id
     }
-    if (photo) await sendPhoto(clientChat, photo.fileId).catch(() => {})
+    if (photo && net === 'imperial') await sendPhoto(clientChat, photo.fileId).catch(() => {})
+    if (photo && net !== 'imperial') {
+      // file_id бота Імперіалу боту ТОП не годиться — передаємо саме фото
+      const file = await downloadTelegramFile(photo.fileId, 'imperial').catch(() => null)
+      if (file) await sendPhotoFile(clientChat, file.data, file.name, net).catch(() => {})
+    }
     const delKeyboard = clientMsgId
       ? { inline_keyboard: [[{ text: '🗑 Видалити', callback_data: `del:hotline:${id}:${replyKey}` }]] }
       : undefined
@@ -1919,17 +2016,17 @@ async function relayHotlineAnswer(
     try {
       const r = await send({
         chat: target,
-        text: `<b>${esc(label)} №${id}</b> · ${esc(who)} відповів:\n${esc(text || '[фото]')}`,
+        text: `${cardTag(net)}<b>${esc(label)} №${id}</b> · ${esc(who)} відповів:\n${esc(text || '[фото]')}`,
       })
       staffCopies.push({ chat: target, msgId: r.message_id })
     } catch { /* копія не критична — головне, щоб дійшло клієнту */ }
   }
 
-  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey } : null
+  const lastReply = clientMsgId ? { clientChat, clientMsgId, staffCopies, key: replyKey, bot: net } : null
   const thread = ((doc as { thread?: unknown[] }).thread || []) as unknown[]
   // Лише текст (фото змінити не можна); копії колегам — з тим самим підписом
   const tg = clientMsgId && text
-    ? { chat: clientChat, msg: clientMsgId, via: 'telegram', copies: staffCopies, hint: false, label }
+    ? { chat: clientChat, msg: clientMsgId, via: 'telegram', copies: staffCopies, hint: false, label, bot: net }
     : !clientChat ? { via: 'none', error: 'клієнта немає в боті' } : null
   const authorId = await staffIdFor(payload, chat).catch(() => null)
   await payload.update({
@@ -1943,6 +2040,19 @@ async function relayHotlineAnswer(
       thread: [...thread, { from: who, authorId, text: text || '[фото]', at: new Date().toISOString(), tg }],
     },
   })
+}
+
+/**
+ * Фото клієнта співробітнику. У боті Імперіалу — за file_id, як і було;
+ * file_id з бота ТОП боту Імперіалу не годиться, тож тоді — збережений файл за посиланням.
+ */
+async function staffPhoto(target: string, fileId: string, mediaFile: string) {
+  const { mediaUrl, sendPhoto, sendPhotos } = await import('@/lib/telegram.ts')
+  if (currentNet() === 'imperial') {
+    await sendPhoto(target, fileId, undefined, 'imperial').catch(() => {})
+  } else if (mediaFile) {
+    await sendPhotos(target, [mediaUrl(mediaFile)], 'imperial').catch(() => {})
+  }
 }
 
 /**
@@ -1973,9 +2083,9 @@ async function dispatchClientMessage(
   const [hotlineRes, current] = await Promise.all([
     payload.find({
       collection: 'hotline-chats', limit: 1, depth: 0, overrideAccess: true,
-      sort: '-updatedAt', where: { clientChat: { equals: chat }, status: { not_equals: 'done' } },
+      sort: '-updatedAt', where: { clientChat: { equals: chat }, status: { not_equals: 'done' }, ...netWhere(currentNet()) },
     }),
-    currentEvalFor(payload, chat),
+    currentEvalFor(payload, chat, currentNet()),
   ])
 
   type Candidate = { updatedAt?: string } & Record<string, unknown>
@@ -2003,7 +2113,7 @@ async function dispatchClientMessage(
   await send({
     chat,
     text: 'Будь ласка, оберіть один із пунктів нижче — так я зможу допомогти швидше 👇',
-    replyMarkup: MENU_KEYBOARD,
+    replyMarkup: clientMenu(),
   })
 }
 
@@ -2038,6 +2148,7 @@ async function appendHotline(
   // Фото зберігаємо в медіатеку, як в оцінці: інакше воно лишалось лише в
   // Telegram і губилось би, коли звернення передають в оцінку.
   let mediaId: number | null = null
+  let mediaFile = ''
   if (photo) {
     const { downloadTelegramFile } = await import('@/lib/telegram.ts')
     const file = await downloadTelegramFile(photo.fileId).catch(() => null)
@@ -2047,24 +2158,28 @@ async function appendHotline(
         data: { alt: `${label} №${doc.id}: фото від клієнта` },
         file: { data: file.data, name: file.name, mimetype: photo.mimeType, size: file.data.length },
       }).catch(() => null)
-      if (created) mediaId = Number(created.id)
+      if (created) {
+        mediaId = Number(created.id)
+        mediaFile = String((created as { filename?: string }).filename || '')
+      }
     }
   }
 
   const thread = [...(doc.thread || []), { from: 'клієнт', text: entryText, at: new Date().toISOString(), ...(mediaId ? { photo: mediaId } : {}) }]
   await payload.update({ collection: 'hotline-chats', id: doc.id, overrideAccess: true, data: { thread } })
 
-  const { hotlineCard, sendPhoto } = await import('@/lib/telegram.ts')
+  const { hotlineCard } = await import('@/lib/telegram.ts')
   const chats = await hotlineRecipientsFor(payload)
   // Клієнт є в Ониксі — у картці ПІБ звідти замість ніка з Telegram
   const onix = isFirst ? await onixClientInfo(payload, doc.phone) : { fullName: '', line: '' }
 
+  const net = currentNet()
   for (const target of chats.keys()) {
     const text2 = isFirst
-      ? hotlineCard({ id: doc.id, name: onix.fullName || doc.name, phone: doc.phone }, text, label, onix.line)
-      : `<b>${esc(label)} №${doc.id}</b> · клієнт додав:\n${esc(entryText)}`
-    await send({ chat: target, text: text2 }).catch(() => {})
-    if (photo) await sendPhoto(target, photo.fileId).catch(() => {})
+      ? hotlineCard({ id: doc.id, name: onix.fullName || doc.name, phone: doc.phone, network: net }, text, label, onix.line)
+      : `${cardTag(net)}<b>${esc(label)} №${doc.id}</b> · клієнт додав:\n${esc(entryText)}`
+    await send({ chat: target, bot: 'imperial', text: text2 }).catch(() => {})
+    if (photo) await staffPhoto(target, photo.fileId, mediaFile)
   }
   if (isFirst) {
     await notifyRecipients(payload, chats, { title: `Нове звернення: ${label}`, body: entryText || doc.name || '' })
@@ -2077,7 +2192,7 @@ async function appendHotline(
     await send({
       chat: String(doc.clientChat),
       text: FIRST_ACK[kind] || FIRST_ACK.hotline,
-      replyMarkup: MENU_KEYBOARD,
+      replyMarkup: clientMenu(),
     })
   }
 }
@@ -2125,7 +2240,7 @@ async function appendOtsinka(
     await send({
       chat: String(doc.clientChat),
       text: `Дякуємо! Створили заявку <b>№${doc.id}</b> — оцінювач скоро відповість. Можете надіслати ще фото чи деталі — додамо до неї.`,
-      replyMarkup: MENU_KEYBOARD,
+      replyMarkup: clientMenu(),
     }).catch(() => {})
   }
 
@@ -2133,11 +2248,12 @@ async function appendOtsinka(
   const chats = await recipientsFor(payload, 'other')
   const onix = isFirst ? await onixClientInfo(payload, doc.phone) : { fullName: '', line: '' }
 
+  const net = currentNet()
   for (const target of chats.keys()) {
     const cardText = isFirst
-      ? evalCard({ ...doc, comment, photos, name: onix.fullName || doc.name }, { clientInBot: true, clientLine: onix.line })
-      : `<b>Заявка №${doc.id}</b> · клієнт додав:\n${esc(text || '[фото]')}`
-    await send({ chat: target, text: cardText }).catch(() => {})
+      ? evalCard({ ...doc, comment, photos, name: onix.fullName || doc.name, network: net }, { clientInBot: true, clientLine: onix.line })
+      : `${cardTag(net)}<b>Заявка №${doc.id}</b> · клієнт додав:\n${esc(text || '[фото]')}`
+    await send({ chat: target, bot: 'imperial', text: cardText }).catch(() => {})
   }
   if (isFirst) {
     await notifyRecipients(payload, chats, { title: 'Нова заявка на оцінку', body: comment || 'Заявка з бота' })
@@ -2149,7 +2265,7 @@ async function appendOtsinka(
     if (filename) {
       const url = mediaUrl(filename)
       for (const target of chats.keys()) {
-        await sendPhotos(target, [url]).catch(() => {})
+        await sendPhotos(target, [url], 'imperial').catch(() => {})
       }
     }
   }
@@ -2173,6 +2289,7 @@ async function noteClientMessage(
   const prevThread = doc.thread || []
 
   let mediaId: number | null = null
+  let mediaFile = ''
   if (photo) {
     const { downloadTelegramFile } = await import('@/lib/telegram.ts')
     const file = await downloadTelegramFile(photo.fileId).catch(() => null)
@@ -2182,7 +2299,10 @@ async function noteClientMessage(
         data: { alt: `Заявка №${doc.id}: фото від клієнта` },
         file: { data: file.data, name: file.name, mimetype: photo.mimeType, size: file.data.length },
       }).catch(() => null)
-      if (created) mediaId = Number(created.id)
+      if (created) {
+        mediaId = Number(created.id)
+        mediaFile = String((created as { filename?: string }).filename || '')
+      }
     }
   }
 
@@ -2201,14 +2321,15 @@ async function noteClientMessage(
     },
   })
 
-  const { recipientsFor, sendPhoto } = await import('@/lib/telegram.ts')
+  const { recipientsFor } = await import('@/lib/telegram.ts')
   const chats = await recipientsFor(payload, String(doc.category || ''))
   for (const target of chats.keys()) {
     await send({
       chat: target,
-      text: `<b>Заявка №${doc.id}</b> · клієнт відповів:\n${esc(entryText)}`,
+      bot: 'imperial',
+      text: `${cardTag(currentNet())}<b>Заявка №${doc.id}</b> · клієнт відповів:\n${esc(entryText)}`,
     }).catch(() => {})
-    if (photo) await sendPhoto(target, photo.fileId).catch(() => {})
+    if (photo) await staffPhoto(target, photo.fileId, mediaFile)
   }
 
   /*

@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import type { Network } from './network.ts'
 import { itemName } from './itemName.ts'
 
 /**
@@ -127,13 +128,15 @@ export const NEW_ITEM_HINT = 'Хочете оцінити іншу річ — н
  * Поточна заявка на оцінку цього чату: остання, з рухом за останні 3 дні,
  * не приєднана до іншої й не передана в інший відділ. Статус не важливий — «Оцінено» вчора теж та сама розмова.
  */
-export async function currentEvalFor(payload: Payload, chat: string): Promise<EvalDoc | null> {
+export async function currentEvalFor(payload: Payload, chat: string, network: Network = 'imperial'): Promise<EvalDoc | null> {
   const since = new Date(Date.now() - SAME_CONVERSATION_MS).toISOString()
   const { docs } = await payload.find({
     collection: 'eval-requests', limit: 1, depth: 0, overrideAccess: true, pagination: false,
     sort: '-updatedAt',
     where: { and: [
       { clientChat: { equals: chat } },
+      // той самий номер чату буває і в боті ТОП — заявки іншої мережі не чіпаємо
+      { network: { equals: network } },
       { updatedAt: { greater_than: since } },
       { mergedInto: { exists: false } },
       // передана в інший відділ — розмова вже там

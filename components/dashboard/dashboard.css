@@ -555,3 +555,13 @@ a.dw-net:hover { border-color: var(--new); color: var(--new); }
 }
 .dw-dlv--sms { letter-spacing: 0; border: 1px solid currentColor; border-radius: 5px; padding: 0 4px; font-size: 9.5px; }
 .dw-bubble.out time { opacity: .85; }
+
+/* Мережа: Імперіал / ТОП — спільний робочий стіл двох мереж */
+.dw-netbar { flex: none; display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+.dw-netbar button { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.dw-netbar button span { color: var(--dim); font-weight: 700; margin-left: 2px; }
+.dw-netbar button.on { background: var(--ink); color: var(--bg, #fff); border-color: var(--ink); }
+.dw-netbar button.on span { color: inherit; opacity: .75; }
+.dw-netb { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .04em; border-radius: 5px; padding: 1px 5px; margin-right: 6px; vertical-align: 1px; }
+.dw-netb--imperial { background: #7A1E2C; color: #fff; }
+.dw-netb--top { background: #0E1D3A; color: #E6C68A; }

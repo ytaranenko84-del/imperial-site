@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { networkField } from '../lib/network.ts'
 import { lastClientActivity } from '../lib/activity.ts'
 
 /**
@@ -38,6 +39,7 @@ export const HotlineChats: CollectionConfig = {
     ],
   },
   fields: [
+    networkField,
     { name: 'title', type: 'text', label: 'Звернення', admin: { readOnly: true } },
     {
       type: 'row',

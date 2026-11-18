@@ -38,5 +38,19 @@ export const ReplyTemplates: CollectionConfig = {
       admin: { description: 'Місце {сума} — куди підставиться те, що співробітник допише після коду. '
         + 'Наприклад: «2. 1200-1400грн» підставить «1200-1400грн» замість {сума}' },
     },
+    {
+      name: 'textTop', type: 'textarea', label: 'Текст для ТОП',
+      admin: { description: 'Необов’язково. Порожнє — клієнту ТОП піде текст вище, де «Імперіал» '
+        + 'і адреса imperial24.com.ua самі заміняться на ТОП. Заповнюйте, лише коли в ТОП інші умови.' },
+    },
+    {
+      name: 'networks', type: 'select', label: 'Показувати для', defaultValue: 'all',
+      options: [
+        { label: 'Усіх мереж', value: 'all' },
+        { label: 'Лише Імперіал', value: 'imperial' },
+        { label: 'Лише ТОП', value: 'top' },
+      ],
+      admin: { description: 'Шаблон, що стосується лише однієї мережі, в заявках іншої не спрацює' },
+    },
   ],
 }

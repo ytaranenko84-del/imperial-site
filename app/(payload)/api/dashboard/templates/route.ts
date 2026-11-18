@@ -2,6 +2,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { recipientFromToken } from '@/lib/dashboardSession.ts'
 import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
+import { templateText } from '@/lib/telegram.ts'
 
 export async function GET(req: Request) {
   const payload = await getPayload({ config })
@@ -17,6 +18,9 @@ export async function GET(req: Request) {
       code: String((d as { code?: string }).code || ''),
       title: String((d as { title?: string }).title || ''),
       text: String((d as { text?: string }).text || ''),
+      // Готовий текст для заявки ТОП і для якої мережі шаблон — робочий стіл показує потрібний
+      textTop: templateText(d as { text?: string; textTop?: string }, 'top'),
+      networks: String((d as { networks?: string }).networks || 'all'),
     })),
   })
 }

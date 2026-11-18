@@ -7,6 +7,7 @@ import { sendSms } from '@/lib/sms.ts'
 import { runAfterResponse } from '@/lib/groupCard.ts'
 import { NEW_ITEM_HINT, statusAfterStaffReply } from '@/lib/evalFlow.ts'
 import { clientBody, copyBody, newEntryId, saveTgCopies, type TgRef } from '@/lib/threadEdit.ts'
+import { asNetwork, cardTag } from '@/lib/network.ts'
 
 /**
  * Відповідь клієнту з веб-робочого столу — той самий канал доставки
@@ -40,7 +41,9 @@ export async function POST(req: Request) {
   const doc = await payload.findByID({ collection, id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!doc) return Response.json({ error: 'Заявку не знайдено' }, { status: 404 })
 
-  const resolved = await resolveTemplate(payload, raw)
+  // Мережа заявки: клієнту ТОП — ботом ТОП, підпис і шаблони ТОП, SMS від «TOP Lombard»
+  const net = asNetwork((doc as { network?: string }).network)
+  const resolved = await resolveTemplate(payload, raw, net)
   if ('warn' in resolved) return Response.json({ warn: resolved.warn })
   const replyText = resolved.text
 
@@ -71,8 +74,8 @@ export async function POST(req: Request) {
     // лише «Помилка мережі». Тепер — збережено, і видно справжню причину.
     try {
       const hint = clientText !== replyText
-      const r = await send({ chat: clientChat, text: clientBody(replyText, hint) })
-      tg = { chat: clientChat, msg: r.message_id, via: 'telegram', copies: [], hint, label: copyLabel }
+      const r = await send({ chat: clientChat, text: clientBody(replyText, hint, net), bot: net })
+      tg = { chat: clientChat, msg: r.message_id, via: 'telegram', copies: [], hint, label: copyLabel, bot: net }
       deliveredVia = 'telegram'
     } catch (e) {
       deliveryNote = `Telegram: ${(e as Error).message || 'помилка'}`
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
   } else if (kind === 'eval' && phone) {
     // SMS-резерв поки лише для заявок на оцінку — так само, як і в боті.
     try {
-      await sendSms(phone, replyText)
+      await sendSms(phone, replyText, net)
       deliveredVia = 'sms'
       tg = { via: 'sms' }
     } catch (e) {
@@ -115,7 +118,7 @@ export async function POST(req: Request) {
       : await hotlineRecipients(payload)
     for (const chat of others.keys()) {
       // Підпис як на картці цього звернення: Reply на копію мусить знайти саме його
-      const r = await send({ chat, text: copyBody(copyLabel, id, who, replyText) }).catch(() => null)
+      const r = await send({ chat, text: cardTag(net) + copyBody(copyLabel, id, who, replyText), bot: 'imperial' }).catch(() => null)
       if (r && tg?.msg) (tg.copies ||= []).push({ chat, msgId: r.message_id })
     }
     // Номери копій — щоб «Змінити»/«Видалити» дістали й їх

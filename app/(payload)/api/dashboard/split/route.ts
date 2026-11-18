@@ -54,6 +54,7 @@ export async function POST(req: Request) {
       category: 'other',
       source: doc.source || 'bot',
       clientChat: doc.clientChat || '',
+      network: doc.network === 'top' ? 'top' : 'imperial',
       name: doc.name || 'клієнт',
       phone: doc.phone || '',
       status: 'new',

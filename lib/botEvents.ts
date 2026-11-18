@@ -1,4 +1,5 @@
 import type { getPayload } from 'payload'
+import { currentNet, type Network } from './network.ts'
 
 /**
  * Воронка бота: раніше нічого не писалось, поки людина не поділиться
@@ -15,7 +16,7 @@ export async function logBotEvent(
     await payload.create({
       collection: 'bot-events',
       overrideAccess: true,
-      data: { chatId, eventType, ...(detail ? { payload: detail } : {}) },
+      data: { chatId, eventType, network: currentNet(), ...(detail ? { payload: detail } : {}) },
     })
   } catch {
     // Подія не критична — головне, щоб сам бот не постраждав
@@ -29,13 +30,13 @@ export async function logBotEvent(
  * дії клієнта в чаті він нашу відповідь точно бачив.
  * Один точковий UPDATE без читання; рядка немає (номером не ділився) — нічого.
  */
-export async function touchClient(payload: Awaited<ReturnType<typeof getPayload>>, chatId: string) {
+export async function touchClient(payload: Awaited<ReturnType<typeof getPayload>>, chatId: string, network: Network = 'imperial') {
   const db = payload.db as unknown as { name?: string; drizzle?: { execute: (q: unknown) => Promise<unknown> }; schemaName?: string }
   if (db.name !== 'postgres' || !db.drizzle || !chatId) return
   try {
     const { sql } = await import('@payloadcms/db-postgres')
     await db.drizzle.execute(
-      sql`update ${sql.identifier(db.schemaName || 'public')}.telegram_clients set last_action_at = now() where chat_id = ${chatId}`,
+      sql`update ${sql.identifier(db.schemaName || 'public')}.telegram_clients set last_action_at = now() where chat_id = ${chatId} and network = ${network}`,
     )
   } catch {
     // не критично для самого бота

@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { networkField } from '../lib/network.ts'
 
 /**
  * Бронь суми з калькулятора. Створює сайт через `/api/booking`.
@@ -19,6 +20,7 @@ export const Bookings: CollectionConfig = {
     delete: ({ req }) => Boolean(req.user),
   },
   fields: [
+    networkField,
     { name: 'title', type: 'text', label: 'Бронь', admin: { readOnly: true } },
     {
       type: 'row',
@@ -42,6 +44,9 @@ export const Bookings: CollectionConfig = {
       ],
     },
     { name: 'branch', type: 'relationship', relationTo: 'branches', label: 'Відділення' },
+    // Відділення ТОП живуть у базі сайту ТОП — тут лише його адреса текстом
+    { name: 'branchLabel', type: 'text', label: 'Відділення (текстом)',
+      admin: { description: 'Для броней ТОП: адреса відділення з сайту ТОП' } },
     {
       type: 'row',
       fields: [

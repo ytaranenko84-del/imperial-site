@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { networkField } from '../lib/network.ts'
 
 /**
  * Пам'ять бота про клієнта: номер телефону, який він одного разу вже
@@ -22,8 +23,11 @@ export const TelegramClients: CollectionConfig = {
     delete: ({ req }) => Boolean(req.user),
   },
   fields: [
-    { name: 'chatId', type: 'text', label: 'Telegram-чат', required: true, unique: true,
+    // Один і той самий чат може бути і в боті Імперіалу, і в боті ТОП
+    // (номер приватного чату = номер людини), тож унікальна пара «чат + мережа».
+    { name: 'chatId', type: 'text', label: 'Telegram-чат', required: true, index: true,
       admin: { readOnly: true } },
+    networkField,
     { name: 'phone', type: 'text', label: 'Телефон', admin: { readOnly: true } },
     { name: 'name', type: 'text', label: 'Ім’я в Telegram', admin: { readOnly: true } },
     { name: 'linkedAt', type: 'date', label: 'Поділився номером',

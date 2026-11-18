@@ -11,9 +11,19 @@ type BeforeInstallPromptEvent = Event & {
 
 type Channel = 'eval' | 'hotline' | 'review' | 'booking'
 
+type Net = 'imperial' | 'top'
+const NET_LABEL: Record<Net, string> = { imperial: 'ІМП', top: 'ТОП' }
+
+/** Мітка мережі заявки: робочий стіл спільний для Імперіалу й ТОП. */
+function NetBadge({ net }: { net?: Net }) {
+  const n: Net = net === 'top' ? 'top' : 'imperial'
+  return <span className={`dw-netb dw-netb--${n}`} title={n === 'top' ? 'Мережа ТОП' : 'Мережа Імперіал'}>{NET_LABEL[n]}</span>
+}
+
 type Item = {
   key: string
   kind: 'eval' | 'hotline' | 'booking'
+  network?: Net
   channel: Channel
   id: string | number
   title: string
@@ -97,6 +107,7 @@ type ClientHistory = {
 type Detail = {
   key: string
   kind: 'eval' | 'hotline' | 'booking'
+  network?: Net
   id: string | number
   title: string
   name: string
@@ -138,7 +149,7 @@ type Detail = {
   client?: OnixClientUI | null
 }
 
-type Template = { code: string; title: string; text: string }
+type Template = { code: string; title: string; text: string; textTop?: string; networks?: string }
 
 // Було 8000 — опитування з кожної відкритої вкладки било прямо в базу без
 // жодного кешу, і разом з парним вибором eval-requests+hotline-chats на
@@ -401,6 +412,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const [items, setItems] = useState<Item[] | null>(null)
   const [filter, setFilter] = useState<'all' | 'mine' | 'unassigned' | 'unread' | 'unanswered' | 'answered'>('all')
   const [channel, setChannel] = useState<'all' | Channel>('all')
+  const [net, setNet] = useState<'all' | Net>('all')
   const [period, setPeriod] = useState<'all' | 'today' | 'week' | 'month'>('all')
   const [q, setQ] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -622,7 +634,11 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   }
   const cutoff = periodCutoff()
 
-  const byChannel = (items || []).filter((it) =>
+  // Мережа — перший фільтр: лічильники каналів і списків рахуються вже в її межах
+  const netItems = (items || []).filter((it) => net === 'all' || (it.network || 'imperial') === net)
+  const netCount = (n: Net) => (items || []).filter((it) => (it.network || 'imperial') === n).length
+
+  const byChannel = netItems.filter((it) =>
     (channel === 'all' || it.channel === channel)
     // Період — за останнім словом клієнта: «Сьогодні» показує й давнє звернення, куди він написав сьогодні
     && (cutoff === 0 || new Date(it.activityAt || it.createdAt).getTime() >= cutoff))
@@ -641,8 +657,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
   const unreadCount = byChannel.filter((it) => it.unread).length
   const unansweredCount = byChannel.filter((it) => it.unanswered).length
   const answeredCount = byChannel.filter((it) => !it.unanswered).length
-  const channelCount = (c: Channel) => (items || []).filter((it) => it.channel === c).length
-  const channelUnreadCount = (c: Channel) => (items || []).filter((it) => it.channel === c && it.unread).length
+  const channelCount = (c: Channel) => netItems.filter((it) => it.channel === c).length
+  const channelUnreadCount = (c: Channel) => netItems.filter((it) => it.channel === c && it.unread).length
   const totalUnread = (items || []).filter((it) => it.unread).length
 
   async function update(body: Record<string, unknown>) {
@@ -1110,7 +1126,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
           <div className="dw-section-label">Канал</div>
           <div className="dw-views">
             <button type="button" className={`dw-view ${channel === 'all' ? 'on' : ''}`} onClick={() => pickChannel('all')}>
-              <span>💬 Усі канали</span><span className="dw-n">{items?.length ?? '—'}</span>
+              <span>💬 Усі канали</span><span className="dw-n">{items ? netItems.length : '—'}</span>
             </button>
             {CHANNELS.map((c) => (
               <button type="button" key={c} className={`dw-view ${channel === c ? 'on' : ''}`} onClick={() => pickChannel(c)}>
@@ -1165,6 +1181,15 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
             <h2>{channel === 'all' ? 'Усі канали' : `${CHANNEL_ICON[channel]} ${CHANNEL_LABEL[channel]}`}</h2>
             <span className="dw-n">{filtered.length}</span>
           </div>
+          <div className="dw-netbar" role="group" aria-label="Мережа">
+            <button type="button" className={net === 'all' ? 'on' : ''} onClick={() => setNet('all')}>Усі</button>
+            <button type="button" className={net === 'imperial' ? 'on' : ''} onClick={() => setNet('imperial')}>
+              Імперіал <span>{netCount('imperial')}</span>
+            </button>
+            <button type="button" className={net === 'top' ? 'on' : ''} onClick={() => setNet('top')}>
+              ТОП <span>{netCount('top')}</span>
+            </button>
+          </div>
           <div className="dw-items">
             {filtered.map((it) => (
               <button
@@ -1182,8 +1207,8 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   <div className="dw-item-top">
                     {/* Номер — той самий, що в Telegram («Гаряча лінія №60»); тип показує значок ліворуч */}
                     {it.client?.fullName
-                      ? <b><span className="dw-item-num">№{it.id}</span>{it.client.fullName}{it.phone && <span className="dw-item-phone"> · {it.phone}</span>}</b>
-                      : <b><span className="dw-item-num">№{it.id}</span>{it.title}</b>}
+                      ? <b><NetBadge net={it.network} /><span className="dw-item-num">№{it.id}</span>{it.client.fullName}{it.phone && <span className="dw-item-phone"> · {it.phone}</span>}</b>
+                      : <b><NetBadge net={it.network} /><span className="dw-item-num">№{it.id}</span>{it.title}</b>}
                     <time title={`Звернення від ${fmtWhen(it.createdAt)}`}>{fmtWhen(it.activityAt || it.createdAt)}</time>
                   </div>
                   <div className="dw-snippet">{it.client?.fullName && it.kind === 'eval' && it.title ? `${it.title} · ${it.snippet}` : it.snippet}</div>
@@ -1256,7 +1281,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     <button type="button" className="dw-name-link" onClick={() => openHistory(detail.phone)}>{detail.client?.fullName || detail.name}</button>
                     {detail.phone ? ` · ${detail.phone}` : ''}
                   </h3>
-                  <p>Бронь суми{detail.branchName ? ` · ${detail.branchName}` : ''} · №{detail.id}</p>
+                  <p><NetBadge net={detail.network} />Бронь суми{detail.branchName ? ` · ${detail.branchName}` : ''} · №{detail.id}</p>
                 </div>
                 <div className="dw-actions">
                   <button type="button" className="dw-btn" disabled={detail.status === 'came'} onClick={() => update({ status: 'came' })}>Клієнт прийшов</button>
@@ -1304,6 +1329,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                     {detail.phone ? ` · ${detail.phone}` : ''}
                   </h3>
                   <p>
+                    <NetBadge net={detail.network} />
                     {detail.kind === 'eval' ? 'Оцінка' : detail.category === 'review' ? 'Відгук' : 'Гаряча лінія'}
                     {detail.itemName ? ` · ${detail.itemName}` : ''}
                     {' · заявка №'}{detail.id}
@@ -1600,7 +1626,7 @@ export default function DashboardApp({ me }: { me: { id: string; title: string; 
                   <>
                     {templates.length > 0 && !editing && (
                       <div className="dw-templates">
-                        {templates.map((t) => (
+                        {templates.filter((t) => !t.networks || t.networks === 'all' || t.networks === (detail.network || 'imperial')).map((t) => (
                           <button type="button" key={t.code} className="dw-tpl" onClick={() => insertTemplate(t.code)}>
                             {t.code}. {t.title}
                           </button>

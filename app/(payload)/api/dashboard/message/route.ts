@@ -5,6 +5,7 @@ import { readCookie, SESSION_COOKIE } from '@/lib/staffAuth.ts'
 import { deleteMessage, editMessageText, sumFromText } from '@/lib/telegram.ts'
 import { runAfterResponse } from '@/lib/groupCard.ts'
 import { clientBody, copyBody, withinEditWindow, type RemovedEntry, type ThreadEntry } from '@/lib/threadEdit.ts'
+import { asNetwork, cardTag } from '@/lib/network.ts'
 
 /**
  * «Змінити» / «Видалити» повідомлення з робочого столу.
@@ -70,7 +71,8 @@ export async function POST(req: Request) {
     if (action === 'edit') {
       if (newText === oldText) return Response.json({ ok: true })
       try {
-        await editMessageText(tg.chat, tg.msg, clientBody(newText, tg.hint))
+        // тим самим ботом, яким пішло (ТОП — ботом ТОП)
+        await editMessageText(tg.chat, tg.msg, clientBody(newText, tg.hint, asNetwork(tg.bot)), asNetwork(tg.bot))
       } catch (e) {
         return fail(`Telegram не дав змінити: ${(e as Error).message}`, 502)
       }
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
       const who = String(entry.from || me.title)
       await runAfterResponse(async () => {
         for (const c of tg.copies || []) {
-          await editMessageText(c.chat, c.msgId, copyBody(tg.label || 'Заявка', id, who, newText, true)).catch(() => {})
+          await editMessageText(c.chat, c.msgId, cardTag(asNetwork(tg.bot)) + copyBody(tg.label || 'Заявка', id, who, newText, true), 'imperial').catch(() => {})
         }
       }, 'копії зміненої відповіді не оновились')
       return Response.json({ ok: true, note: sumNote })
@@ -105,7 +107,7 @@ export async function POST(req: Request) {
 
     // delete
     try {
-      await deleteMessage(tg.chat, tg.msg)
+      await deleteMessage(tg.chat, tg.msg, asNetwork(tg.bot))
     } catch (e) {
       const why = (e as Error).message
       // клієнт сам видалив чат чи повідомлення — у нього його вже немає, це не завада
@@ -122,7 +124,7 @@ export async function POST(req: Request) {
       },
     })
     await runAfterResponse(async () => {
-      for (const c of tg.copies || []) await deleteMessage(c.chat, c.msgId).catch(() => {})
+      for (const c of tg.copies || []) await deleteMessage(c.chat, c.msgId, 'imperial').catch(() => {})
     }, 'копії видаленої відповіді не прибрались')
     return Response.json({ ok: true })
   }

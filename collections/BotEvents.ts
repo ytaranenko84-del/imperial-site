@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { networkField } from '../lib/network.ts'
 
 /**
  * Службовий журнал дій у Telegram-боті — окремо від реальних заявок, щоб
@@ -18,6 +19,7 @@ export const BotEvents: CollectionConfig = {
     delete: ({ req }) => Boolean(req.user),
   },
   fields: [
+    networkField,
     { name: 'chatId', type: 'text', required: true, admin: { description: 'Telegram-чат, що викликав подію' } },
     { name: 'eventType', type: 'text', required: true,
       admin: { description: 'start, menu_click, contact_shared, form_completed' } },

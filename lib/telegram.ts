@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { asNetwork, botTokenFor, cardTag, currentNet, topPublicUrl, type Network } from './network.ts'
 
 /**
  * Робота з Telegram: надсилання заявок і відповідей.
@@ -12,7 +13,11 @@ import type { Payload } from 'payload'
 const TG_ORIGIN = process.env.TELEGRAM_API_ORIGIN || 'https://api.telegram.org'
 const API = `${TG_ORIGIN}/bot`
 
-export const token = () => process.env.TELEGRAM_BOT_TOKEN || ''
+/**
+ * Токен бота. Без параметра — бот поточної події (у вебхуку ТОП це бот ТОП),
+ * поза вебхуком — Імперіал. Картки співробітникам завжди йдуть з bot: 'imperial'.
+ */
+export const token = (bot?: Network) => botTokenFor(bot ?? currentNet())
 
 /** Останні дев'ять цифр: люди пишуть номер у десятку різних форматів. */
 export const normalizePhone = (v: unknown) => String(v ?? '').replace(/\D/g, '').slice(-9)
@@ -22,10 +27,12 @@ type SendOptions = {
   chat: string
   text: string
   replyMarkup?: unknown
+  /** Яким ботом слати: клієнту — ботом його мережі, співробітнику — 'imperial'. */
+  bot?: Network
 }
 
-export async function send({ chat, text, replyMarkup }: SendOptions) {
-  const t = token()
+export async function send({ chat, text, replyMarkup, bot }: SendOptions) {
+  const t = token(bot)
   if (!t) throw new Error('немає токена бота')
 
   const [chatId, threadId] = String(chat).split(':')
@@ -52,8 +59,8 @@ export async function send({ chat, text, replyMarkup }: SendOptions) {
  * Telegram). Потрібне для «Видалити», коли відповідь пішла з помилкою.
  * Best-effort: повідомлення могло вже бути видалене чи застаріти.
  */
-export async function deleteMessage(chat: string, messageId: number) {
-  const t = token()
+export async function deleteMessage(chat: string, messageId: number, bot?: Network) {
+  const t = token(bot)
   if (!t) return
   const [chatId] = String(chat).split(':')
   const res = await fetch(`${API}${t}/deleteMessage`, {
@@ -70,8 +77,8 @@ export async function deleteMessage(chat: string, messageId: number) {
  * його в клієнта «изменено». «message is not modified» — текст той самий,
  * це не помилка.
  */
-export async function editMessageText(chat: string, messageId: number, text: string) {
-  const t = token()
+export async function editMessageText(chat: string, messageId: number, text: string, bot?: Network) {
+  const t = token(bot)
   if (!t) throw new Error('немає токена бота')
   const [chatId] = String(chat).split(':')
   const res = await fetch(`${API}${t}/editMessageText`, {
@@ -106,8 +113,8 @@ export async function answerCallback(callbackQueryId: string, text?: string) {
  * Світлини йдуть альбомом: Telegram забирає їх за посиланням сам.
  * Помилку не глушимо — інакше «фото не прийшли» неможливо пояснити.
  */
-export async function sendPhotos(chat: string, urls: string[]) {
-  const t = token()
+export async function sendPhotos(chat: string, urls: string[], bot?: Network) {
+  const t = token(bot)
   if (!t || !urls.length) return
   const [chatId, threadId] = String(chat).split(':')
 
@@ -130,8 +137,8 @@ export async function sendPhotos(chat: string, urls: string[]) {
  * Одне фото за file_id — для живої пересилки в гарячій лінії, без збереження
  * в медіатеці сайту (на відміну від фото оцінки, які лишаються назавжди).
  */
-export async function sendPhoto(chat: string, fileId: string, caption?: string) {
-  const t = token()
+export async function sendPhoto(chat: string, fileId: string, caption?: string, bot?: Network) {
+  const t = token(bot)
   if (!t) return
   const [chatId, threadId] = String(chat).split(':')
   const res = await fetch(`${API}${t}/sendPhoto`, {
@@ -149,8 +156,8 @@ export async function sendPhoto(chat: string, fileId: string, caption?: string) 
 }
 
 /** Завантажує байти фото з Telegram за file_id — щоб покласти в медіатеку сайту. */
-export async function downloadTelegramFile(fileId: string): Promise<{ data: Buffer; name: string } | null> {
-  const t = token()
+export async function downloadTelegramFile(fileId: string, bot?: Network): Promise<{ data: Buffer; name: string } | null> {
+  const t = token(bot)
   if (!t) return null
   try {
     const infoRes = await fetch(`${API}${t}/getFile?file_id=${encodeURIComponent(fileId)}`)
@@ -165,6 +172,23 @@ export async function downloadTelegramFile(fileId: string): Promise<{ data: Buff
   } catch {
     return null
   }
+}
+
+/**
+ * Фото байтами, а не за file_id: file_id дійсний лише для того бота, який
+ * його отримав. Фото співробітника з бота Імперіалу клієнту ТОП інакше не передати.
+ */
+export async function sendPhotoFile(chat: string, data: Buffer, name: string, bot?: Network) {
+  const t = token(bot)
+  if (!t) return
+  const [chatId, threadId] = String(chat).split(':')
+  const form = new FormData()
+  form.append('chat_id', chatId)
+  if (threadId) form.append('message_thread_id', threadId)
+  form.append('photo', new Blob([new Uint8Array(data)]), name || 'photo.jpg')
+  const res = await fetch(`${API}${t}/sendPhoto`, { method: 'POST', body: form })
+  const json = await res.json().catch(() => ({}))
+  if (!json.ok) throw new Error(`фото: ${json.description || res.status}`)
 }
 
 /** Екранування для parse_mode=HTML: текст людей не має ставати розміткою. */
@@ -183,7 +207,7 @@ export const CATEGORY_LABEL: Record<string, string> = {
 /** Картка заявки на оцінку — те, що бачить оцінювач у чаті. */
 export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: boolean; clientLine?: string }) {
   const lines = [
-    `<b>Заявка №${doc.id}</b> · ${esc(CATEGORY_LABEL[String(doc.category)] || doc.category)}`,
+    `${cardTag(asNetwork(doc.network))}<b>Заявка №${doc.id}</b> · ${esc(CATEGORY_LABEL[String(doc.category)] || doc.category)}`,
     esc([doc.brand, doc.model].filter(Boolean).join(' ')),
     doc.year || doc.condition
       ? `${doc.year ? esc(doc.year) + ', ' : ''}${esc(doc.condition || '')}`.replace(/, $/, '')
@@ -201,7 +225,7 @@ export function evalCard(doc: Record<string, unknown>, opts: { clientInBot: bool
 /** Картка звернення (гаряча лінія чи відгук) — те, що бачить отримувач у чаті. */
 export function hotlineCard(doc: Record<string, unknown>, text: string, label = 'Гаряча лінія', clientLine = '') {
   return [
-    `<b>${esc(label)} №${doc.id}</b>`,
+    `${cardTag(asNetwork(doc.network))}<b>${esc(label)} №${doc.id}</b>`,
     `Клієнт: ${esc(doc.name)}, ${esc(doc.phone)}`,
     clientLine,
     text ? `\n${esc(text)}` : '',
@@ -233,7 +257,7 @@ export function whenLabel(iso: unknown): string {
 export function groupCard(doc: Record<string, unknown>) {
   const sum = Number(doc.estimate || 0)
   return [
-    `<b>Заявка №${doc.id}</b> · ${esc(CATEGORY_LABEL[String(doc.category)] || doc.category)}`,
+    `${cardTag(asNetwork(doc.network))}<b>Заявка №${doc.id}</b> · ${esc(CATEGORY_LABEL[String(doc.category)] || doc.category)}`,
     esc([doc.brand, doc.model].filter(Boolean).join(' ')),
     doc.year || doc.condition
       ? `${doc.year ? esc(doc.year) + ', ' : ''}${esc(doc.condition || '')}`.replace(/, $/, '')
@@ -287,6 +311,7 @@ export function sumFromText(
 export async function resolveTemplate(
   payload: Payload,
   raw: string,
+  network: Network = 'imperial',
 ): Promise<{ text: string; amount?: string; title?: string } | { warn: string }> {
   const trimmed = (raw || '').trim()
 
@@ -297,7 +322,8 @@ export async function resolveTemplate(
       collection: 'reply-templates', limit: 1, depth: 0, overrideAccess: true,
       where: { code: { equals: code } },
     })
-    const tpl = docs[0] as { text?: string; title?: string } | undefined
+    const found = docs[0] as { text?: string; textTop?: string; title?: string; networks?: string } | undefined
+    const tpl = found && templateFits(found, network) ? { ...found, text: templateText(found, network) } : undefined
     if (tpl?.text) {
       /*
        * Без «грн» сума в готовому тексті («…становитиме 1200-1500. Чекаємо…
@@ -329,13 +355,37 @@ export async function resolveTemplate(
   return { text: raw }
 }
 
+/** Шаблон показується для цієї мережі: «Усі» або саме вона. */
+export function templateFits(tpl: { networks?: string | null }, network: Network): boolean {
+  const n = tpl.networks || 'all'
+  return n === 'all' || n === network
+}
+
+/**
+ * Текст шаблону для мережі. Для ТОП — «Текст для ТОП», якщо його заповнили;
+ * інакше спільний текст, де назва мережі й адреса сайту Імперіалу
+ * підмінюються на ТОП: щоб не дублювати шаблони, які відрізняються лише цим.
+ */
+export function templateText(tpl: { text?: string | null; textTop?: string | null }, network: Network): string {
+  const text = String(tpl.text || '')
+  if (network !== 'top') return text
+  if (tpl.textTop && tpl.textTop.trim()) return tpl.textTop
+  const site = topPublicUrl()
+  return text
+    .replace(/https?:\/\/(?:www\.)?imperial24\.com\.ua\/?#map/gi, `${site}/viddilennya`)
+    .replace(/https?:\/\/(?:www\.)?imperial24\.com\.ua/gi, site)
+    .replace(/imperial24\.com\.ua/gi, site.replace(/^https?:\/\//, ''))
+    .replace(/Імперіалу/g, 'ТОП')
+    .replace(/Імперіал/g, 'ТОП')
+}
+
 /** Картка броні — те, що бачить відділення. */
 export function bookingCard(doc: Record<string, unknown>, branchName: string, till: string, clientLine = '') {
   const amount = Number(doc.amount || 0).toLocaleString('uk-UA')
   const parts = [String(doc.purity || ''), doc.weight ? `${doc.weight} г` : '', doc.days ? `${doc.days} дн.` : '']
     .filter(Boolean).join(', ')
   return [
-    `<b>Бронь №${doc.id}</b>`,
+    `${cardTag(asNetwork(doc.network))}<b>Бронь №${doc.id}</b>`,
     `Сума: <b>${amount} грн</b>${parts ? ` · ${esc(parts)}` : ''}`,
     doc.tier ? `Статус: ${esc(doc.tier)}` : '',
     `Клієнт: ${esc(doc.name)}, ${esc(doc.phone)}`,

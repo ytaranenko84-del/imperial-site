@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     const msg = `🔔 <b>${esc(me.title)}</b> згадав(ла) вас у заявці №${id} (${esc(LABEL[kind])}):\n«${esc(noteText)}»`
     for (const r of mentioned) {
       const chat = String((r as { chatId?: string }).chatId || '')
-      if (chat) await send({ chat, text: msg }).catch(() => {})
+      if (chat) await send({ chat, text: msg, bot: 'imperial' }).catch(() => {})
     }
   }
 

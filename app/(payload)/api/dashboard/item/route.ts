@@ -130,6 +130,7 @@ export async function GET(req: Request) {
       key,
       kind: 'booking',
       id,
+      network: d.network === 'top' ? 'top' : 'imperial',
       title: String(d.title || d.name || ''),
       name: String(d.name || ''),
       phone: String(d.phone || ''),
@@ -139,7 +140,7 @@ export async function GET(req: Request) {
       weight: Number(d.weight || 0),
       days: Number(d.days || 0),
       tier: String(d.tier || ''),
-      branchName: branch?.address || '',
+      branchName: branch?.address || String(d.branchLabel || ''),
       expiresAt: String(d.expiresAt || ''),
       note: String(d.note || ''),
       assignedTo: (assigned?.id as string | number | undefined) ?? null,
@@ -197,7 +198,7 @@ export async function GET(req: Request) {
   const clientChat = String(d.clientChat || '')
   const lastActionMs = clientChat
     ? await payload.find({
-      collection: 'telegram-clients', where: { chatId: { equals: clientChat } }, limit: 1, depth: 0, overrideAccess: true, pagination: false,
+      collection: 'telegram-clients', where: { chatId: { equals: clientChat }, network: { equals: d.network === 'top' ? 'top' : 'imperial' } }, limit: 1, depth: 0, overrideAccess: true, pagination: false,
     }).then((r) => new Date(String((r.docs[0] as { lastActionAt?: string } | undefined)?.lastActionAt || 0)).getTime()).catch(() => 0)
     : 0
   const clientAfter: number[] = []
@@ -239,6 +240,7 @@ export async function GET(req: Request) {
     key,
     kind,
     id,
+    network: d.network === 'top' ? 'top' : 'imperial',
     title: String(d.title || d.name || ''),
     name: String(d.name || ''),
     phone: String(d.phone || ''),

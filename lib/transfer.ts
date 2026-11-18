@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 import { evalCard, esc, hotlineCard, hotlineRecipients, recipientsFor, send } from './telegram.ts'
+import { asNetwork } from './network.ts'
 import { notifyRecipients } from './push.ts'
 import { onixClientInfo } from './onix.ts'
 
@@ -113,6 +114,8 @@ export async function transferConversation(
   const entry: TransferEntry = { from, to, by: opts.by, note: opts.note.slice(0, 300), at: now, fromKey: opts.key }
   const transfers = [...transfersOf(src), entry]
   const clientChat = String(src.clientChat || '')
+  // Мережа переходить разом зі зверненням: клієнт ТОП лишається клієнтом ТОП
+  const network = asNetwork(src.network)
   // Для нового відділу — як щойно отримане: нове, нічиє, непрочитане
   const fresh = { status: 'new', assignedTo: null, lastViewedAt: null, noReplyAt: null }
 
@@ -135,6 +138,7 @@ export async function transferConversation(
           name: String(src.name || '').trim() || 'Клієнт',
           phone: String(src.phone || '').trim() || '—',
           ...(clientChat ? { clientChat } : {}),
+          network,
           status: 'new',
           thread,
           photos: thread.map((t) => t.photo).filter((p): p is number => p != null),
@@ -151,6 +155,7 @@ export async function transferConversation(
           name: String(src.name || ''),
           phone: String(src.phone || ''),
           ...(clientChat ? { clientChat } : {}),
+          network,
           thread,
           notes: (src.notes as unknown[] | undefined) || [],
           transfers,
@@ -178,8 +183,8 @@ export async function transferConversation(
   const chats = to === 'eval' ? await recipientsFor(payload, 'other') : await hotlineRecipients(payload)
   const card = to === 'eval'
     ? evalCard({ ...target, name, comment: clientTextFor(thread) }, { clientInBot: Boolean(clientChat), clientLine: onix.line })
-    : hotlineCard({ id: target.id, name, phone: target.phone }, clientTextFor(thread), to === 'review' ? 'Відгук' : 'Гаряча лінія', onix.line)
-  for (const chat of chats.keys()) await send({ chat, text: head + card + tail }).catch(() => {})
+    : hotlineCard({ id: target.id, name, phone: target.phone, network }, clientTextFor(thread), to === 'review' ? 'Відгук' : 'Гаряча лінія', onix.line)
+  for (const chat of chats.keys()) await send({ chat, text: head + card + tail, bot: 'imperial' }).catch(() => {})
   await notifyRecipients(payload, chats, {
     title: `Передано: ${DEPT_LABEL[from]} → ${DEPT_LABEL[to]}`,
     body: entry.note || clientTextFor(thread).slice(0, 120) || name,
@@ -187,7 +192,7 @@ export async function transferConversation(
 
   let clientNotified = false
   if (clientChat) {
-    clientNotified = await send({ chat: clientChat, text: CLIENT_NOTICE[to] }).then(() => true).catch(() => false)
+    clientNotified = await send({ chat: clientChat, text: CLIENT_NOTICE[to], bot: network }).then(() => true).catch(() => false)
   }
   return { key: newKey, clientNotified, clientInBot: Boolean(clientChat) }
 }

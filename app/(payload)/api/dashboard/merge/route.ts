@@ -49,6 +49,11 @@ export async function POST(req: Request) {
   if (source.mergedInto != null) return Response.json({ error: `№${source.id} уже приєднана до №${source.mergedInto}` }, { status: 409 })
   if (target.mergedInto != null) return Response.json({ error: `№${target.id} сама приєднана до №${target.mergedInto}` }, { status: 409 })
 
+  // Різні мережі не зливаємо: клієнту ТОП відповідь має йти ботом ТОП, Імперіалу — ботом Імперіалу
+  if ((target.network || 'imperial') !== (source.network || 'imperial')) {
+    return Response.json({ error: 'Заявки різних мереж (Імперіал і ТОП) обʼєднати не можна' }, { status: 422 })
+  }
+
   // Лише та сама людина: той самий номер або той самий Telegram-чат.
   const samePhone = normalizePhone(String(target.phone || '')) && normalizePhone(String(target.phone || '')) === normalizePhone(String(source.phone || ''))
   const sameChat = target.clientChat && target.clientChat === source.clientChat

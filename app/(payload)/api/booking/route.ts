@@ -3,6 +3,8 @@ import config from '@payload-config'
 import { bookingCard, send, token as botToken } from '@/lib/telegram.ts'
 import { clientIp, recordHit, tooManyRequests } from '@/lib/ratelimit.ts'
 import { onixClientInfo } from '@/lib/onix.ts'
+import { requestNetwork } from '@/lib/network.ts'
+import { topBranchById } from '@/lib/topSite.ts'
 
 /**
  * Бронь суми: POST JSON із вікна на головній.
@@ -33,6 +35,10 @@ function expiry(closeTime?: string | null, roundClock?: boolean): Date {
 }
 
 export async function POST(req: Request) {
+  // Сайт ТОП пересилає свої броні сюди — на спільний робочий стіл
+  const network = requestNetwork(req)
+  if (network === 'forbidden') return Response.json({ error: 'Доступ заборонено' }, { status: 403 })
+
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -62,15 +68,22 @@ export async function POST(req: Request) {
   }
 
   const payload = await getPayload({ config })
-  const ip = clientIp(req)
-  const tooMany = await tooManyRequests(payload, 'bookings', { phone, ip }, { perPhone: 5, perIp: 10, perSite: 30 })
+  // Заявка з сайту ТОП приходить з його сервера: IP клієнта він передає сам (ключ уже перевірено),
+  // а ліміти рахуються окремо — щоб форми однієї мережі не вичерпували ліміт іншої
+  const ip = network === 'top' ? (req.headers.get('x-client-ip') || '').slice(0, 64) : clientIp(req)
+  const scope = network === 'top' ? 'bookings-top' : 'bookings'
+  const tooMany = await tooManyRequests(payload, scope, { phone, ip }, { perPhone: 5, perIp: 10, perSite: 30 })
   if (tooMany) return Response.json({ error: tooMany }, { status: 429 })
-  await recordHit(payload, 'bookings', { phone, ip })
+  await recordHit(payload, scope, { phone, ip })
 
   try {
-    const branch = await payload.findByID({
-      collection: 'branches', id: branchId, depth: 0, overrideAccess: true,
-    }).catch(() => null)
+    // Відділення ТОП — у базі сайту ТОП: беремо звідти й зберігаємо адресу текстом
+    const topBranch = network === 'top' ? await topBranchById(branchId).catch(() => null) : null
+    const branch = network === 'top'
+      ? (topBranch ? { id: null, address: topBranch.address, schedule: topBranch.schedule, telegramChat: '' } : null)
+      : await payload.findByID({
+        collection: 'branches', id: branchId, depth: 0, overrideAccess: true,
+      }).catch(() => null)
 
     if (!branch) return Response.json({ error: 'Відділення не знайдено' }, { status: 422 })
 
@@ -87,14 +100,15 @@ export async function POST(req: Request) {
       collection: 'bookings',
       overrideAccess: true,
       data: {
-        name, phone, branch: branch.id, amount, weight, days, purity, tier,
-        status: 'new', expiresAt: expiresAt.toISOString(),
+        name, phone, amount, weight, days, purity, tier,
+        status: 'new', expiresAt: expiresAt.toISOString(), network,
+        ...(network === 'top' ? { branchLabel: String(branch.address || '') } : { branch: branch.id as number }),
       },
     })
 
     // ── повідомлення у чат(и): відділення й загальний — обидва, якщо задані ──
     let sent = 'вимкнено: немає токена бота'
-    if (botToken()) {
+    if (botToken('imperial')) {
       const settings = await payload.findGlobal({ slug: 'settings', overrideAccess: true })
       const branchChat = String((branch as { telegramChat?: string }).telegramChat || '')
       const defaultChat = String((settings as { telegramChatDefault?: string }).telegramChatDefault || '')
@@ -108,7 +122,7 @@ export async function POST(req: Request) {
         })
         const onix = await onixClientInfo(payload, phone)
         const message = bookingCard(
-          { id: doc.id, amount, purity, weight, days, tier, name: onix.fullName || name, phone },
+          { id: doc.id, amount, purity, weight, days, tier, name: onix.fullName || name, phone, network },
           String(branch.address ?? ''),
           till,
           onix.line,
@@ -116,7 +130,7 @@ export async function POST(req: Request) {
 
         const results = await Promise.all(chats.map(async (chat) => {
           try {
-            await send({ chat, text: message })
+            await send({ chat, text: message, bot: 'imperial' })
             return true
           } catch (e) {
             // заявка вже збережена — мессенджер не має ламати бронь
