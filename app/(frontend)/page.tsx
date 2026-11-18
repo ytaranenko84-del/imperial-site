@@ -253,6 +253,7 @@ export async function HomePage({ locale }: { locale: L }) {
           items={[
             { href: '/zastava', label: NAV_LABELS[locale].catalog },
             { href: '/calc', label: NAV_LABELS[locale].calc },
+            { href: '/tsina-zolota', label: NAV_LABELS[locale].gold },
             { href: '/zastava/hodynnyky', label: NAV_LABELS[locale].watches },
             { href: '/novyny', label: NAV_LABELS[locale].news },
             { href: '/viddilennya', label: NAV_LABELS[locale].branches },
