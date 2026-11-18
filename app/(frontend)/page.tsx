@@ -155,9 +155,9 @@ const TRUST: Record<L, [string, string][]> = {
   ],
 }
 
-const NAV_LABELS: Record<L, { catalog: string; calc: string; watches: string; news: string; branches: string }> = {
-  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', watches: 'Годинники', news: 'Новини та акції', branches: 'Відділення' },
-  ru: { catalog: 'Что принимаем', calc: 'Оценка', watches: 'Часы', news: 'Новости и акции', branches: 'Отделения' },
+const NAV_LABELS: Record<L, { catalog: string; calc: string; gold: string; watches: string; news: string; branches: string }> = {
+  uk: { catalog: 'Що приймаємо', calc: 'Оцінка', gold: 'Ціна золота', watches: 'Годинники', news: 'Новини та акції', branches: 'Відділення' },
+  ru: { catalog: 'Что принимаем', calc: 'Оценка', gold: 'Цена золота', watches: 'Часы', news: 'Новости и акции', branches: 'Отделения' },
 }
 
 const T = {
