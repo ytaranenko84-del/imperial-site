@@ -32,7 +32,7 @@
 .gp__t td { text-align: right; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .gp__t th:first-child, .gp__t td:first-child { text-align: left; }
 .gp__t tr.is-main td { background: var(--gold-soft); font-weight: 700; }
-.gp__t tr.is-silver td { color: var(--dim); white-space: normal; }
+.gp__t tr.is-silver td:first-child { white-space: normal; }
 .gp__gold { color: var(--gold); font-weight: 600; }
 .gp__t--plain { max-width: 760px; }
 .sec--gray .gp__t td, .sec--gray .gp__t th { border-color: rgba(0, 0, 0, 0.08); }

@@ -46,7 +46,7 @@ const T = {
     thPurity: 'Проба', thBase: 'Під заставу без статусу', thNew: (b: number) => `Новому клієнту +${b}%`,
     thMax: 'Максимум зі статусом', thBuy: 'Скупка', thPledge: 'Застава',
     silver: 'Срібло',
-    tableNote: (limits: string) => `Ціни в гривнях за 1 грам. Надбавка статусу діє на вироби до ${limits}.`,
+    tableNote: (limits: string) => `Ціни в гривнях за 1 грам. Надбавка статусу на золото діє на вироби до ${limits}; на срібло — без обмеження ваги.`,
     shortNote: (tier: string) => `«До» — зі статусом «${tier}». Свою суму — у калькуляторі нижче.`,
     weightH2: 'Скільки дадуть за вашу прикрасу',
     weightLead: 'Під заставу, без статусу. Обручка — зазвичай 2–4 г, ланцюжок — 5–15 г.',
@@ -84,7 +84,7 @@ const T = {
     thPurity: 'Проба', thBase: 'Под залог без статуса', thNew: (b: number) => `Новому клиенту +${b}%`,
     thMax: 'Максимум со статусом', thBuy: 'Скупка', thPledge: 'Залог',
     silver: 'Серебро',
-    tableNote: (limits: string) => `Цены в гривнах за 1 грамм. Надбавка статуса действует на изделия до ${limits}.`,
+    tableNote: (limits: string) => `Цены в гривнах за 1 грамм. Надбавка статуса на золото действует на изделия до ${limits}; на серебро — без ограничения веса.`,
     shortNote: (tier: string) => `«До» — со статусом «${tier}». Свою сумму — в калькуляторе ниже.`,
     weightH2: 'Сколько дадут за ваше украшение',
     weightLead: 'Под залог, без статуса. Обручальное кольцо — обычно 2–4 г, цепочка — 5–15 г.',
@@ -166,6 +166,15 @@ export async function GoldContent({ locale }: { locale: L }) {
 
   const { gold, silver, t585, maxTier, newTier, limit, limitFor } = compute(tariffs, loyaltyTiers, rateTiers, settings)
   const maxBonus = maxTier?.metalBonus ?? 0
+  // Срібло: проби з однаковою ціною — одним рядком («Срібло 999,9 / 925 / 875»).
+  // Надбавка статусу діє так само, як на золото, і без обмеження ваги — як у калькуляторі.
+  const silverGroups = [...silver.reduce((m, x) => {
+    const k = `${x.basePrice}|${x.purchasePrice ?? x.basePrice}`
+    const g = m.get(k)
+    if (g) g.labels.push(x.purityLabel.replace('.', ','))
+    else m.set(k, { t: x, labels: [x.purityLabel.replace('.', ',')] })
+    return m
+  }, new Map<string, { t: Tariff; labels: string[] }>()).values()]
   const newBonus = newTier?.metalBonus ?? 0
   const date = priceDate(tariffs, locale)
 
@@ -289,15 +298,15 @@ export async function GoldContent({ locale }: { locale: L }) {
                       <td>{grn(g.purchasePrice ?? g.basePrice)}</td>
                     </tr>
                   ))}
-                  {silver.length > 0 && (
-                    <tr className="is-silver">
-                      <td>{t.silver} {silver.map((x) => x.purityLabel.replace('.', ',')).join(' / ')}</td>
-                      <td>{grn(silver[0].basePrice)}</td>
-                      {newTier && <td>—</td>}
-                      {maxTier && <td>—</td>}
-                      <td>{grn(silver[0].purchasePrice ?? silver[0].basePrice)}</td>
+                  {silverGroups.map(({ t: x, labels }) => (
+                    <tr className="is-silver" key={labels.join()}>
+                      <td>{t.silver} {labels.join(' / ')}</td>
+                      <td>{grn(x.basePrice)}</td>
+                      {newTier && <td>{grn(perGram(x, newBonus))}</td>}
+                      {maxTier && <td className="gp__gold">{grn(perGram(x, maxBonus))}</td>}
+                      <td>{grn(x.purchasePrice ?? x.basePrice)}</td>
                     </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
               {limitText && <p className="gp__note">{t.tableNote(limitText)}</p>}
@@ -313,6 +322,13 @@ export async function GoldContent({ locale }: { locale: L }) {
                       <td>{g.purityLabel.replace('.', ',')}</td>
                       <td>{t.upTo} {grn(perGram(g, maxBonus))}</td>
                       <td>{grn(g.purchasePrice ?? g.basePrice)}</td>
+                    </tr>
+                  ))}
+                  {silverGroups.map(({ t: x, labels }) => (
+                    <tr className="is-silver" key={labels.join()}>
+                      <td>{t.silver} {labels.join(' / ')}</td>
+                      <td>{t.upTo} {grn(perGram(x, maxBonus))}</td>
+                      <td>{grn(x.purchasePrice ?? x.basePrice)}</td>
                     </tr>
                   ))}
                 </tbody>
