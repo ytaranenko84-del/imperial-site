@@ -75,7 +75,8 @@ const nextConfig: NextConfig = {
       { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/calc', permanent: true },
       // Старий лендинг калькулятора золота — за Search Console, 88 кліків і
       // 3784 покази за 3 місяці, реальний трафік, без правила йшов би в 404.
-      { source: '/imperial-landing/calculator_zoloto/:path*', destination: '/calc', permanent: true },
+      // З 18.11.2026 веде на окрему сторінку з ціною за грам — там і калькулятор.
+      { source: '/imperial-landing/calculator_zoloto/:path*', destination: '/tsina-zolota', permanent: true },
       { source: '/loans/tsifrovaya-tekhnika/:path*', destination: '/zastava/tekhnika', permanent: true },
       { source: '/loans/bytovaya-tekhnika/:path*', destination: '/zastava/pobutova-tekhnika', permanent: true },
       { source: '/loans/instrumenty-i-oborudovanie/:path*', destination: '/zastava/instrument', permanent: true },

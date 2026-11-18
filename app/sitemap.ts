@@ -29,6 +29,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...withLocales('/', now, 'daily', 1),
     ...withLocales('/calc', now, 'weekly', 0.95),
+    ...withLocales('/tsina-zolota', now, 'weekly', 0.9),
     ...withLocales('/pro-nas', now, 'monthly', 0.4),
     ...withLocales('/zastava', now, 'monthly', 0.7),
     ...withLocales('/viddilennya', now, 'weekly', 0.9),
