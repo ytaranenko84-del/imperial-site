@@ -70,9 +70,13 @@ const nextConfig: NextConfig = {
       { source: '/news-shares/:path*', destination: '/novyny', permanent: true },
       // На старому сайті /contacts був переліком адрес відділень — ведемо туди ж
       { source: '/contacts', destination: '/viddilennya', permanent: true },
-      // Золото й срібло оцінює калькулятор, а не сторінка категорії з фото —
-      // /zastava/zoloto ніколи не існувало.
-      { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/calc', permanent: true },
+      // Золото й срібло — на сторінку ціни за грам (там і калькулятор);
+      // /zastava/zoloto ніколи не існувало. До 19.11.2026 вело на /calc.
+      { source: '/loans/yuvelirnye-izdeliya/:path*', destination: '/tsina-zolota', permanent: true },
+      // /redemption/contacts на старому сайті — той самий перелік відділень, що й
+      // /contacts (з пагінацією ?PAGEN_1). За Search Console — 216 кліків за 3 місяці,
+      // а віддавав 404. Сам /redemption (викуп авто) лишається без правила, див. нижче.
+      { source: '/redemption/contacts', destination: '/viddilennya', permanent: true },
       // Старий лендинг калькулятора золота — за Search Console, 88 кліків і
       // 3784 покази за 3 місяці, реальний трафік, без правила йшов би в 404.
       // З 18.11.2026 веде на окрему сторінку з ціною за грам — там і калькулятор.
@@ -92,7 +96,7 @@ const nextConfig: NextConfig = {
       { source: '/bonus', destination: '/calc', permanent: true },
       { source: '/loans', destination: '/zastava', permanent: true },
       /*
-       * Тут навмисно немає правил для /reviews, /vacancy і /redemption.
+       * Тут навмисно немає правил для /reviews, /vacancy і /redemption (крім /redemption/contacts вище).
        * Сторінок, на які вони вели, не існує, а постійне перенаправлення на 404
        * пошуковик читає як видалення сторінки й знімає її з позицій разом із
        * накопиченою вагою. Чесна 404 відновлюється легше.
