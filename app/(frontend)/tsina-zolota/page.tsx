@@ -36,7 +36,7 @@ const T = {
     h1: 'Ціна золота за грам у ломбарді «Імперіал»',
     lede: 'Скільки дамо за грам під заставу і скільки заплатимо, якщо продаєте назавжди. '
       + 'Ціна однакова в усіх відділеннях і змінюється разом із ціною золота на світовій біржі.',
-    priceFrom: (d: string) => `Прайс від ${d}`,
+    priceFrom: (d: string) => `Ціни актуальні на ${d}`,
     heroLbl: '585 проба · під заставу',
     upTo: 'до',
     perGram: 'грн/г',
@@ -74,7 +74,7 @@ const T = {
     h1: 'Цена золота за грамм в ломбарде «Империал»',
     lede: 'Сколько дадим за грамм под залог и сколько заплатим, если продаёте навсегда. '
       + 'Цена одинакова во всех отделениях и меняется вместе с ценой золота на мировой бирже.',
-    priceFrom: (d: string) => `Прайс от ${d}`,
+    priceFrom: (d: string) => `Цены актуальны на ${d}`,
     heroLbl: '585 проба · под залог',
     upTo: 'до',
     perGram: 'грн/г',
@@ -118,10 +118,14 @@ function rateFor(tiers: RateTier[], amount: number): RateTier | null {
   return tiers.find((t) => amount >= t.amountFrom && (t.amountTo == null || amount <= t.amountTo)) ?? tiers[tiers.length - 1]
 }
 
+/**
+ * Сьогоднішня дата (за Києвом): ціни діють сьогодні, навіть якщо востаннє
+ * змінювались раніше. Справжня дата зміни — approvedAt — лишається в адмінці.
+ * Сторінка перегенеровується раз на хвилину, тож після півночі дата оновиться сама.
+ */
 function priceDate(tariffs: Tariff[], locale: L): string | null {
-  const ms = tariffs.map((t) => (t.approvedAt ? new Date(t.approvedAt).getTime() : 0)).filter((n) => n > 0)
-  if (!ms.length) return null
-  return new Date(Math.max(...ms))
+  if (!tariffs.length) return null
+  return new Date()
     .toLocaleDateString(locale === 'ru' ? 'ru-UA' : 'uk-UA', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Kyiv' })
     .replace(/\s*(р|г)\.$/, '')
 }
